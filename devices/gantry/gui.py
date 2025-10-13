@@ -18,9 +18,14 @@ def make_torque_tracer(double_var, string_var):
     """Updates a string variable with a percentage from a double variable."""
     def tracer(*args):
         try:
-            val = double_var.get()
-            string_var.set(f"{int(val)}%")
-        except (tk.TclError, ValueError):
+            # Get the value, which might be a float or a string like "50.0 %"
+            val_raw = double_var.get()
+            
+            # Convert to float, stripping non-numeric parts if necessary
+            val_float = float(str(val_raw).split()[0])
+            
+            string_var.set(f"{int(val_float)}%")
+        except (tk.TclError, ValueError, IndexError):
             string_var.set("ERR")
     return tracer
 
