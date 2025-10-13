@@ -1,0 +1,9 @@
+{
+    "MAIN_STATE": {"gui_var": "pressurizer_main_state_var", "default": "STANDBY"},
+    "pressure_psi": {"gui_var": "pressurizer_pressure_var", "format": {"precision": 2, "multiplier": 0.7032496149}, "default": 0.0},
+    "enabled": {"gui_var": "pressurizer_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "cycles_programmed": {"gui_var": "pressurizer_cycles_programmed_var", "default": 10},
+    "cycles_complete": {"gui_var": "pressurizer_cycles_complete_var", "default": 0},
+    "tank1_temp_c": {"gui_var": "pressurizer_tank1_temp_var", "format": {"precision": 1}, "default": 25.0},
+    "tank2_temp_c": {"gui_var": "pressurizer_tank2_temp_var", "format": {"precision": 1}, "default": 25.1}
+}

@@ -1,0 +1,38 @@
+{
+    "PRESSURIZER_HOME": {"device": "pressurizer", "params": [], "help": "Homes the pressurizer."},
+    "PRESSURIZER_SET_PRESSURE": {
+        "device": "pressurizer",
+        "params": [
+            {"name": "Pressure(msw)", "type": "float", "min": 0, "max": 100},
+            {"name": "Rate(msw/s)", "type": "float", "min": 0.1, "max": 10, "optional": true}
+        ],
+        "help": "Sets the target pressure."
+    },
+    "PRESSURIZER_HOLD_STATIC": {
+        "device": "pressurizer",
+        "params": [
+            {"name": "Duration", "type": "float", "min": 0},
+            {"name": "Units(s/m/h)", "type": "str", "optional": true, "default": "s"}
+        ],
+        "help": "Holds the current position for a duration (s, m, or h)."
+    },
+    "PRESSURIZER_HOLD_PRESSURE": {
+        "device": "pressurizer",
+        "params": [
+            {"name": "Duration", "type": "float", "min": 0},
+            {"name": "Units(s/m/h)", "type": "str", "optional": true, "default": "s"}
+        ],
+        "help": "Holds the current pressure for a duration (s, m, or h)."
+    },
+    "PRESSURIZER_SET_TEMP": {
+        "device": "pressurizer",
+        "params": [
+            {"name": "Tank(1/2)", "type": "int", "min": 1, "max": 2},
+            {"name": "Temp(C)", "type": "float", "min": 0, "max": 100}
+        ],
+        "help": "Sets the temperature for a specific tank."
+    },
+    "PRESSURIZER_CLEAR_ERRORS": {"device": "pressurizer", "params": [], "help": "Clears any active errors on the device."},
+    "PRESSURIZER_ENABLE": {"device": "pressurizer", "params": [], "help": "Enables the motors."},
+    "PRESSURIZER_DISABLE": {"device": "pressurizer", "params": [], "help": "Disables the motors."}
+}

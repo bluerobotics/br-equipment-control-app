@@ -1,0 +1,18 @@
+{
+    "gantry_state": {"gui_var": "gantry_main_state_var", "default": "STANDBY"},
+    "x_st": {"gui_var": "gantry_x_state_var", "default": "Standby"},
+    "y_st": {"gui_var": "gantry_y_state_var", "default": "Standby"},
+    "z_st": {"gui_var": "gantry_z_state_var", "default": "Standby"},
+    "x_p": {"gui_var": "gantry_x_pos_var", "default": 0.0},
+    "x_t": {"gui_var": "gantry_x_torque_var", "default": 0.0},
+    "x_e": {"gui_var": "gantry_x_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "x_h": {"gui_var": "gantry_x_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
+    "y_p": {"gui_var": "gantry_y_pos_var", "default": 0.0},
+    "y_t": {"gui_var": "gantry_y_torque_var", "default": 0.0},
+    "y_e": {"gui_var": "gantry_y_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "y_h": {"gui_var": "gantry_y_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
+    "z_p": {"gui_var": "gantry_z_pos_var", "default": 0.0},
+    "z_t": {"gui_var": "gantry_z_torque_var", "default": 0.0},
+    "z_e": {"gui_var": "gantry_z_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "z_h": {"gui_var": "gantry_z_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0}
+}

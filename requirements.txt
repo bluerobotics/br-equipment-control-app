@@ -1,0 +1,2 @@
+# This project currently uses only Python's standard libraries.
+# No external packages are required to run the application.
