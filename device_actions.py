@@ -11,11 +11,10 @@ simulator_process = None
 
 def get_simulator_path():
     """Gets the absolute path to the simulator script."""
-    # Assumes the script is located at <project_root>/st8erboi-simulator/simulator.py
-    # This is a bit fragile but works for the current structure.
+    # Assumes the script is located at <project_root>/simulator.py
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(current_dir, '..'))
-    return os.path.join(project_root, 'st8erboi-simulator', 'simulator.py')
+    # Since this file is in the root, its directory is the project root.
+    return os.path.join(current_dir, 'simulator.py')
 
 def run_simulator(parent):
     """Launches the device simulator in a new process."""

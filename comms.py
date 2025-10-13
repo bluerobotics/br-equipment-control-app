@@ -16,7 +16,8 @@ TIMEOUT_THRESHOLD = 3.0
 # --- Helper ---
 def safe_float(s, default_val=0.0):
     try:
-        return float(s)
+        # Strip trailing periods before conversion to handle malformed data like "25."
+        return float(s.strip().rstrip('.'))
     except (ValueError, TypeError):
         return default_val
 
