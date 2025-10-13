@@ -16,6 +16,8 @@ import device_actions # Import the new device actions
 from device_manager import DeviceManager # Import the new DeviceManager
 import datetime
 
+from _version import __version__
+
 # Import GUI components
 from top_menu import create_top_menu
 
@@ -93,7 +95,7 @@ class CollapsiblePanel(ttk.Frame):
 class MainApplication:
     def __init__(self, root):
         self.root = root
-        self.root.title("BR Equipment Control App")
+        self.root.title(f"BR Equipment Control App - v{__version__}")
         self.root.configure(bg=theme.BG_COLOR)
 
         # Thread-safe queue for GUI updates

@@ -8,7 +8,7 @@ import re
 import tkinter.font as tkfont
 
 from script_validator import validate_single_line, validate_script
-from script_processor import ScriptRunner
+from script_processor import ScriptRunner, SCRIPT_COMMANDS
 import theme
 from comms import devices_lock
 
@@ -306,14 +306,14 @@ class SyntaxHighlighter:
 
         # Highlight device commands
         if self.device_keywords:
-            keyword_pattern = r'\b(' + '|'.join(self.device_keywords) + r')\b'
+            keyword_pattern = r'\b(' + '|'.join(re.escape(k) for k in self.device_keywords) + r')\b'
             for match in re.finditer(keyword_pattern, content, re.IGNORECASE):
                 start, end = match.span()
                 self.text.tag_add("command", f"1.0+{start}c", f"1.0+{end}c")
 
         # Highlight script commands
         if self.script_keywords:
-            keyword_pattern = r'\b(' + '|'.join(self.script_keywords) + r')\b'
+            keyword_pattern = r'\b(' + '|'.join(re.escape(k) for k in self.script_keywords) + r')\b'
             for match in re.finditer(keyword_pattern, content, re.IGNORECASE):
                 start, end = match.span()
                 self.text.tag_add("script_command", f"1.0+{start}c", f"1.0+{end}c")
@@ -364,10 +364,18 @@ class ScriptEditor(tk.Frame):
         self.text.tag_configure("current_line", background=theme.SECONDARY_ACCENT)
         self._highlight_current_line()
         
+        # Get all commands from the manager
         all_commands = self.device_manager.get_all_scripting_commands()
-        device_keywords = [cmd for cmd, details in all_commands.items() if details['device'] not in ['script', 'both']]
-        script_keywords = [cmd for cmd, details in all_commands.items() if details['device'] in ['script', 'both']]
-        self.highlighter = SyntaxHighlighter(self.text, device_keywords, script_keywords)
+        all_commands.update(SCRIPT_COMMANDS) # Add the generic script commands
+
+        # Separate the keywords for the highlighter based on the 'handler' key
+        device_keywords = [cmd for cmd, details in all_commands.items() if details.get('handler') != 'script']
+        script_keywords = [cmd for cmd, details in all_commands.items() if details.get('handler') == 'script']
+        
+        # Add the hardcoded script commands (like CYCLE, REPEAT) to the script keywords
+        script_keywords.extend(list(SCRIPT_COMMANDS.keys()))
+
+        self.highlighter = SyntaxHighlighter(self.text, device_keywords, list(set(script_keywords))) # Use set to remove duplicates
         self.highlighter.device_manager = device_manager # Pass manager for refreshing
     
     def _on_tab(self, event):
@@ -598,7 +606,11 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         # Handle case where device manager isn't available
         scripting_area.add(ttk.Label(scripting_area, text="Error: Device Manager not found."))
         return {}
+    
+    # Combine all commands for the validator and script runner
     scripting_commands = device_manager.get_all_scripting_commands()
+    scripting_commands.update(SCRIPT_COMMANDS)
+    
     device_modules = device_manager.get_device_modules()
 
     paned_window = ttk.PanedWindow(scripting_area, orient=tk.HORIZONTAL, style='TPanedwindow')

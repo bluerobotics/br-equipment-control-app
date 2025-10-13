@@ -18,6 +18,9 @@ PRIMARY_ACCENT = "#61AFEF"    # A nice, clear blue for highlights
 SECONDARY_ACCENT = "#3E4452"  # A medium gray for inactive elements
 WIDGET_BORDER = "#181A1F"     # A very dark border for widgets
 
+# --- Terminal Colors ---
+TERMINAL_FG_COLOR = "#F0F0F0"   # A bright, clean white for terminal text
+
 # --- Action Colors for Buttons ---
 SUCCESS_GREEN = "#98C379"     # Green for "Run"
 ERROR_RED = "#E06C75"         # Red for "Stop/Abort"

@@ -4,9 +4,10 @@
 
 # BR Equipment Control App
 
-**Version:** 1.2  
-**Author:** Eldin Miller-Stead  
-**Release Date:** 2025-10-13
+**Version:** 1.0.0  
+**Version Release Date:** 2025-10-13
+
+[View Changelog](CHANGELOG.md)
 
 ---
 
@@ -187,3 +188,5 @@ def create_gui_components(parent, shared_gui_refs):
     ```bash
     python main.py
     ```
+
+For detailed instructions on installation, usage, and scripting, please see the full [documentation](https://your-documentation-link-here.com).

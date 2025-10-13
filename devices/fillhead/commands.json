@@ -149,5 +149,14 @@
         "device": "fillhead",
         "params": [{"name": "Duration(s)", "type": "float", "min": 1, "max": 300}],
         "help": "Sets the duration of the leak test measurement period."
+    },
+    "WAIT_UNTIL_HEATER_AT_TEMP": {
+        "device": "fillhead",
+        "handler": "script",
+        "params": [
+            {"name": "temperature_C", "type": "float"},
+            {"name": "timeout_sec", "type": "int", "optional": true, "default": 300}
+        ],
+        "help": "Pauses script until the heater reaches the target temperature."
     }
 }

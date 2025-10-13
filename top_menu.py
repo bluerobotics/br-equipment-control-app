@@ -5,6 +5,7 @@ from tkinter import Menu
 import theme
 import os
 import webbrowser
+from _version import __version__
 
 
 def open_documentation():
@@ -94,7 +95,7 @@ def show_about_window(parent):
     messagebox.showinfo(
         "About BR Equipment Control App",
         "BR Equipment Control App\n\n"
-        "Version: 1.2\n"
+        f"Version: {__version__}\n"
         "Release Date: 2025-10-13\n\n"
         "Author: Eldin Miller-Stead",
         parent=parent

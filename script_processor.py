@@ -4,6 +4,25 @@ import queue
 import tkinter as tk  # For TclError and StringVar
 import re
 
+# --- Script-Specific Command Definitions ---
+SCRIPT_COMMANDS = {
+    "WAIT": {
+        "device": "script",
+        "params": [{"name": "time_ms", "type": "int"}],
+        "help": "Pauses script execution for a specified duration."
+    },
+    "CYCLE": {
+        "device": "script",
+        "params": [],
+        "help": "Marks a point for the script to loop back to."
+    },
+    "REPEAT": {
+        "device": "script",
+        "params": [{"name": "count", "type": "int"}],
+        "help": "Repeats the script from the last CYCLE point."
+    }
+}
+
 class ScriptRunner(threading.Thread):
     """
     Runs a script in a separate thread to avoid blocking the GUI.
