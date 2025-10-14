@@ -185,93 +185,63 @@ class ScriptRunner(threading.Thread):
         # Clear the injection target display at the end of the script
         if self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
-
-    def _get_default(self, command_name, param_index):
-        # This function is no longer needed with the new keyword parser.
-        pass
     
-    def _parse_keyword_args(self, parts, command_info):
+    def _parse_positional_args(self, parts, command_info):
         """
-        Parses a list of command parts for keyword arguments.
+        Parses a list of command parts for positional arguments.
+        Non-numeric parts are treated as comments or units and ignored.
         Returns a dictionary of resolved arguments and an error string if applicable.
         """
         resolved_args = {}
         error = None
         
-        # --- Create a map of keyword -> param_name ---
-        keyword_map = {}
-        for param in command_info.get('params', []):
-            for keyword in param.get('keywords', []):
-                keyword_map[keyword.lower()] = param['name']
-
-        # --- Identify values and their potential keywords ---
-        # A value is a number, a keyword is a non-number.
-        # Example: "HEATER_ON", "70", "C", "20", "P"
-        # We pair the value with the keywords that follow it.
-        
-        i = 1 # Start after the command word
-        while i < len(parts):
-            # Check if the current part is a number
-            current_part = parts[i]
-            is_numeric = False
+        # --- Extract only numeric values from the command parts ---
+        values = []
+        for part in parts[1:]:  # Start after the command word
             try:
-                float(current_part)
-                is_numeric = True
+                # This will capture integers and floats, we can convert to specific types later
+                float(part)
+                values.append(part)
             except ValueError:
-                pass
+                # This part is not a number, so we treat it as a comment/unit and ignore it.
+                continue
+                
+        params_def = command_info.get('params', [])
+
+        # Check if more arguments are provided than defined
+        if len(values) > len(params_def):
+            error = f"Too many arguments. Expected {len(params_def)}, got {len(values)}."
+            return resolved_args, error
+        
+        # --- Assign values to parameters based on their position ---
+        for i, param_def in enumerate(params_def):
+            param_name = param_def['name']
             
-            if is_numeric:
-                value = current_part
-                # The next parts are potential keywords until we hit another number or the end
-                potential_keywords = []
-                j = i + 1
-                while j < len(parts):
-                    next_part = parts[j]
-                    is_next_numeric = False
-                    try:
-                        float(next_part)
-                        is_next_numeric = True
-                    except ValueError:
-                        pass
-                    
-                    if is_next_numeric:
-                        break # Stop at the next number
-                    
-                    potential_keywords.append(next_part.lower())
-                    j += 1
+            if i < len(values):
+                value_str = values[i]
+                param_type = param_def.get('type', 'str')
                 
-                # --- Find the first matching keyword ---
-                found_keyword = False
-                for p_keyword in potential_keywords:
-                    if p_keyword in keyword_map:
-                        param_name = keyword_map[p_keyword]
-                        if param_name not in resolved_args:
-                            resolved_args[param_name] = value
-                            found_keyword = True
-                            break # Found a match, consume the value
-                
-                # If no keyword was found for this value, it could be a positional argument
-                if not found_keyword:
-                    # For now, we only support keyword arguments for this new parser
-                    # This could be extended to support positional args as well
-                    pass
-                
-                i = j # Move the main index to the start of the next value/keyword group
+                try:
+                    if param_type == 'int':
+                        # Convert to float first to handle cases like "5.0", then to int
+                        resolved_args[param_name] = int(float(value_str))
+                    elif param_type == 'float':
+                        resolved_args[param_name] = float(value_str)
+                    else: # Default to string if type is not specified or 'str'
+                        resolved_args[param_name] = value_str
+                except ValueError:
+                    error = f"Invalid type for '{param_name}'. Expected {param_type}, got '{value_str}'."
+                    break # Stop processing on the first error
             else:
-                i += 1 # Not a number, just skip to the next part
-        
-        # --- Fill in defaults for any missing optional parameters ---
-        for param in command_info.get('params', []):
-            param_name = param['name']
-            if param_name not in resolved_args:
-                if param.get('optional'):
-                    if 'default' in param:
-                        resolved_args[param_name] = param['default']
+                # Not enough values were provided, check for optional parameters
+                if param_def.get('optional'):
+                    if 'default' in param_def:
+                        resolved_args[param_name] = param_def['default']
                 else:
-                    # This is a required parameter that was not found.
+                    # A required parameter is missing
                     error = f"Missing required parameter '{param_name}'"
-                    break
-        
+                    break # Stop processing
+
         return resolved_args, error
 
     def _handle_wait(self, args, line_num, is_seconds=False):
@@ -320,7 +290,7 @@ class ScriptRunner(threading.Thread):
             device = command_info['device']
             
             # --- New Keyword Argument Parsing ---
-            resolved_params, error = self._parse_keyword_args(parts, command_info)
+            resolved_params, error = self._parse_positional_args(parts, command_info)
             if error:
                 self.status_cb(f"Error on L{line_num}: {error} for command '{command_word}'.", line_num)
                 self.is_running = False
