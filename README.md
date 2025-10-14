@@ -51,7 +51,7 @@ The application runs on several threads to separate tasks and keep the UI respon
 
 ### 3.2. How the Core Modules Work Together
 
-#### `main.py` - The Orchestrator
+#### `main.py` - Core Application
 This is the starting point of the application. The `MainApplication` class is responsible for:
 - Creating the main window and setting up the overall layout.
 - Creating an instance of the `DeviceManager`.
@@ -60,20 +60,20 @@ This is the starting point of the application. The `MainApplication` class is re
 - Starting the background threads defined in `comms.py`.
 - Providing functions that can be called later to add new UI panels (`add_new_device_panels`) and refresh the command lists (`refresh_command_components`) when a new device is loaded at runtime.
 
-#### `device_manager.py` - The Device Database
+#### `device_manager.py` - Device Manager
 This module's `DeviceManager` class is the central authority on all things related to devices.
 
 - **On Startup**: It scans the `/devices` folder and loads all the configuration files and `gui.py` modules it finds. It builds an internal dictionary of all known devices and their properties.
 - **At Runtime**: When the user clicks "Scan for New Device Modules", its `scan_and_load_new_devices()` method is called. This method re-scans the `/devices` folder, identifies any new subdirectories, and loads them in the same way it did at startup.
 - **Source of Truth**: It holds the complete, up-to-date list of all loaded devices, their command definitions, their telemetry schemas, their UI modules, and their current connection status (IP address, etc.). Other parts of the application query the `DeviceManager` to get this information.
 
-#### `comms.py` - The Network Handler
+#### `comms.py` - Network Handler
 This module handles all sending and receiving of UDP packets over the network. The protocol is lightweight and designed for use on a local Ethernet network.
 
 - It does not contain any hardcoded device names. When a message like `GANTRY_TELEM:...` arrives, the `recv_loop` function extracts the `gantry` part of the message. It then asks the `DeviceManager`, "Do you know about a device named 'gantry'?" If the `DeviceManager` says yes, `comms.py` proceeds to handle the message. If no, the message is marked as "[UNHANDLED]".
 - This design means that when a new device is loaded by the `DeviceManager`, the `comms.py` module will start recognizing its messages automatically, without needing to be restarted or reconfigured.
 
-#### `scripting_gui.py` & `script_processor.py` - The Scripting Engine
+#### `scripting_gui.py` & `script_processor.py` - Scripting Engine
 - The UI for the scripting engine is created in `scripting_gui.py`. When it is created, it asks the `DeviceManager` for a list of all commands from all known devices. It uses this list to configure the syntax highlighter and the command reference panel. It also includes `refresh` methods so these components can be updated when new devices are loaded.
 - `script_processor.py` contains the `ScriptRunner` class, which is responsible for executing the script text. It runs in a background thread and sends commands to devices one by one, waiting for a `DONE:` reply before moving to the next line to provide synchronous execution of commands.
 
