@@ -4,7 +4,7 @@
 
 # BR Equipment Control App
 
-**Version:** 1.0.0  
+**Version:** 1.0.1  
 **Version Release Date:** 2025-10-13
 
 [View Changelog](CHANGELOG.md)
