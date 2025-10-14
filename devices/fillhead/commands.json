@@ -1,162 +1,118 @@
 {
-    "INJECT_STATOR": {
-        "device": "fillhead",
-        "params": [
-            {"name": "Volume(ml)", "type": "float", "min": 0, "max": 1000},
-            {"name": "Speed(ml/s)", "type": "float", "min": 0.01, "max": 5.0, "optional": true, "default": 0.25}
-        ],
-        "help": "Injects a specific volume using the Stator (5:1) cartridge settings."
-    },
-    "INJECT_ROTOR": {
-        "device": "fillhead",
-        "params": [
-            {"name": "Volume(ml)", "type": "float", "min": 0, "max": 1000},
-            {"name": "Speed(ml/s)", "type": "float", "min": 0.01, "max": 5.0, "optional": true, "default": 0.25}
-        ],
-        "help": "Injects a specific volume using the Rotor (1:1) cartridge settings."
-    },
-    "JOG_MOVE": {
-        "device": "fillhead",
-        "params": [
-            {"name": "Dist-M0(mm)", "type": "float", "min": -100, "max": 100},
-            {"name": "Dist-M1(mm)", "type": "float", "min": -100, "max": 100},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.01, "max": 5.0, "optional": true, "default": 1.0},
-            {"name": "Accel(mm/s^2)", "type": "float", "min": 1, "max": 50.0, "optional": true, "default": 10.0},
-            {"name": "Torque(%)", "type": "float", "min": 0, "max": 100, "optional": true, "default": 20}
-        ],
-        "help": "Jogs the injector motors by a relative distance. M0 is Machine, M1 is Cartridge."
-    },
-    "SET_HEATER_SETPOINT": {
-        "device": "fillhead",
-        "params": [{"name": "Temp(°C)", "type": "float", "min": 20, "max": 150}],
-        "help": "Sets the target temperature for the heater PID."
-    },
-    "SET_HEATER_GAINS": {
-        "device": "fillhead",
-        "params": [
-            {"name": "Kp", "type": "float", "min": 0, "max": 1000},
-            {"name": "Ki", "type": "float", "min": 0, "max": 1000},
-            {"name": "Kd", "type": "float", "min": 0, "max": 1000}
-        ],
-        "help": "Sets the PID gains for the heater."
-    },
-    "MACHINE_HOME_MOVE": {
-        "device": "fillhead",
-        "gui_action": "machine_home",
-        "params": [],
-        "help": "Homes the main machine axis using hardcoded parameters from firmware."
-    },
-    "CARTRIDGE_HOME_MOVE": {
-        "device": "fillhead",
-        "gui_action": "cartridge_home",
-        "params": [],
-        "help": "Homes the injector against the cartridge using hardcoded parameters from firmware."
-    },
-    "INJECTION_VALVE_CLOSE": {"device": "fillhead", "params": [], "help": "Closes the injection pinch valve."},
-    "INJECTION_VALVE_HOME_TUBED": {"device": "fillhead", "params": [], "help": "Homes the injection pinch valve with a tube installed."},
-    "INJECTION_VALVE_HOME_UNTUBED": {"device": "fillhead", "params": [], "help": "Homes the injection pinch valve without a tube installed."},
-    "INJECTION_VALVE_JOG": {
-        "device": "fillhead",
-        "params": [{"name": "Dist(mm)", "type": "float", "min": -50, "max": 50}],
-        "help": "Jogs the injection pinch valve by a relative distance."
-    },
-    "INJECTION_VALVE_OPEN": {"device": "fillhead", "params": [], "help": "Opens the injection pinch valve."},
-    "VACUUM_VALVE_CLOSE": {"device": "fillhead", "params": [], "help": "Closes the vacuum pinch valve."},
-    "VACUUM_VALVE_HOME_TUBED": {"device": "fillhead", "params": [], "help": "Homes the vacuum pinch valve with a tube installed."},
-    "VACUUM_VALVE_HOME_UNTUBED": {"device": "fillhead", "params": [], "help": "Homes the vacuum pinch valve without a tube installed."},
-    "VACUUM_VALVE_JOG": {
-        "device": "fillhead",
-        "params": [{"name": "Dist(mm)", "type": "float", "min": -50, "max": 50}],
-        "help": "Jogs the vacuum pinch valve by a relative distance."
-    },
-    "VACUUM_VALVE_OPEN": {"device": "fillhead", "params": [], "help": "Opens the vacuum pinch valve."},
-    "MOVE_TO_CARTRIDGE_HOME": {"device": "fillhead", "params": [], "help": "Moves the injector to the zero position of the cartridge."},
-    "PAUSE_INJECTION": {
-        "device": "fillhead",
-        "gui_action": "pause_injection",
-        "params": [],
-        "help": "Pauses an ongoing injection or purge."
-    },
-    "RESUME_INJECTION": {
-        "device": "fillhead",
-        "gui_action": "resume_injection",
-        "params": [],
-        "help": "Resumes a paused injection or purge."
-    },
-    "CANCEL_INJECTION": {
-        "device": "fillhead",
-        "gui_action": "cancel_injection",
-        "params": [],
-        "help": "Cancels an injection or purge."
-    },
-    "ENABLE": {
-        "device": "fillhead",
-        "gui_action": "enable_motors",
-        "params": [],
-        "help": "Enables all injector motors."
-    },
-    "DISABLE": {
-        "device": "fillhead",
-        "gui_action": "disable_motors",
-        "params": [],
-        "help": "Disables all injector motors."
-    },
     "HEATER_ON": {
         "device": "fillhead",
-        "gui_action": "heater_on",
-        "params": [],
-        "help": "Turns the heater PID controller on."
+        "params": [
+            {"name": "setpoint_C", "type": "float", "optional": true, "keywords": ["temp", "temperature", "C"]}
+        ],
+        "help": "Turns the heater on. Optionally sets the target temperature."
     },
     "HEATER_OFF": {
         "device": "fillhead",
-        "gui_action": "heater_off",
         "params": [],
-        "help": "Turns the heater PID controller off."
-    },
-    "VACUUM_ON": {
-        "device": "fillhead",
-        "gui_action": "vacuum_on",
-        "params": [],
-        "help": "Turns the vacuum pump ON and opens the valve."
-    },
-    "VACUUM_OFF": {
-        "device": "fillhead",
-        "gui_action": "vacuum_off",
-        "params": [],
-        "help": "Turns the vacuum pump OFF and closes the valve."
+        "help": "Turns the heater off."
     },
     "VACUUM_LEAK_TEST": {
         "device": "fillhead",
+        "params": [
+            {"name": "delta_psi", "type": "float", "optional": true, "keywords": ["delta", "d"]},
+            {"name": "duration_s", "type": "float", "optional": true, "keywords": ["duration", "dur", "s", "sec"]}
+        ],
+        "help": "Performs a vacuum leak test. All parameters are optional."
+    },
+    "VACUUM_ON": {
+        "device": "fillhead",
+        "params": [
+            {"name": "target_psi", "type": "float", "optional": true, "keywords": ["vacuum", "vac", "psi"]}
+        ],
+        "help": "Turns the vacuum on. Optionally sets the target vacuum pressure."
+    },
+    "VACUUM_OFF": {
+        "device": "fillhead",
         "params": [],
-        "help": "Starts the automated vacuum leak test sequence in the firmware."
+        "help": "Turns the vacuum off."
     },
-    "SET_VACUUM_TARGET": {
+    "INJECTION_VALVE_HOME_TUBED": {
         "device": "fillhead",
-        "params": [{"name": "Target(PSIG)", "type": "float", "min": -14.5, "max": 0}],
-        "help": "Sets the target pressure for the vacuum system."
+        "params": [],
+        "help": "Homes the injection valve (tubed)."
     },
-    "SET_VACUUM_TIMEOUT_S": {
+    "INJECTION_VALVE_HOME_UNTUBED": {
         "device": "fillhead",
-        "params": [{"name": "Timeout(s)", "type": "float", "min": 1, "max": 300}],
-        "help": "Sets the timeout for reaching the vacuum target."
+        "params": [],
+        "help": "Homes the injection valve (untubed)."
     },
-    "SET_LEAK_TEST_DELTA": {
+    "INJECTION_VALVE_OPEN": {
         "device": "fillhead",
-        "params": [{"name": "Delta(PSI)", "type": "float", "min": 0.01, "max": 5.0}],
-        "help": "Sets the maximum allowed pressure drop for the leak test."
+        "params": [],
+        "help": "Opens the injection valve."
     },
-    "SET_LEAK_TEST_DURATION_S": {
+    "INJECTION_VALVE_CLOSE": {
         "device": "fillhead",
-        "params": [{"name": "Duration(s)", "type": "float", "min": 1, "max": 300}],
-        "help": "Sets the duration of the leak test measurement period."
+        "params": [],
+        "help": "Closes the injection valve."
+    },
+    "VACUUM_VALVE_HOME_TUBED": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Homes the vacuum valve (tubed)."
+    },
+    "VACUUM_VALVE_HOME_UNTUBED": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Homes the vacuum valve (untubed)."
+    },
+    "VACUUM_VALVE_OPEN": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Opens the vacuum valve."
+    },
+    "VACUUM_VALVE_CLOSE": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Closes the vacuum valve."
     },
     "WAIT_UNTIL_HEATER_AT_TEMP": {
         "device": "fillhead",
         "handler": "script",
         "params": [
-            {"name": "temperature_C", "type": "float"},
-            {"name": "timeout_sec", "type": "int", "optional": true, "default": 300}
+            {"name": "temperature_C", "type": "float", "keywords": ["temp", "temperature", "C"]},
+            {"name": "timeout_sec", "type": "int", "optional": true, "default": 300, "keywords": ["timeout", "t"]}
         ],
         "help": "Pauses script until the heater reaches the target temperature."
+    },
+    "WAIT_UNTIL_VACUUM": {
+        "device": "fillhead",
+        "handler": "script",
+        "params": [
+            {"name": "target_psi", "type": "float", "keywords": ["vacuum", "vac", "psi"]},
+            {"name": "timeout_s", "type": "float", "optional": true, "keywords": ["timeout", "t"]}
+        ],
+        "help": "Pauses script until vacuum reaches target. All params optional."
+    },
+    "MACHINE_HOME_MOVE": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Homes the main machine axis."
+    },
+    "CARTRIDGE_HOME_MOVE": {
+        "device": "fillhead",
+        "params": [],
+        "help": "Homes the injector against the cartridge."
+    },
+    "INJECT_STATOR": {
+        "device": "fillhead",
+        "params": [
+            {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},
+            {"name": "speed_ml_s", "type": "float", "optional": true, "keywords": ["speed", "sp"]}
+        ],
+        "help": "Injects a volume using the Stator (5:1) settings."
+    },
+    "INJECT_ROTOR": {
+        "device": "fillhead",
+        "params": [
+            {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},
+            {"name": "speed_ml_s", "type": "float", "optional": true, "keywords": ["speed", "sp"]}
+        ],
+        "help": "Injects a volume using the Rotor (1:1) settings."
     }
 }

@@ -28,7 +28,7 @@ class ScriptRunner(threading.Thread):
     Runs a script in a separate thread to avoid blocking the GUI.
     Handles script parsing, command execution, and status reporting.
     """
-    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, line_offset=0):
+    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, script_handlers, line_offset=0):
         super().__init__(daemon=True)
         self.script_content = script_content
         self.gui_refs = shared_gui_refs
@@ -38,6 +38,7 @@ class ScriptRunner(threading.Thread):
         self.completion_cb = completion_cb
         self.msg_q = msg_q
         self.scripting_commands = scripting_commands
+        self.script_handlers = script_handlers # Store the handlers
         self.line_offset = line_offset
         self._stop_event = threading.Event()
         self.is_running = False
@@ -186,24 +187,92 @@ class ScriptRunner(threading.Thread):
             self.gui_refs['injection_target_ml_var'].set('---')
 
     def _get_default(self, command_name, param_index):
-        param_def = self.scripting_commands[command_name]['params'][param_index]
-        param_name = param_def['name']
+        # This function is no longer needed with the new keyword parser.
+        pass
+    
+    def _parse_keyword_args(self, parts, command_info):
+        """
+        Parses a list of command parts for keyword arguments.
+        Returns a dictionary of resolved arguments and an error string if applicable.
+        """
+        resolved_args = {}
+        error = None
+        
+        # --- Create a map of keyword -> param_name ---
+        keyword_map = {}
+        for param in command_info.get('params', []):
+            for keyword in param.get('keywords', []):
+                keyword_map[keyword.lower()] = param['name']
 
-        if command_name.startswith("MOVE"):
-            if "Speed" in param_name: return self.runtime_defaults.get("MOVE_VEL") or param_def.get("default")
-            if "Accel" in param_name: return self.runtime_defaults.get("MOVE_ACC") or param_def.get("default")
-            if "Torque" in param_name: return self.runtime_defaults.get("MOVE_TORQUE") or param_def.get("default")
-
-        if command_name == "WAIT_UNTIL_VACUUM":
-            if "Target-PSI" in param_name: return self.runtime_defaults.get("VACUUM_TARGET") or param_def.get("default")
-            if "Timeout" in param_name: return self.runtime_defaults.get("VACUUM_TIMEOUT") or param_def.get("default")
-
-        if command_name == "WAIT_UNTIL_HEATER_AT_TEMP":
-            if "Target-Temp" in param_name: return self.runtime_defaults.get("HEATER_TARGET") or param_def.get(
-                "default")
-            if "Timeout" in param_name: return self.runtime_defaults.get("HEATER_TIMEOUT") or param_def.get("default")
-
-        return param_def.get("default")
+        # --- Identify values and their potential keywords ---
+        # A value is a number, a keyword is a non-number.
+        # Example: "HEATER_ON", "70", "C", "20", "P"
+        # We pair the value with the keywords that follow it.
+        
+        i = 1 # Start after the command word
+        while i < len(parts):
+            # Check if the current part is a number
+            current_part = parts[i]
+            is_numeric = False
+            try:
+                float(current_part)
+                is_numeric = True
+            except ValueError:
+                pass
+            
+            if is_numeric:
+                value = current_part
+                # The next parts are potential keywords until we hit another number or the end
+                potential_keywords = []
+                j = i + 1
+                while j < len(parts):
+                    next_part = parts[j]
+                    is_next_numeric = False
+                    try:
+                        float(next_part)
+                        is_next_numeric = True
+                    except ValueError:
+                        pass
+                    
+                    if is_next_numeric:
+                        break # Stop at the next number
+                    
+                    potential_keywords.append(next_part.lower())
+                    j += 1
+                
+                # --- Find the first matching keyword ---
+                found_keyword = False
+                for p_keyword in potential_keywords:
+                    if p_keyword in keyword_map:
+                        param_name = keyword_map[p_keyword]
+                        if param_name not in resolved_args:
+                            resolved_args[param_name] = value
+                            found_keyword = True
+                            break # Found a match, consume the value
+                
+                # If no keyword was found for this value, it could be a positional argument
+                if not found_keyword:
+                    # For now, we only support keyword arguments for this new parser
+                    # This could be extended to support positional args as well
+                    pass
+                
+                i = j # Move the main index to the start of the next value/keyword group
+            else:
+                i += 1 # Not a number, just skip to the next part
+        
+        # --- Fill in defaults for any missing optional parameters ---
+        for param in command_info.get('params', []):
+            param_name = param['name']
+            if param_name not in resolved_args:
+                if param.get('optional'):
+                    if 'default' in param:
+                        resolved_args[param_name] = param['default']
+                else:
+                    # This is a required parameter that was not found.
+                    error = f"Missing required parameter '{param_name}'"
+                    break
+        
+        return resolved_args, error
 
     def _handle_wait(self, args, line_num, is_seconds=False):
         if not args:
@@ -229,74 +298,6 @@ class ScriptRunner(threading.Thread):
             self.is_running = False
             return False
 
-    def _handle_wait_until_vacuum(self, args, line_num):
-        try:
-            # New logic: Use the GUI's target var as the source of truth
-            target_psi_str = args[0] if len(args) > 0 else self.gui_refs['vac_target_var'].get()
-            target_psi = float(target_psi_str)
-            timeout_s = float(args[1]) if len(args) > 1 else float(self.runtime_defaults.get("VACUUM_TIMEOUT", 60))
-        except (ValueError, IndexError, tk.TclError):
-            self.status_cb(f"Error on L{line_num}: Invalid parameters for WAIT_UNTIL_VACUUM.", line_num)
-            self.is_running = False
-            return False
-
-        start_time = time.time()
-        while True:
-            if not self.is_running: return False
-            if time.time() - start_time > timeout_s:
-                self.status_cb(f"Error on L{line_num}: Timeout waiting for vacuum target.", line_num)
-                self.is_running = False
-                return False
-
-            try:
-                psig_str = self.gui_refs['vacuum_psig_var'].get().split()[0]
-                current_psi = float(psig_str)
-                self.status_cb(f"L{line_num}: Waiting for vacuum <= {target_psi:.2f}, current: {current_psi:.2f}",
-                                     line_num)
-                if current_psi <= target_psi:
-                    self.status_cb(f"L{line_num}: Vacuum target reached ({current_psi:.2f} PSIG).", line_num)
-                    return True
-            except (ValueError, IndexError, tk.TclError):
-                self.status_cb(f"L{line_num}: Waiting for vacuum... (current value invalid)", line_num)
-
-            time.sleep(0.2)
-
-    def _handle_wait_until_heater_at_temp(self, args, line_num):
-        try:
-            # The temperature is now a required parameter.
-            target_temp = float(args[0])
-            timeout_s = float(args[1]) if len(args) > 1 else float(self.runtime_defaults.get("HEATER_TIMEOUT", 100))
-        except (ValueError, IndexError):
-            self.status_cb(f"Error on L{line_num}: Invalid or missing parameters for WAIT_UNTIL_HEATER_AT_TEMP.", line_num)
-            self.is_running = False
-            return False
-
-        start_time = time.time()
-        # Calculate the 5% tolerance band
-        tolerance = target_temp * 0.05
-        lower_bound = target_temp - tolerance
-        upper_bound = target_temp + tolerance
-
-        while True:
-            if not self.is_running: return False
-            if time.time() - start_time > timeout_s:
-                self.status_cb(f"Error on L{line_num}: Timeout waiting for heater target.", line_num)
-                self.is_running = False
-                return False
-
-            try:
-                temp_str = self.gui_refs['temp_c_var'].get().split()[0]
-                current_temp = float(temp_str)
-                self.status_cb(f"L{line_num}: Waiting for temp in range [{lower_bound:.1f}..{upper_bound:.1f}]C, current: {current_temp:.1f}C",
-                                     line_num)
-                if lower_bound <= current_temp <= upper_bound:
-                    self.status_cb(f"L{line_num}: Heater target reached ({current_temp:.1f} C).", line_num)
-                    return True
-            except (ValueError, IndexError, tk.TclError):
-                self.status_cb(f"L{line_num}: Waiting for temp... (current value invalid)", line_num)
-
-            time.sleep(0.2)
-
     def _process_line(self, line, line_num):
         sub_commands = line.split(',')
         commands_to_wait_for = []
@@ -309,13 +310,6 @@ class ScriptRunner(threading.Thread):
             parts = sub_cmd_str.split()
             command_word = parts[0].upper()
             
-            # --- NEW: Extract only numeric parts for arguments ---
-            args = []
-            for part in parts[1:]:
-                match = re.match(r'^-?\d+(\.\d+)?', part)
-                if match:
-                    args.append(match.group(0))
-
             command_info = self.scripting_commands.get(command_word)
 
             if not command_info:
@@ -325,70 +319,63 @@ class ScriptRunner(threading.Thread):
 
             device = command_info['device']
             
-            # --- Special Handling for Script-Aware Commands ---
-            # Update the GUI's own variables to keep them in sync with the script
-            if command_word == "SET_HEATER_SETPOINT" and len(args) > 0:
-                # CORRECTED: Uses the real command and the correct GUI variable.
-                self.gui_refs['pid_setpoint_var'].set(args[0])
-            if command_word == "SET_VACUUM_TARGET" and len(args) > 0:
-                self.gui_refs['vac_target_var'].set(args[0])
+            # --- New Keyword Argument Parsing ---
+            resolved_params, error = self._parse_keyword_args(parts, command_info)
+            if error:
+                self.status_cb(f"Error on L{line_num}: {error} for command '{command_word}'.", line_num)
+                self.is_running = False
+                return False
 
-            if device == "script":
-                if command_word == "WAIT_MS":
-                    if not self._handle_wait(args, line_num, is_seconds=False): return False
-                elif command_word == "WAIT":
-                    if not self._handle_wait(args, line_num, is_seconds=True): return False
-                elif command_word == "WAIT_UNTIL_VACUUM":
-                    if not self._handle_wait_until_vacuum(args, line_num): return False
-                elif command_word == "WAIT_UNTIL_HEATER_AT_TEMP":
-                    if not self._handle_wait_until_heater_at_temp(args, line_num): return False
-                elif command_word.startswith("SET_DEFAULT_"):
-                    key = command_word.replace("SET_DEFAULT_", "")
-                    if len(args) == 1: self.runtime_defaults[key] = args[0]
-            # --- NEW: Special handling for 'both' device commands like ABORT ---
+            # --- Handler Dispatch (for script-level commands) ---
+            handler = self.script_handlers.get(command_word)
+            if handler:
+                # Script handlers will need to be updated to expect a dict of params
+                # For now, we will adapt by creating a positional list.
+                pos_args = []
+                for param_def in command_info.get('params', []):
+                    if param_def['name'] in resolved_params:
+                        pos_args.append(resolved_params[param_def['name']])
+                
+                if not handler(self, pos_args, line_num): return False
+            
+            elif device == "script":
+                # Handle built-in script commands
+                if command_word == "WAIT":
+                    if not self._handle_wait([resolved_params.get('time_ms', 0)], line_num, is_seconds=True): return False
+                elif command_word in ["CYCLE", "REPEAT"]:
+                    pass
+
             elif device == "both":
-                # The validator ensures this is a known command, so we can call it directly.
-                # Currently, only "ABORT" uses device "both".
                 func = self.command_funcs.get(command_word.lower())
                 if func:
-                    print(f"[DEBUG] Calling global command: '{command_word}'")
                     func()
                 else:
                     self.status_cb(f"Error on L{line_num}: No handler for global command '{command_word}'.", line_num)
                     self.is_running = False
                     return False
             else:
-                params_def = command_info['params']
-                full_args = list(args)
-
-                if len(args) < len(params_def):
-                    for j in range(len(args), len(params_def)):
-                        param_def = params_def[j]
-                        default_val = self._get_default(command_word, j)
-
-                        if default_val is not None:
-                            full_args.append(str(default_val))
-                        elif not param_def.get("optional"):
-                            self.status_cb(f"Error on L{line_num}: Missing required parameter '{param_def['name']}' for {command_word}.", line_num)
-                            self.is_running = False
-                            return False
+                # --- Construct Final Command for Firmware ---
+                final_args = []
+                for param_def in command_info.get('params', []):
+                    param_name = param_def['name']
+                    if param_name in resolved_params:
+                        final_args.append(str(resolved_params[param_name]))
+                    elif not param_def.get('optional'):
+                        # This should have been caught by the parser, but as a safeguard:
+                        self.status_cb(f"Error on L{line_num}: Missing required parameter '{param_name}' for {command_word}.", line_num)
+                        self.is_running = False
+                        return False
 
                 if not self.is_running: return False
 
-                final_command_str = f"{command_word} {' '.join(full_args)}" if full_args else command_word
+                final_command_str = f"{command_word} {' '.join(final_args)}" if final_args else command_word
                 send_func = self.command_funcs.get(f"send_{device}")
                 if send_func:
                     print(f"[DEBUG] Sending command to {device}: '{final_command_str}'")
                     send_func(final_command_str)
-                    # Add any command that elicits a "_DONE" response to this list.
-                    if "MOVE" in command_word or \
-                       "HOME" in command_word or \
-                       "OPEN" in command_word or \
-                       "CLOSE" in command_word or \
-                       "VACUUM_LEAK_TEST" in command_word or \
-                       "INJECT_STATOR" in command_word or \
-                       "INJECT_ROTOR" in command_word:
+                    if command_info.get("wait_for_done", True): # Assume wait unless specified otherwise
                         commands_to_wait_for.append(command_word)
+
             time.sleep(0.05)
 
         if not self.is_running: return False

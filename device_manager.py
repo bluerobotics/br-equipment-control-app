@@ -27,6 +27,13 @@ class DeviceManager:
                 try:
                     gui_module = importlib.import_module(f'devices.{device_name}.gui')
                     
+                    # --- NEW: Optional Script Handlers ---
+                    script_handlers_module = None
+                    try:
+                        script_handlers_module = importlib.import_module(f'devices.{device_name}.script_handlers')
+                    except ImportError:
+                        pass # It's okay if a device doesn't have script handlers
+
                     # The parser module is now optional.
                     parser_module = None
                     try:
@@ -56,6 +63,7 @@ class DeviceManager:
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
+                        'script_handlers': script_handlers_module, # Store the module
                         'telemetry_data': telemetry_data, # Store the schema
                         'scripting_commands': scripting_commands, # Store loaded JSON data
                         'config': {}, # Keep the key for consistent structure, but it's now unused
@@ -128,6 +136,7 @@ class DeviceManager:
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
+                        'script_handlers': None, # No script_handlers for new devices yet
                         'telemetry_data': telemetry_data,
                         'scripting_commands': scripting_commands,
                         'config': {},
@@ -195,6 +204,16 @@ class DeviceManager:
         all_commands['abort'] = self.send_global_abort
         return all_commands
 
+    def get_all_script_handlers(self):
+        """
+        Aggregates script handler functions from all loaded device modules.
+        """
+        all_handlers = {}
+        for device_name, modules in self.devices.items():
+            if modules.get('script_handlers') and hasattr(modules['script_handlers'], 'HANDLERS'):
+                all_handlers.update(modules['script_handlers'].HANDLERS)
+        return all_handlers
+
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""
         import comms # Local import to avoid circular dependency
@@ -203,8 +222,8 @@ class DeviceManager:
     def send_global_abort(self):
         """Sends an ABORT command to all connected devices."""
         import comms # Local import
-        if 'terminal_cb' in self.shared_gui_refs:
-            comms.log_to_terminal("--- GLOBAL ABORT TRIGGERED ---", self.shared_gui_refs.get('terminal_cb'))
+        # Pass the entire shared_gui_refs dictionary to the logger
+        comms.log_to_terminal("--- GLOBAL ABORT TRIGGERED ---", self.shared_gui_refs)
         
         for device_name in self.devices.keys():
             # A more robust implementation would check if the device is actually connected

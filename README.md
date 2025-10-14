@@ -190,3 +190,33 @@ def create_gui_components(parent, shared_gui_refs):
     ```
 
 For detailed instructions on installation, usage, and scripting, please see the full [documentation](https://your-documentation-link-here.com).
+
+## For Developers: Extending the Application
+
+This application is designed to be easily extendable with new hardware devices. To add a new device, follow these steps:
+
+1.  **Create a Device Directory:**
+    *   Inside the `devices/` directory, create a new folder with the name of your device (e.g., `devices/my_new_device/`). This name will be used as the device's unique identifier.
+
+2.  **Define Telemetry (`telemetry.json`):**
+    *   Create a `telemetry.json` file in your device's directory.
+    *   This file defines the data your device sends back. Each key in the JSON object corresponds to a piece of telemetry data.
+    *   For each key, you can specify a `gui_var` that the data will be bound to in the application's UI, and a `default` value.
+
+3.  **Define Commands (`commands.json`):**
+    *   Create a `commands.json` file.
+    *   This file defines the scriptable commands your device accepts. Each key is a command name.
+    *   For each command, you must specify the `device` name (which should match your folder name), a list of `params` it accepts, and a `help` string.
+
+4.  **Create the GUI (`gui.py`):**
+    *   Create a `gui.py` file.
+    *   This module is responsible for creating the device's status panel in the main application window.
+    *   It must contain a `create_gui_components(parent, shared_gui_refs)` function that builds and returns the main Tkinter frame for your device's UI.
+
+5.  **(Optional) Add Device-Specific Script Handlers (`script_handlers.py`):**
+    *   If your device requires complex, high-level script commands that are executed by the application itself (not the firmware), you can create a `script_handlers.py` file.
+    *   In your `commands.json`, add `"handler": "script"` to any command that should be handled this way.
+    *   In `script_handlers.py`, create a dictionary named `HANDLERS` that maps command names to the Python functions that execute their logic.
+    *   Each handler function should have the signature: `my_handler(script_runner, args, line_num)`.
+
+Once these files are in place, the main application will automatically discover and load your new device module on startup.

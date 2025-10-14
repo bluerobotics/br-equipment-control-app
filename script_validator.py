@@ -73,7 +73,7 @@ def _validate_line(line_content, line_num, commands):
     return errors
 
 
-def validate_script(script_content, commands):
+def validate_script(script_content, scripting_commands):
     """Validates an entire script against the command reference."""
     errors = []
     lines = script_content.splitlines()
@@ -115,7 +115,7 @@ def validate_script(script_content, commands):
             errors.append({"line": line_num, "error": "END_REPEAT is no longer used. Use indentation to define blocks."})
             continue
 
-        errors.extend(_validate_line(line, line_num, commands))
+        errors.extend(_validate_line(line, line_num, scripting_commands))
 
     if len(indent_stack) > 1:
         errors.append({"line": len(lines), "error": "Unexpected end of file: missing dedent for a CYCLE block."})

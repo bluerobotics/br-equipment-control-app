@@ -488,13 +488,13 @@ class CommandReference(ttk.Frame):
         self.refresh() # Initial population
         self.tree.after(100, lambda: self.sort_column('#0', False))
 
-        context_menu = tk.Menu(self, tearoff=0, 
+        self.context_menu = tk.Menu(self, tearoff=0, 
                                bg=theme.WIDGET_BG, 
                                fg=theme.FG_COLOR,
                                activebackground=theme.PRIMARY_ACCENT,
                                activeforeground=theme.FG_COLOR)
-        context_menu.add_command(label="Copy Command", command=self.copy_command)
-        context_menu.add_command(label="Add to Script", command=self.add_to_script)
+        self.context_menu.add_command(label="Copy Command", command=self.copy_command)
+        self.context_menu.add_command(label="Add to Script", command=self.add_to_script)
 
         self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<Double-1>", lambda e: self.add_to_script())
@@ -812,6 +812,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             print("[DEBUG] Script validation failed.")
             return
 
+        # --- FIX: Clear any old selection highlight before starting ---
+        script_editor.tag_remove("selection_highlight", "1.0", tk.END)
+
         start_line_num = 1
         if feed_hold_line is not None:
             start_line_num = feed_hold_line
@@ -903,16 +906,28 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def on_step_finished():
         update_button_states(running=False, holding=False)
         current_line_num = int(last_selection_highlight)
-        status_var.set(f"Step complete. Next line: {current_line_num + 1}");
-        root.after(0, lambda: update_selection_highlight(current_line_num + 1))
+        next_line_num = current_line_num + 1
+        status_var.set(f"Step complete. Next line: {next_line_num}");
+        
+        # Use a single, scheduled function to advance both the cursor and selection highlights
+        def advance_highlights():
+            script_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
+            update_selection_highlight(next_line_num)
+        
+        root.after(0, advance_highlights)
 
     def run_script_from_content(content, line_offset=0, is_step=False):
         nonlocal script_runner
         print(f"[DEBUG] run_script_from_content called. line_offset={line_offset}, is_step={is_step}")
         update_button_states(running=True) # Set running state visuals
         completion_callback = on_step_finished if is_step else on_run_finished
+        
+        # Get the latest script handlers from the device manager
+        script_handlers = device_manager.get_all_script_handlers()
+
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,
-                                     completion_callback, message_queue, scripting_commands, line_offset);
+                                     completion_callback, message_queue, scripting_commands, 
+                                     script_handlers, line_offset);
         script_runner.start()
         print("[DEBUG] ScriptRunner thread started.")
 
@@ -948,7 +963,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             update_button_states(running=False, holding=False)
 
     def handle_reset():
-        nonlocal script_runner, feed_hold_line, is_held_by_user
+        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight
         if script_runner and script_runner.is_running:
             script_runner.stop()
         
@@ -957,6 +972,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
         # Explicitly clear any lingering execution highlight immediately.
         script_editor.tag_remove("exec_highlight", "1.0", tk.END)
+        last_exec_highlight = -1 # Reset the tracker
 
         # Send CLEAR_ERRORS to all devices that are currently connected.
         device_manager = shared_gui_refs.get('device_manager')
@@ -970,7 +986,11 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
         feed_hold_line = None
         update_button_states(running=False, holding=False)
+        
+        # Move cursor and selection highlight to the top
+        script_editor.text.mark_set(tk.INSERT, "1.0")
         update_selection_highlight(1)
+        
         status_var.set("Script reset. Ready to start from line 1.")
 
     def update_selection_highlight(line_num):
