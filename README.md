@@ -4,6 +4,10 @@
 
 # BR Equipment Control App
 
+<p align="center">
+  <img src="assets/app.png" alt="App Screenshot" width="800">
+</p>
+
 **Version:** 1.0.0  
 **Version Release Date:** 2025-10-13
 
