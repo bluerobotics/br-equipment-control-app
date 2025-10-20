@@ -4,9 +4,6 @@
 
 # BR Equipment Control App
 
-**Version:** 1.0.1  
-**Version Release Date:** 2025-10-13
-
 [View Changelog](CHANGELOG.md)
 
 ---
@@ -26,7 +23,6 @@ The system is designed to be modular. You can add new devices to the application
 ## 2. Core Features
 
 - **Runtime Device Loading**: You can add new device folders to the `/devices` directory while the application is running. Using the "Scan for New Device Modules" menu option will load the new device, its commands, and its UI without needing a restart.
-- **Multi-Threading Model**: The application uses multiple background threads to keep the user interface responsive. Network communication (sending and receiving) and script execution each run on their own threads, so the UI does not freeze during these operations.
 - **Text-Based Scripting**: Scripts are simple text files. The application includes a script editor with syntax highlighting for device-specific commands.
 - **Script Validation**: Before a script is run, the application validates its syntax against the known commands for all loaded devices. This helps catch typos and errors before they cause problems during execution.
 - **Dynamic UI Panels**: Each device has its own status panel in the UI. The content of this panel is defined by the device's own configuration and is created automatically when the device is loaded.
