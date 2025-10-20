@@ -370,7 +370,7 @@ class SyntaxHighlighter:
             line_content = content[line_start:start]
             if '#' not in line_content:
                 self.text.tag_add("parameter", f"1.0+{start}c", f"1.0+{end}c")
-        
+
         # Highlight valid string parameters (only those defined in enum/options)
         for match in re.finditer(r'\b([a-z_]+)\b', content, re.IGNORECASE):
             word = match.group(1).lower()
@@ -551,49 +551,72 @@ class CommandReference(ttk.Frame):
         super().__init__(parent, **kwargs)
         self.script_editor_widget = script_editor_widget
         self.device_manager = device_manager
-        self.all_commands = [] # Initialize to prevent race condition
+        self.command_lines = {}  # Map line numbers to command names
         
-        self.configure(style='TFrame', padding=5)
+        self.configure(style='TFrame', padding=10)
 
-        # --- Filter Widgets ---
-        filter_frame = ttk.Frame(self, style='TFrame')
-        filter_frame.pack(fill=tk.X, pady=(0, 5))
-        filter_frame.grid_columnconfigure((0,1,2,3), weight=1) # Make columns resizable
-
-        # --- Treeview ---
-        tree_frame = ttk.Frame(self, style='TFrame')
-        tree_frame.pack(fill=tk.BOTH, expand=True)
-        self.tree = ttk.Treeview(tree_frame, columns=('params', 'desc'), show='tree headings')
+        # --- Title Section (minimal) ---
+        title_frame = ttk.Frame(self, style='TFrame')
+        title_frame.pack(fill=tk.X, pady=(0, 8))
         
-        self.tree.tag_configure('disconnected', foreground=theme.COMMENT_COLOR)
+        title_label = ttk.Label(title_frame, 
+                               text="Command Reference", 
+                               font=theme.FONT_LARGE_BOLD,
+                               foreground=theme.PRIMARY_ACCENT,
+                               style='TLabel')
+        title_label.pack(side=tk.LEFT)
+        
+        help_label = ttk.Label(title_frame, 
+                              text="double-click to add  |  right-click for options",
+                              font=theme.FONT_NORMAL,
+                              foreground=theme.COMMENT_COLOR,
+                              style='TLabel')
+        help_label.pack(side=tk.RIGHT, anchor='e')
 
-        self.filter_widgets = {} # Store widgets instead of vars
-        self.columns = {'#0': 'cmd', 'params': 'params', 'desc': 'desc'}
-        widths = {'#0': 200, 'params': 120, 'desc': 300}
-
-        for i, (col_id, col_key) in enumerate(self.columns.items()):
-            self.tree.heading(col_id, text=col_key.capitalize() if col_id!='#0' else 'Command')
-            self.tree.column(col_id, width=widths[col_id], anchor='w')
-            
-            var = tk.StringVar()
-            var.trace_add("write", self.apply_filters)
-            
-            entry = EntryWithPlaceholder(filter_frame, 
-                                         textvariable=var,
-                                         placeholder=f"Filter {col_key.capitalize()}...")
-            entry.grid(row=0, column=i, sticky='ew', padx=(0 if i==0 else 2, 0))
-            self.filter_widgets[col_key] = entry # Store the widget
-
-        for col_id, col_key in self.columns.items():
-            self.tree.heading(col_id, command=lambda c=col_id: self.sort_column(c, False))
-
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=vsb.set)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # --- Text widget for multi-color support ---
+        text_frame = ttk.Frame(self, style='TFrame')
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.text = tk.Text(text_frame,
+                           bg=theme.WIDGET_BG,
+                           fg=theme.FG_COLOR,
+                           font=theme.FONT_NORMAL,
+                           selectbackground=theme.SELECTION_BG,
+                           selectforeground=theme.SELECTION_FG,
+                           borderwidth=0,
+                           highlightthickness=0,
+                           cursor="arrow",
+                           wrap=tk.NONE,
+                           spacing1=2,
+                           spacing3=2)
+        
+        vsb = ttk.Scrollbar(text_frame, orient="vertical", command=self.text.yview)
+        self.text.configure(yscrollcommand=vsb.set)
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Configure text tags for syntax highlighting
+        self.text.tag_configure('device', foreground=theme.DEVICE_COLOR, font=theme.FONT_BOLD)
+        self.text.tag_configure('device_part', foreground=theme.DEVICE_COLOR)
+        self.text.tag_configure('command', foreground=theme.COMMAND_COLOR)
+        self.text.tag_configure('params', foreground=theme.PARAMETER_COLOR)
+        self.text.tag_configure('unit', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('desc', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('disconnected', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('clickable', foreground=theme.COMMAND_COLOR)
+        self.text.tag_configure('hover', background=theme.SECONDARY_ACCENT)
+        
+        # Track current hover line
+        self.current_hover_line = None
+        
+        # Make text read-only
+        self.text.bind("<Key>", lambda e: "break")
+        
+        # Hover highlighting
+        self.text.bind("<Motion>", self._on_mouse_motion)
+        self.text.bind("<Leave>", self._on_mouse_leave)
 
         self.refresh() # Initial population
-        self.tree.after(100, lambda: self.sort_column('#0', False))
 
         self.context_menu = tk.Menu(self, tearoff=0, 
                                bg=theme.WIDGET_BG, 
@@ -605,93 +628,155 @@ class CommandReference(ttk.Frame):
         self.context_menu.add_separator()
         self.context_menu.add_command(label="More Info...", command=self.show_more_info)
 
-        self.tree.bind("<Button-3>", self.show_context_menu)
-        self.tree.bind("<Double-1>", lambda e: self.add_to_script())
+        self.text.bind("<Button-3>", self.show_context_menu)
+        self.text.bind("<Double-1>", lambda e: self.add_to_script())
 
+    def _extract_param_and_unit(self, param_name):
+        """Extract parameter name and unit from 'param(unit)' format."""
+        try:
+            if '(' in param_name and ')' in param_name:
+                start = param_name.index('(')
+                end = param_name.index(')', start + 1)
+                name = param_name[:start]
+                unit = param_name[start+1:end]
+                return name, unit
+            return param_name, ""
+        except ValueError:
+            return param_name, ""
+    
     def refresh(self):
-        """Clears and repopulates the treeview with the latest command data."""
+        """Clears and repopulates the text widget with syntax-highlighted commands."""
         self.scripting_commands = self.device_manager.get_all_scripting_commands()
-        self.all_commands = []
-        for cmd, details in sorted(self.scripting_commands.items(), key=lambda item: (item[1]['device'], item[0])):
-            self.all_commands.append({
-                'cmd': cmd,
-                'device': details['device'].capitalize(),
-                'params': " ".join([p['name'] for p in details['params']]),
-                'desc': details['help']
-            })
-        self.apply_filters()
-
-    def populate_tree(self, commands_to_display):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-
-        device_parents = {}
+        self.command_lines = {}
+        
+        # Clear text
+        self.text.config(state=tk.NORMAL)
+        self.text.delete('1.0', tk.END)
+        
+        line_num = 1
+        
+        # Group commands by device
+        device_commands = {}
+        for cmd, details in self.scripting_commands.items():
+            device = details['device']
+            if device not in device_commands:
+                device_commands[device] = []
+            device_commands[device].append((cmd, details))
+        
         with devices_lock:
             device_states = self.device_manager.get_all_device_states()
-            for device_name in sorted(device_states.keys()):
-                is_connected = device_states[device_name].get('connected', False)
-                tags = () if is_connected else ('disconnected',)
-                is_open = is_connected
-                parent_id = self.tree.insert('', 'end', text=device_name.capitalize(), values=('', ''), open=is_open, tags=tags)
-                device_parents[device_name] = parent_id
-
-        for cmd_data in commands_to_display:
-            device_key = cmd_data['device'].lower()
-            parent_id = device_parents.get(device_key)
-            if parent_id:
-                tags = self.tree.item(parent_id, 'tags')
-                self.tree.insert(parent_id, 'end', text=cmd_data['cmd'], values=(cmd_data['params'], cmd_data['desc']), tags=tags)
-
-    def apply_filters(self, *args):
-        filtered_commands = self.all_commands
-        for col, widget in self.filter_widgets.items():
-            entry = widget.get() # Use the widget's custom get()
-            if entry: # The custom get() returns "" for placeholder, so this check is sufficient
-                filter_text = entry.lower()
-                filtered_commands = [cmd for cmd in filtered_commands if filter_text in cmd[col].lower()]
-        self.populate_tree(filtered_commands)
-        if hasattr(self.tree, 'sort_by'):
-             self.sort_column(self.tree.sort_by, self.tree.sort_rev, True)
-
-    def sort_column(self, col_id, reverse, preserve=False):
-        header_text = self.tree.heading(col_id, "text").replace(" ▲", "").replace(" ▼", "")
-        
-        for cid, ckey in self.columns.items():
-             self.tree.heading(cid, text=ckey.capitalize() if cid!='#0' else 'Command')
-        
-        arrow = " ▼" if reverse else " ▲"
-        self.tree.heading(col_id, text=header_text + arrow)
-
-        for parent_id in self.tree.get_children(''):
-            if col_id == '#0':
-                 l = [(self.tree.item(k)['text'], k) for k in self.tree.get_children(parent_id)]
-            else:
-                 l = [(self.tree.set(k, col_id), k) for k in self.tree.get_children(parent_id)]
             
-            l.sort(key=lambda t: t[0].lower(), reverse=reverse)
-            for index, (val, k) in enumerate(l):
-                self.tree.move(k, parent_id, index)
+            for device_name in sorted(device_commands.keys()):
+                is_connected = device_states.get(device_name, {}).get('connected', False)
+                
+                # Device header (bold purple or gray if disconnected)
+                device_start = f"{line_num}.0"
+                self.text.insert(tk.END, f"{device_name.lower()}\n")
+                device_end = f"{line_num}.end"
+                
+                if is_connected:
+                    self.text.tag_add('device', device_start, device_end)
+                else:
+                    self.text.tag_add('disconnected', device_start, device_end)
+                
+                line_num += 1
+                
+                # Commands under this device
+                for cmd, details in sorted(device_commands[device_name]):
+                    cmd_start_line = line_num
+                    
+                    # Store command for this line
+                    self.command_lines[line_num] = cmd
+                    
+                    # Parse command for multi-color: device.command
+                    if '.' in cmd:
+                        device_part, cmd_part = cmd.split('.', 1)
+                        
+                        # Insert with proper spacing
+                        line_start = f"{line_num}.0"
+                        self.text.insert(tk.END, f"  {device_part}")
+                        device_part_end = f"{line_num}.{2 + len(device_part)}"
+                        self.text.tag_add('device_part', f"{line_num}.2", device_part_end)
+                        
+                        self.text.insert(tk.END, ".")
+                        dot_pos = f"{line_num}.{2 + len(device_part)}"
+                        self.text.tag_add('device_part', dot_pos, f"{line_num}.{3 + len(device_part)}")
+                        
+                        cmd_start_pos = f"{line_num}.{3 + len(device_part)}"
+                        self.text.insert(tk.END, cmd_part)
+                        cmd_end_pos = f"{line_num}.{3 + len(device_part) + len(cmd_part)}"
+                        self.text.tag_add('command', cmd_start_pos, cmd_end_pos)
+                    else:
+                        self.text.insert(tk.END, f"  {cmd}")
+                        self.text.tag_add('command', f"{line_num}.2", f"{line_num}.{2 + len(cmd)}")
+                    
+                    # Add params with separate colors for parameter names and units
+                    if details['params']:
+                        for param in details['params']:
+                            param_name, unit = self._extract_param_and_unit(param['name'])
+                            
+                            # Add space before parameter
+                            self.text.insert(tk.END, " ")
+                            
+                            # Add parameter name in yellow
+                            param_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                            self.text.insert(tk.END, param_name)
+                            param_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                            self.text.tag_add('params', f"{line_num}.{param_start_col}", f"{line_num}.{param_end_col}")
+                            
+                            # Add unit in grey if present
+                            if unit:
+                                self.text.insert(tk.END, " ")
+                                unit_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                                self.text.insert(tk.END, unit)
+                                unit_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                                self.text.tag_add('unit', f"{line_num}.{unit_start_col}", f"{line_num}.{unit_end_col}")
+                    
+                    # Add description
+                    if details['help']:
+                        desc = details['help'][:80]  # Truncate long descriptions
+                        self.text.insert(tk.END, "  ")
+                        desc_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                        self.text.insert(tk.END, f"# {desc}")
+                        desc_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                        self.text.tag_add('desc', f"{line_num}.{desc_start_col}", f"{line_num}.{desc_end_col}")
+                    
+                    self.text.insert(tk.END, "\n")
+                    line_num += 1
+                
+                # Add blank line between devices
+                self.text.insert(tk.END, "\n")
+                line_num += 1
+        
+        self.text.config(state=tk.DISABLED)
 
-        self.tree.heading(col_id, command=lambda: self.sort_column(col_id, not reverse))
-        self.tree.sort_by = col_id
-        self.tree.sort_rev = reverse
 
     def get_selected_command(self):
-        selected_item = self.tree.focus()
-        if not selected_item: return None
-        return self.tree.item(selected_item, "text")
+        """Get command at current cursor position."""
+        try:
+            cursor_pos = self.text.index(tk.INSERT)
+            line_num = int(cursor_pos.split('.')[0])
+            return self.command_lines.get(line_num)
+        except:
+            return None
 
     def copy_command(self):
         command = self.get_selected_command()
-        if command: self.clipboard_clear(); self.clipboard_append(command)
+        if command: 
+            self.clipboard_clear()
+            self.clipboard_append(command)
 
     def add_to_script(self):
         command = self.get_selected_command()
-        if command: self.script_editor_widget.insert(tk.INSERT, f"{command} ")
+        if command: 
+            self.script_editor_widget.insert(tk.INSERT, f"{command} ")
 
     def show_context_menu(self, event):
-        iid = self.tree.identify_row(event.y)
-        if iid: self.tree.selection_set(iid); self.tree.focus(iid); self.context_menu.post(event.x_root, event.y_root)
+        # Set cursor to click position
+        self.text.mark_set(tk.INSERT, f"@{event.x},{event.y}")
+        command = self.get_selected_command()
+        if command:
+            self.context_menu.post(event.x_root, event.y_root)
 
     def show_more_info(self):
         """Opens a detailed information window for the selected command."""
@@ -1000,6 +1085,42 @@ class CommandReference(ttk.Frame):
         """Copy example text to clipboard."""
         self.clipboard_clear()
         self.clipboard_append(text)
+    
+    def _on_mouse_motion(self, event):
+        """Highlight the row under the mouse cursor."""
+        try:
+            # Get the line number at the mouse position
+            index = self.text.index(f"@{event.x},{event.y}")
+            line_num = int(index.split('.')[0])
+            
+            # Only highlight command lines (not device headers or blank lines)
+            if line_num in self.command_lines:
+                if self.current_hover_line != line_num:
+                    # Remove previous hover highlight
+                    if self.current_hover_line:
+                        self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+                    
+                    # Add new hover highlight
+                    self.text.tag_add('hover', f"{line_num}.0", f"{line_num}.end")
+                    self.current_hover_line = line_num
+                    
+                    # Change cursor to hand
+                    self.text.config(cursor="hand2")
+            else:
+                # Not on a command line, remove hover
+                if self.current_hover_line:
+                    self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+                    self.current_hover_line = None
+                self.text.config(cursor="arrow")
+        except:
+            pass
+    
+    def _on_mouse_leave(self, event):
+        """Remove hover highlight when mouse leaves the widget."""
+        if self.current_hover_line:
+            self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+            self.current_hover_line = None
+        self.text.config(cursor="arrow")
 
 def create_command_reference(parent, script_editor_widget, device_manager):
     # This is now a wrapper for the class

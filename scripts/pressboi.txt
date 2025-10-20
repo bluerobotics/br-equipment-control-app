@@ -1,6 +1,18 @@
-#test
-#more stuff
+### pressboi test ###
+
+pressboi.home
+pressboi.set_start_pos 154 mm
+pressboi.move_to_start
+
+pressboi.move 170 mm 10 mm/s 10 kg return       # search move
+wait 1 sec
+pressboi.move 176 mm 2 mm/s 10 kg return        # alignment move
+wait 1 sec
+pressboi.move 178 mm 0.5 mm/s 320 kg return     # approach move
 
 
+pressboi.home
 
+
+fillhead.vacuum_leak_test
 

@@ -95,7 +95,7 @@ def create_device_frame(parent, title, state_var, conn_var):
     header_frame.pack(fill='x', expand=True, anchor='n')
     conn_icon_label = ttk.Label(header_frame, text="🔌", font=("JetBrains Mono", 12), style='Subtle.TLabel')
     conn_icon_label.pack(side=tk.LEFT, padx=(0, 2))
-    title_label = ttk.Label(header_frame, text=title, font=("JetBrains Mono", 14, "bold"), foreground=theme.PRIMARY_ACCENT, style='Subtle.TLabel')
+    title_label = ttk.Label(header_frame, text=title.lower(), font=("JetBrains Mono", 14, "bold"), foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
     title_label.pack(side=tk.LEFT, padx=(0, 5))
     ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
     ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
