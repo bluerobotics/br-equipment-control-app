@@ -1,0 +1,107 @@
+"""
+PressBoi Device Simulator
+Handles pressboi-specific command simulation and state updates.
+"""
+import time
+import random
+
+
+def handle_command(device_sim, command, args, gui_address):
+    """
+    Handle pressboi-specific commands.
+    
+    Args:
+        device_sim: Reference to the DeviceSimulator instance
+        command: Command string (e.g., "pressboi.home")
+        args: List of command arguments
+        gui_address: Tuple of (ip, port) for GUI
+    
+    Returns:
+        True if command was handled, False to use default handler
+    """
+    # Normalize to lowercase for case-insensitive matching
+    cmd_lower = command.lower()
+    
+    if cmd_lower == "pressboi.home":
+        device_sim.set_state('MAIN_STATE', 'HOMING')
+        device_sim.command_queue.append((simulate_homing, (device_sim, 2.0, gui_address, command)))
+        return True
+    
+    elif cmd_lower == "pressboi.move":
+        target = float(args[0]) if args else 0
+        device_sim.set_state('MAIN_STATE', 'MOVING')
+        device_sim.command_queue.append((simulate_move, (device_sim, target, 2.0, gui_address, command)))
+        return True
+    
+    elif cmd_lower == "pressboi.set_start_pos":
+        pos = float(args[0]) if args else 0
+        device_sim.state['start_pos'] = pos
+        return False  # Send generic DONE response
+    
+    elif cmd_lower == "pressboi.move_to_start":
+        target = device_sim.state.get('start_pos', 0.0)
+        device_sim.set_state('MAIN_STATE', 'MOVING')
+        device_sim.command_queue.append((simulate_move, (device_sim, target, 2.0, gui_address, command)))
+        return True
+    
+    return False  # Command not handled, use default
+
+
+def simulate_homing(device_sim, duration, gui_address, command):
+    """Simulates pressboi homing process."""
+    print(f"[pressboi] simulate_homing started, will sleep for {duration}s")
+    time.sleep(duration)
+    if device_sim._stop_event.is_set():
+        print(f"[pressboi] simulate_homing aborted (stop event)")
+        return
+    
+    device_sim.state['current_pos'] = 0.0
+    device_sim.state['homed'] = 1
+    device_sim.set_state('MAIN_STATE', 'STANDBY')
+    # Send generic DONE message that includes the original command for the script runner
+    print(f"[pressboi] Sending DONE: {command} to {gui_address}")
+    device_sim.sock.sendto(f"DONE: {command}".encode(), gui_address)
+    print(f"[pressboi] Homing complete")
+
+
+def simulate_move(device_sim, target, duration, gui_address, command):
+    """Simulates pressboi move process with force simulation."""
+    start_time = time.time()
+    start_pos = device_sim.state.get('current_pos', 0.0)
+    
+    while time.time() - start_time < duration:
+        elapsed = time.time() - start_time
+        progress = elapsed / duration
+        device_sim.state['current_pos'] = start_pos + (target - start_pos) * progress
+        # Simulate force during move (in kg)
+        device_sim.state['force'] = random.uniform(0, 5)
+        # Simulate torque on both motors
+        device_sim.state['torque_m1'] = random.uniform(20, 60)
+        device_sim.state['torque_m2'] = random.uniform(20, 60)
+        time.sleep(0.1)
+        if device_sim._stop_event.is_set():
+            return
+    
+    device_sim.state['current_pos'] = target
+    device_sim.state['force'] = 0
+    device_sim.state['target_pos'] = target
+    device_sim.state['torque_m1'] = 0
+    device_sim.state['torque_m2'] = 0
+    device_sim.set_state('MAIN_STATE', 'STANDBY')
+    # Send generic DONE message that includes the original command for the script runner
+    device_sim.sock.sendto(f"DONE: {command}".encode(), gui_address)
+    print(f"[pressboi] Move complete to {target}")
+
+
+def update_state(device_sim):
+    """
+    Update pressboi dynamic state (called periodically).
+    
+    Args:
+        device_sim: Reference to the DeviceSimulator instance
+    """
+    # Add any continuous state updates here
+    # e.g., temperature drift, sensor noise, etc.
+    pass
+
+

@@ -67,8 +67,16 @@ def discover_devices(gui_refs):
         log_to_terminal(f"[CMD SENT to BROADCAST]: {msg}", gui_refs)
 
     try:
-        # No lock needed for broadcast as it's less critical and frequent
+        # Broadcast to network devices
         sock.sendto(msg.encode(), ('192.168.1.255', CLEARCORE_PORT))
+        
+        # Also send to localhost simulators on their individual ports
+        # They listen on sequential ports starting at CLEARCORE_PORT
+        for port_offset in range(4):  # Support up to 4 local simulators
+            try:
+                sock.sendto(msg.encode(), ('127.0.0.1', CLEARCORE_PORT + port_offset))
+            except:
+                pass  # Silently ignore if no simulator on that port
     except Exception as e:
         log_to_terminal(f"Discovery error: {e}", gui_refs)
 
@@ -90,11 +98,13 @@ def send_to_device(device_key, msg, gui_refs):
 
     if device_state and device_state.get("ip"):
         device_ip = device_state.get("ip")
+        # Use the device's specific port if stored, otherwise use default
+        device_port = device_state.get("port", CLEARCORE_PORT)
         # MODIFIED: Added a lock to ensure thread-safe socket access.
         with socket_lock:
             try:
                 log_to_terminal(f"[CMD SENT to {device_key.upper()}]: {msg}", gui_refs)
-                sock.sendto(msg.encode(), (device_ip, CLEARCORE_PORT))
+                sock.sendto(msg.encode(), (device_ip, device_port))
             except Exception as e:
                 log_to_terminal(f"Error sending to {device_key}: {e}", gui_refs)
 
@@ -296,16 +306,30 @@ def recv_loop(gui_refs, device_manager):
 
             if msg.startswith("DISCOVERY_RESPONSE:"):
                 try:
-                    # e.g., DISCOVERY_RESPONSE: DEVICE_ID=gantry
-                    parts = msg.split(" ")[1].split("=")
-                    if parts[0] == "DEVICE_ID":
-                        device_key = parts[1].lower()
-                        # The device manager should already know about all possible devices.
-                        # We just need to handle its connection state.
-                        if device_key in device_modules:
-                            handle_connection(device_key, source_ip, gui_refs, device_manager)
-                except IndexError:
-                    log_to_terminal(f"Malformed discovery response: {msg}", gui_refs)
+                    # e.g., DISCOVERY_RESPONSE: DEVICE_ID=gantry PORT=8889
+                    parts = msg.split()
+                    device_key = None
+                    device_port = None
+                    
+                    for part in parts[1:]:  # Skip "DISCOVERY_RESPONSE:"
+                        if "=" in part:
+                            key, value = part.split("=", 1)
+                            if key == "DEVICE_ID":
+                                device_key = value.lower()
+                            elif key == "PORT":
+                                device_port = int(value)
+                    
+                    if device_key and device_key in device_modules:
+                        # Store the port if provided, otherwise use default
+                        if device_port:
+                            with devices_lock:
+                                device_state = device_manager.get_device_state(device_key)
+                                if device_state:
+                                    device_state['port'] = device_port
+                        
+                        handle_connection(device_key, source_ip, gui_refs, device_manager)
+                except (IndexError, ValueError) as e:
+                    log_to_terminal(f"Malformed discovery response: {msg} - {e}", gui_refs)
             
             # --- DYNAMIC TELEMETRY PARSING ---
             elif "_TELEM:" in msg:

@@ -1,17 +1,17 @@
 {
-    "HEATER_ON": {
+    "fillhead.heater_on": {
         "device": "fillhead",
         "params": [
             {"name": "setpoint_C", "type": "float", "optional": true, "keywords": ["temp", "temperature", "C"]}
         ],
         "help": "Turns the heater on. Optionally sets the target temperature."
     },
-    "HEATER_OFF": {
+    "fillhead.heater_off": {
         "device": "fillhead",
         "params": [],
         "help": "Turns the heater off."
     },
-    "VACUUM_LEAK_TEST": {
+    "fillhead.vacuum_leak_test": {
         "device": "fillhead",
         "params": [
             {"name": "delta_psi", "type": "float", "optional": true, "keywords": ["delta", "d"]},
@@ -19,59 +19,59 @@
         ],
         "help": "Performs a vacuum leak test. All parameters are optional."
     },
-    "VACUUM_ON": {
+    "fillhead.vacuum_on": {
         "device": "fillhead",
         "params": [
             {"name": "target_psi", "type": "float", "optional": true, "keywords": ["vacuum", "vac", "psi"]}
         ],
         "help": "Turns the vacuum on. Optionally sets the target vacuum pressure."
     },
-    "VACUUM_OFF": {
+    "fillhead.vacuum_off": {
         "device": "fillhead",
         "params": [],
         "help": "Turns the vacuum off."
     },
-    "INJECTION_VALVE_HOME_TUBED": {
+    "fillhead.inj_valve_home_tubed": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the injection valve (tubed)."
     },
-    "INJECTION_VALVE_HOME_UNTUBED": {
+    "fillhead.inj_valve_home_untubed": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the injection valve (untubed)."
     },
-    "INJECTION_VALVE_OPEN": {
+    "fillhead.inj_valve_open": {
         "device": "fillhead",
         "params": [],
         "help": "Opens the injection valve."
     },
-    "INJECTION_VALVE_CLOSE": {
+    "fillhead.inj_valve_close": {
         "device": "fillhead",
         "params": [],
         "help": "Closes the injection valve."
     },
-    "VACUUM_VALVE_HOME_TUBED": {
+    "fillhead.vac_valve_home_tubed": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the vacuum valve (tubed)."
     },
-    "VACUUM_VALVE_HOME_UNTUBED": {
+    "fillhead.vac_valve_home_untubed": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the vacuum valve (untubed)."
     },
-    "VACUUM_VALVE_OPEN": {
+    "fillhead.vac_valve_open": {
         "device": "fillhead",
         "params": [],
         "help": "Opens the vacuum valve."
     },
-    "VACUUM_VALVE_CLOSE": {
+    "fillhead.vac_valve_close": {
         "device": "fillhead",
         "params": [],
         "help": "Closes the vacuum valve."
     },
-    "WAIT_UNTIL_HEATER_AT_TEMP": {
+    "fillhead.wait_until_heater_at_temp": {
         "device": "fillhead",
         "handler": "script",
         "params": [
@@ -80,7 +80,7 @@
         ],
         "help": "Pauses script until the heater reaches the target temperature."
     },
-    "WAIT_UNTIL_VACUUM": {
+    "fillhead.wait_until_vacuum": {
         "device": "fillhead",
         "handler": "script",
         "params": [
@@ -89,17 +89,17 @@
         ],
         "help": "Pauses script until vacuum reaches target. All params optional."
     },
-    "MACHINE_HOME_MOVE": {
+    "fillhead.machine_home": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the main machine axis."
     },
-    "CARTRIDGE_HOME_MOVE": {
+    "fillhead.cartridge_home": {
         "device": "fillhead",
         "params": [],
         "help": "Homes the injector against the cartridge."
     },
-    "INJECT_STATOR": {
+    "fillhead.inject_stator": {
         "device": "fillhead",
         "params": [
             {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},
@@ -107,7 +107,7 @@
         ],
         "help": "Injects a volume using the Stator (5:1) settings."
     },
-    "INJECT_ROTOR": {
+    "fillhead.inject_rotor": {
         "device": "fillhead",
         "params": [
             {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},

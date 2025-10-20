@@ -43,9 +43,10 @@ ACTIVE_HOLDING_RED = "#5D1D22" # Darker hover for the holding state
 PRESSED_HOLDING_RED = "#692026" # Even darker pressed for the holding state
 
 # --- Syntax Highlighting Colors ---
-COMMAND_COLOR = "#61AFEF"     # Blue for commands
-PARAMETER_COLOR = "#E5C07B"   # Orange for parameters
-COMMENT_COLOR = "#7F848E"     # A lighter grey for comments
+DEVICE_COLOR = "#C678DD"         # Purple/magenta for device namespace (before the dot)
+COMMAND_COLOR = "#61AFEF"        # Blue for commands (after the dot)
+PARAMETER_COLOR = "#E5C07B"      # Orange for parameters
+COMMENT_COLOR = "#7F848E"        # A lighter grey for comments
 SCRIPT_COMMAND_COLOR = "#56B6C2" # A teal/cyan for script-control commands (e.g., REPEAT, WAIT)
 
 # --- Selection Colors ---
@@ -53,7 +54,22 @@ SELECTION_BG = "#4B6E9C"      # A subtle blue for selection, with good contrast.
 SELECTION_FG = "#FFFFFF"      # Bright white for selected text
 
 # --- Fonts ---
-FONT_NORMAL = ("JetBrains Mono", 10)
-FONT_BOLD = ("JetBrains Mono", 10, "bold")
-FONT_LARGE = ("JetBrains Mono", 12)
-FONT_LARGE_BOLD = ("JetBrains Mono", 12, "bold")
+import platform
+
+def _get_monospace_font():
+    """Returns a monospace font appropriate for the platform (matches VS Code defaults)."""
+    system = platform.system()
+    
+    if system == "Darwin":  # macOS
+        return "Menlo"
+    elif system == "Windows":
+        return "Consolas"
+    else:  # Linux and others
+        # Try VS Code's preference first, then fallback
+        return "Droid Sans Mono"  # VS Code default on Linux
+
+MONOSPACE_FONT = _get_monospace_font()
+FONT_NORMAL = (MONOSPACE_FONT, 9)
+FONT_BOLD = (MONOSPACE_FONT, 9, "bold")
+FONT_LARGE = (MONOSPACE_FONT, 11)
+FONT_LARGE_BOLD = (MONOSPACE_FONT, 11, "bold")

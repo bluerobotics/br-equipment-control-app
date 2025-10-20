@@ -1,19 +1,19 @@
 ### T500 STATOR ###
-HOME_Z
-HOME_X, HOME_Y
-MACHINE_HOME_MOVE
-VACUUM_VALVE_HOME_TUBED, INJECTION_VALVE_HOME_TUBED
-CARTRIDGE_HOME_MOVE
-INJECTION_VALVE_CLOSE
+gantry.home_z
+gantry.home_x, gantry.home_y
+fillhead.machine_home
+fillhead.vac_valve_home_tubed, fillhead.inj_valve_home_tubed
+fillhead.cartridge_home
+fillhead.inj_valve_close
 
-HEATER_ON 70 C
-MOVE_X 524 mm, MOVE_Y 41 mm
-MOVE_Z -62 mm
-MOVE_Z -68 mm 2 mm/s
-VACUUM_ON
-VACUUM_VALVE_OPEN
-WAIT 5 sec
-VACUUM_LEAK_TEST 
+fillhead.heater_on 70 C
+gantry.move_x 524 mm, gantry.move_y 41 mm
+gantry.move_z -62 mm
+gantry.move_z -68 mm 2 mm/s    
+fillhead.vacuum_on
+fillhead.vac_valve_open
+wait 5 sec
+fillhead.vacuum_leak_test
 WAIT_UNTIL_HEATER_AT_TEMP 65 C
 VACUUM_ON
 INJECTION_VALVE_OPEN
@@ -53,6 +53,61 @@ INJECTION_VALVE_CLOSE
 INJECTION_VALVE_OPEN
 
 MOVE_X 400 mm
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+PRESSBOI_MOVE 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,15 +1,15 @@
 {
-    "PRESSURIZER_ON": {
+    "pressurizer.on": {
         "device": "pressurizer",
         "params": [],
         "help": "Enables the pressurizer."
     },
-    "PRESSURIZER_OFF": {
+    "pressurizer.off": {
         "device": "pressurizer",
         "params": [],
         "help": "Disables the pressurizer."
     },
-    "PRESSURIZE_CYCLE": {
+    "pressurizer.cycle": {
         "device": "pressurizer",
         "params": [
             {"name": "cycles", "type": "int", "optional": true, "keywords": ["cycles", "count", "c"]}

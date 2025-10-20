@@ -1,83 +1,29 @@
 {
-    "PRESSBOI_HOME": {"device": "pressboi", "params": [], "help": "Homes the press."},
-    "PRESSBOI_MOVE": {
+    "pressboi.home": {"device": "pressboi", "params": [], "help": "Homes the press."},
+    "pressboi.move": {
         "device": "pressboi", 
         "params": [
             {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
+            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true, "default": 10},
+            {"name": "Force(kg)", "type": "float", "min": 0, "max": 50000, "optional": true, "default": 10},
+            {"name": "ForceLimit", "type": "string", "options": ["continue", "stop", "return"], "optional": true, "default": "return"}
         ], 
-        "help": "Moves the press to an absolute position."
+        "help": "Moves the press to an absolute position. ForceLimit: 'continue' to ignore force limit, 'stop' to stop if force limit reached, 'return' to retract to start position."
     },
-    "PRESSBOI_SET_START_POS": {
+    "pressboi.set_start_pos": {
         "device": "pressboi", 
         "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": true},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
+            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false}
         ], 
         "help": "Sets the starting position for relative moves."
     },
-    "PRESSBOI_MOVE_TO_START": {
+    "pressboi.move_to_start": {
         "device": "pressboi", 
         "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": true},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
+            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": true, "default": 0},
+            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true, "default": 10},
+            {"name": "Force(kg)", "type": "float", "min": 0, "max": 50000, "optional": true, "default": 10}
         ], 
         "help": "Moves to the defined start position."
-    },
-    "PRESSBOI_APPROACH": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
-        ], 
-        "help": "Moves to a position to begin a search or press."
-    },
-    "PRESSBOI_SEARCH": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
-        ], 
-        "help": "Searches for contact."
-    },
-    "PRESSBOI_PRESS": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
-        ], 
-        "help": "Presses to a specified position or force."
-    },
-    "PRESSBOI_STOP": {
-        "device": "pressboi", 
-        "params": [{"name": "Duration(s)", "type": "float", "min": 0, "max": 3600, "optional": true}], 
-        "help": "Stops motion for a duration."
-    },
-    "PRESSBOI_DEPRESS": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
-        ], 
-        "help": "Moves to release pressure."
-    },
-    "PRESSBOI_RETURN": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true},
-            {"name": "Force(N)", "type": "float", "min": 0, "max": 50000, "optional": true}
-        ], 
-        "help": "Returns to a safe or start position."
-    },
-    "PRESSBOI_CLEAR_ERRORS": {"device": "pressboi", "params": [], "help": "Clears any active errors on the device."},
-    "PRESSBOI_ENABLE": {"device": "pressboi", "params": [], "help": "Enables the motors."},
-    "PRESSBOI_DISABLE": {"device": "pressboi", "params": [], "help": "Disables the motors."}
+    }
 }

@@ -6,20 +6,15 @@ import re
 
 # --- Script-Specific Command Definitions ---
 SCRIPT_COMMANDS = {
-    "WAIT": {
+    "wait": {
         "device": "script",
-        "params": [{"name": "time_ms", "type": "int"}],
-        "help": "Pauses script execution for a specified duration."
+        "params": [{"name": "time_s", "type": "float"}],
+        "help": "Pauses script execution for a specified duration in seconds."
     },
-    "CYCLE": {
-        "device": "script",
-        "params": [],
-        "help": "Marks a point for the script to loop back to."
-    },
-    "REPEAT": {
+    "cycle": {
         "device": "script",
         "params": [{"name": "count", "type": "int"}],
-        "help": "Repeats the script from the last CYCLE point."
+        "help": "Repeats the indented block below this line N times."
     }
 }
 
@@ -278,9 +273,17 @@ class ScriptRunner(threading.Thread):
             if not sub_cmd_str: continue
 
             parts = sub_cmd_str.split()
-            command_word = parts[0].upper()
+            command_word = parts[0]
             
+            # Try exact match first, then case-insensitive
             command_info = self.scripting_commands.get(command_word)
+            if not command_info:
+                # Try case-insensitive lookup
+                for cmd_key in self.scripting_commands:
+                    if cmd_key.lower() == command_word.lower():
+                        command_info = self.scripting_commands[cmd_key]
+                        command_word = cmd_key  # Use the canonical form
+                        break
 
             if not command_info:
                 self.status_cb(f"Error on L{line_num}: Unknown command '{command_word}'.", line_num)
@@ -309,10 +312,12 @@ class ScriptRunner(threading.Thread):
                 if not handler(self, pos_args, line_num): return False
             
             elif device == "script":
-                # Handle built-in script commands
-                if command_word == "WAIT":
-                    if not self._handle_wait([resolved_params.get('time_ms', 0)], line_num, is_seconds=True): return False
-                elif command_word in ["CYCLE", "REPEAT"]:
+                # Handle built-in script commands (case-insensitive)
+                cmd_lower = command_word.lower()
+                if cmd_lower == "wait":
+                    if not self._handle_wait([resolved_params.get('time_s', 0)], line_num, is_seconds=True): return False
+                elif cmd_lower == "cycle":
+                    # Cycle is handled by the loop expander, not here
                     pass
 
             elif device == "both":
@@ -398,20 +403,22 @@ class ScriptRunner(threading.Thread):
                     # --- FINAL FIX ---
                     # Added specific checks for pinch valve homing commands, as their "DONE"
                     # messages don't contain the original command string.
-                    if command_to_check == "VACUUM_LEAK_TEST" and "LEAK_TEST" in msg and "PASSED" in msg:
+                    cmd_lower = command_to_check.lower()
+                    
+                    if "leak" in cmd_lower and "LEAK_TEST" in msg and "PASSED" in msg:
                         is_complete = True
-                    elif (command_to_check == "INJECTION_VALVE_HOME_UNTUBED" or command_to_check == "INJECTION_VALVE_HOME_TUBED") and "inj_valve" in msg and "DONE" in msg:
+                    elif "inj_valve" in cmd_lower and "home" in cmd_lower and "inj_valve" in msg and "DONE" in msg:
                         is_complete = True
-                    elif (command_to_check == "VACUUM_VALVE_HOME_UNTUBED" or command_to_check == "VACUUM_VALVE_HOME_TUBED") and "vac_valve" in msg and "DONE" in msg:
+                    elif "vac_valve" in cmd_lower and "home" in cmd_lower and "vac_valve" in msg and "DONE" in msg:
                         is_complete = True
                     # --- FIX for Valve Open/Close ---
                     # These also have unique DONE messages that don't contain the command name.
-                    elif (command_to_check == "INJECTION_VALVE_OPEN" or command_to_check == "INJECTION_VALVE_CLOSE") and "inj_valve" in msg and "DONE" in msg:
+                    elif "inj_valve" in cmd_lower and ("open" in cmd_lower or "close" in cmd_lower) and "inj_valve" in msg and "DONE" in msg:
                         is_complete = True
-                    elif (command_to_check == "VACUUM_VALVE_OPEN" or command_to_check == "VACUUM_VALVE_CLOSE") and "vac_valve" in msg and "DONE" in msg:
+                    elif "vac_valve" in cmd_lower and ("open" in cmd_lower or "close" in cmd_lower) and "vac_valve" in msg and "DONE" in msg:
                         is_complete = True
-                    # Generic fallback for other commands like MOVE_X, HOME_Y, etc.
-                    elif command_to_check in msg and "DONE" in msg:
+                    # Generic fallback for other commands - case insensitive check
+                    elif command_to_check.lower() in msg.lower() and "DONE" in msg:
                         is_complete = True
                     # -----------------
 

@@ -1,6 +1,13 @@
 {
-    "MAIN_STATE": {"gui_var": "pressboi_main_state_var", "default": "STANDBY"},
-    "pressure_psi": {"gui_var": "pressboi_pressure_var", "format": {"suffix": " PSI", "precision": 2}, "default": 0.0},
-    "temperature_c": {"gui_var": "pressboi_temperature_var", "format": {"suffix": " °C", "precision": 1}, "default": 25.0},
-    "enabled": {"gui_var": "pressboi_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1}
+    "MAIN_STATE":   {"gui_var": "pressboi_main_state_var", "default": "STANDBY"},
+    "force":        {"gui_var": "pressboi_force_var", "format": {"suffix": " kg", "precision": 1}, "default": 0.0},
+    "force_limit":  {"gui_var": "pressboi_force_limit_var", "format": {"suffix": " kg", "precision": 1}, "default": 1000.0},
+    "enabled0":     {"gui_var": "pressboi_enabled0_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "enabled1":     {"gui_var": "pressboi_enabled1_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
+    "current_pos":  {"gui_var": "pressboi_current_pos_var", "format": {"precision": 2}, "default": 0.0},
+    "start_pos":    {"gui_var": "pressboi_start_pos_var", "format": {"precision": 2}, "default": 0.0},
+    "target_pos":   {"gui_var": "pressboi_target_pos_var", "format": {"precision": 2}, "default": 0.0},
+    "torque_m1":    {"gui_var": "pressboi_torque_m1_var", "default": 0.0},
+    "torque_m2":    {"gui_var": "pressboi_torque_m2_var", "default": 0.0},
+    "homed":        {"gui_var": "pressboi_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0}
 }

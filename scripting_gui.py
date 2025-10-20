@@ -205,14 +205,15 @@ class CustomText(tk.Text):
             selectforeground=theme.SELECTION_FG,
             inactiveselectbackground=theme.SELECTION_BG, # Keep selection color when widget loses focus
             undo=True,
-            wrap=tk.WORD,
-            spacing3=3 # Add 3 pixels of spacing after each line
+            wrap=tk.NONE,
+            spacing3=3
         )
         
-        # --- Configure Tabs for 4-space indentation ---
-        font = tkfont.Font(font=self.cget("font"))
-        tab_width = font.measure('    ')
-        self.config(tabs=(tab_width,))
+        # Verify font is actually monospace
+        actual_font = tkfont.Font(font=self.cget("font"))
+        print(f"[DEBUG FONT] Actual font family: {actual_font.actual('family')}")
+        print(f"[DEBUG FONT] Font is fixed: {actual_font.metrics('fixed')}")
+        print(f"[DEBUG FONT] Char widths - space: {actual_font.measure(' ')}, 'M': {actual_font.measure('M')}, 'i': {actual_font.measure('i')}")
 
         # Create a proxy for the underlying widget
         self._orig = self._w + "_orig"
@@ -261,14 +262,20 @@ class TextLineNumbers(tk.Canvas):
 
 # --- Syntax Highlighter ---
 class SyntaxHighlighter:
-    def __init__(self, text_widget, device_keywords, script_keywords):
+    def __init__(self, text_widget, device_keywords, script_keywords, device_manager=None):
         self.text = text_widget
         self.device_keywords = device_keywords
         self.script_keywords = script_keywords
+        self.device_manager = device_manager
+        self.valid_string_params = set()  # Will hold all valid enum/option values
+        self._load_valid_string_params()
+        
         self.tags = {
+            'device': {'foreground': theme.DEVICE_COLOR, 'font': theme.FONT_BOLD},  # Purple for device namespace
             'command': {'foreground': theme.COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'script_command': {'foreground': theme.SCRIPT_COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'parameter': {'foreground': theme.PARAMETER_COLOR},
+            'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
             'comment': {'foreground': theme.COMMENT_COLOR},
             'colon': {'foreground': theme.SELECTION_FG, 'font': theme.FONT_BOLD} # SELECTION_FG is white
         }
@@ -277,6 +284,22 @@ class SyntaxHighlighter:
         self._highlighting = False
         # Bind to the custom <<Modified>> event, which fires on any text change.
         self.text.bind('<<Modified>>', self.highlight)
+    
+    def _load_valid_string_params(self):
+        """Extract all valid enum/option values from all commands."""
+        self.valid_string_params = set()
+        if not self.device_manager:
+            return
+        
+        all_commands = self.device_manager.get_all_scripting_commands()
+        for cmd_name, cmd_details in all_commands.items():
+            params = cmd_details.get('params', [])
+            for param in params:
+                # Get enum or options list
+                choices = param.get('enum') or param.get('options')
+                if choices:
+                    for choice in choices:
+                        self.valid_string_params.add(choice.lower())
 
     def refresh_keywords(self):
         """Re-fetches the keywords from the device manager and re-highlights the text."""
@@ -285,6 +308,7 @@ class SyntaxHighlighter:
         all_commands = self.device_manager.get_all_scripting_commands()
         self.device_keywords = [cmd for cmd, details in all_commands.items() if details['device'] not in ['script', 'both']]
         self.script_keywords = [cmd for cmd, details in all_commands.items() if details['device'] in ['script', 'both']]
+        self._load_valid_string_params()  # Refresh valid string params too
         self.highlight()
 
 
@@ -304,12 +328,27 @@ class SyntaxHighlighter:
         for tag in self.tags.keys():
             self.text.tag_remove(tag, "1.0", "end")
 
-        # Highlight device commands
+        # Highlight device commands (support dot notation)
         if self.device_keywords:
-            keyword_pattern = r'\b(' + '|'.join(re.escape(k) for k in self.device_keywords) + r')\b'
-            for match in re.finditer(keyword_pattern, content, re.IGNORECASE):
-                start, end = match.span()
-                self.text.tag_add("command", f"1.0+{start}c", f"1.0+{end}c")
+            # Match word characters and dots for commands like "pressboi.move"
+            # Allow whitespace, comma, or start of line before, and whitespace, comma, or end after
+            keyword_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(k) for k in self.device_keywords) + r')(?=\s|,|$)'
+            for match in re.finditer(keyword_pattern, content, re.IGNORECASE | re.MULTILINE):
+                start, end = match.span(1)
+                full_command = match.group(1)
+                
+                # Check if it has a dot (device.command format)
+                if '.' in full_command:
+                    dot_pos = full_command.index('.')
+                    # Highlight device part (before dot) in purple
+                    device_end = start + dot_pos
+                    self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
+                    # Highlight command part (after dot) in blue
+                    command_start = start + dot_pos + 1
+                    self.text.tag_add("command", f"1.0+{command_start}c", f"1.0+{end}c")
+                else:
+                    # No dot, just highlight the whole thing as a command
+                    self.text.tag_add("command", f"1.0+{start}c", f"1.0+{end}c")
 
         # Highlight script commands
         if self.script_keywords:
@@ -323,12 +362,38 @@ class SyntaxHighlighter:
             start, end = match.span()
             self.text.tag_add("colon", f"1.0+{start}c", f"1.0+{end}c")
 
-        # Highlight numbers (integers and floats)
+        # Highlight numbers (integers and floats) - but not inside comments
         for match in re.finditer(r'\b-?\d+(\.\d+)?\b', content):
             start, end = match.span()
-            self.text.tag_add("parameter", f"1.0+{start}c", f"1.0+{end}c")
+            # Check if this is inside a comment
+            line_start = content.rfind('\n', 0, start) + 1
+            line_content = content[line_start:start]
+            if '#' not in line_content:
+                self.text.tag_add("parameter", f"1.0+{start}c", f"1.0+{end}c")
+        
+        # Highlight valid string parameters (only those defined in enum/options)
+        for match in re.finditer(r'\b([a-z_]+)\b', content, re.IGNORECASE):
+            word = match.group(1).lower()
+            start, end = match.span()
+            
+            # Skip if in a comment
+            line_start = content.rfind('\n', 0, start) + 1
+            line_content = content[line_start:start]
+            if '#' in line_content:
+                continue
+            
+            # Skip if it's a command keyword
+            if word.upper() in [k.upper() for k in (self.device_keywords + self.script_keywords)]:
+                continue
+            
+            # Only highlight if it's a valid string parameter AND comes after a command
+            if word in self.valid_string_params:
+                line_before = content[line_start:start]
+                has_command = any(cmd.upper() in line_before.upper() for cmd in (self.device_keywords + self.script_keywords))
+                if has_command:
+                    self.text.tag_add("string", f"1.0+{start}c", f"1.0+{end}c")
 
-        # Highlight comments
+        # Highlight comments (do this last so it overrides other highlighting)
         for match in re.finditer(r'#.*', content):
             start, end = match.span()
             self.text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
@@ -375,11 +440,53 @@ class ScriptEditor(tk.Frame):
         # Add the hardcoded script commands (like CYCLE, REPEAT) to the script keywords
         script_keywords.extend(list(SCRIPT_COMMANDS.keys()))
 
-        self.highlighter = SyntaxHighlighter(self.text, device_keywords, list(set(script_keywords))) # Use set to remove duplicates
-        self.highlighter.device_manager = device_manager # Pass manager for refreshing
+        self.highlighter = SyntaxHighlighter(self.text, device_keywords, list(set(script_keywords)), device_manager) # Use set to remove duplicates
     
     def _on_tab(self, event):
-        self.text.insert(tk.INSERT, "    ")
+        # Smart tab: jump to next absolute column boundary
+        # Get current line content to count actual characters
+        cursor_pos = self.text.index(tk.INSERT)
+        line_num, col = cursor_pos.split('.')
+        col = int(col)
+        
+        # Get the actual content of the current line up to cursor
+        line_content = self.text.get(f"{line_num}.0", cursor_pos)
+        # Expand tabs to spaces to get true column position
+        expanded_line = line_content.expandtabs(8)
+        true_col = len(expanded_line)
+        
+        print(f"[DEBUG TAB] Line content: {repr(line_content)}")
+        print(f"[DEBUG TAB] Expanded: {repr(expanded_line)}")
+        print(f"[DEBUG TAB] Col index: {col}, True char col: {true_col}")
+        
+        # Define tab stops at specific character columns for comment alignment
+        tab_stops = [40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120]
+        
+        # Find the next tab stop after current true column position
+        next_stop = None
+        for stop in tab_stops:
+            if stop > true_col:
+                next_stop = stop
+                break
+        
+        print(f"[DEBUG TAB] Next stop: {next_stop}")
+        
+        if next_stop:
+            # Insert spaces to reach that column
+            spaces_needed = next_stop - true_col
+            print(f"[DEBUG TAB] Inserting {spaces_needed} spaces to reach column {next_stop}")
+            self.text.insert(tk.INSERT, ' ' * spaces_needed)
+        else:
+            # If past all tab stops, just insert 8 spaces
+            print(f"[DEBUG TAB] Past all stops, inserting 8 spaces")
+            self.text.insert(tk.INSERT, '        ')
+        
+        # Verify final position
+        final_pos = self.text.index(tk.INSERT)
+        final_line, final_col = final_pos.split('.')
+        final_content = self.text.get(f"{final_line}.0", final_pos)
+        print(f"[DEBUG TAB] Final col index: {final_col}, Final content len: {len(final_content)}")
+        
         return 'break' # Prevents the default tab behavior
 
     def _highlight_current_line(self, event=None):
@@ -495,6 +602,8 @@ class CommandReference(ttk.Frame):
                                activeforeground=theme.FG_COLOR)
         self.context_menu.add_command(label="Copy Command", command=self.copy_command)
         self.context_menu.add_command(label="Add to Script", command=self.add_to_script)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="More Info...", command=self.show_more_info)
 
         self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<Double-1>", lambda e: self.add_to_script())
@@ -583,6 +692,314 @@ class CommandReference(ttk.Frame):
     def show_context_menu(self, event):
         iid = self.tree.identify_row(event.y)
         if iid: self.tree.selection_set(iid); self.tree.focus(iid); self.context_menu.post(event.x_root, event.y_root)
+
+    def show_more_info(self):
+        """Opens a detailed information window for the selected command."""
+        command = self.get_selected_command()
+        if not command:
+            return
+        
+        # Get full command details
+        cmd_details = self.scripting_commands.get(command)
+        if not cmd_details:
+            return
+        
+        # Create the info window
+        info_window = tk.Toplevel(self)
+        info_window.title(f"Command Info: {command}")
+        info_window.geometry("700x600")
+        info_window.configure(bg=theme.BG_COLOR)
+        
+        # Make it modal
+        info_window.transient(self.winfo_toplevel())
+        info_window.grab_set()
+        
+        # Header frame with title and close button
+        header_frame = ttk.Frame(info_window, style='TFrame', padding=(15, 15, 15, 0))
+        header_frame.pack(fill='x')
+        
+        # Title
+        title_label = ttk.Label(header_frame, text=command, 
+                               font=("JetBrains Mono", 18, "bold"),
+                               foreground=theme.PRIMARY_ACCENT,
+                               style='TLabel')
+        title_label.pack(side=tk.LEFT, anchor='w')
+        
+        # Close button in top right
+        close_btn_top = ttk.Button(header_frame, text="✕", width=3, 
+                                   command=info_window.destroy)
+        close_btn_top.pack(side=tk.RIGHT)
+        
+        # Main frame with padding
+        main_frame = ttk.Frame(info_window, style='TFrame', padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Device badge
+        device_frame = ttk.Frame(main_frame, style='TFrame')
+        device_frame.pack(anchor='w', pady=(5, 15))
+        device_label = ttk.Label(device_frame, 
+                                text=f" {cmd_details['device'].upper()} ",
+                                font=("JetBrains Mono", 9, "bold"),
+                                background=theme.SECONDARY_ACCENT,
+                                foreground=theme.FG_COLOR,
+                                padding=(8, 4))
+        device_label.pack(side=tk.LEFT)
+        
+        # Create scrollable content area
+        canvas = tk.Canvas(main_frame, bg=theme.BG_COLOR, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Description section
+        desc_label = ttk.Label(scrollable_frame, text="Description",
+                              font=("JetBrains Mono", 12, "bold"),
+                              foreground=theme.PRIMARY_ACCENT,
+                              style='TLabel')
+        desc_label.pack(anchor='w', pady=(0, 5))
+        
+        desc_text = ttk.Label(scrollable_frame, 
+                             text=cmd_details.get('help', 'No description available.'),
+                             font=("JetBrains Mono", 10),
+                             wraplength=650,
+                             justify='left',
+                             style='TLabel')
+        desc_text.pack(anchor='w', pady=(0, 15))
+        
+        # Parameters section
+        if cmd_details.get('params'):
+            params_label = ttk.Label(scrollable_frame, text="Parameters",
+                                    font=("JetBrains Mono", 12, "bold"),
+                                    foreground=theme.PRIMARY_ACCENT,
+                                    style='TLabel')
+            params_label.pack(anchor='w', pady=(0, 5))
+            
+            for param in cmd_details['params']:
+                param_frame = ttk.Frame(scrollable_frame, style='Card.TFrame', padding=10)
+                param_frame.pack(fill='x', pady=(0, 8))
+                
+                # Parameter name
+                param_name = ttk.Label(param_frame,
+                                      text=f"• {param['name']}",
+                                      font=("JetBrains Mono", 10, "bold"),
+                                      foreground=theme.SUCCESS_GREEN,
+                                      style='TLabel')
+                param_name.pack(anchor='w')
+                
+                # Parameter type
+                param_type = param.get('type', 'str')
+                type_label = ttk.Label(param_frame,
+                                      text=f"  Type: {param_type}",
+                                      font=("JetBrains Mono", 9),
+                                      foreground=theme.COMMENT_COLOR,
+                                      style='TLabel')
+                type_label.pack(anchor='w', padx=(10, 0))
+                
+                # Show enum/choice options for string types
+                choices = param.get('enum') or param.get('options')
+                if param_type in ('str', 'string') and choices:
+                    enum_label = ttk.Label(param_frame,
+                                          text=f"  Choices: {', '.join(choices)}",
+                                          font=("JetBrains Mono", 9),
+                                          foreground=theme.SUCCESS_GREEN,
+                                          style='TLabel')
+                    enum_label.pack(anchor='w', padx=(10, 0))
+                
+                # Optional flag
+                if param.get('optional'):
+                    optional_label = ttk.Label(param_frame,
+                                              text=f"  Optional (default: {param.get('default', 'N/A')})",
+                                              font=("JetBrains Mono", 9),
+                                              foreground=theme.WARNING_YELLOW,
+                                              style='TLabel')
+                    optional_label.pack(anchor='w', padx=(10, 0))
+        
+        # Examples section
+        examples_label = ttk.Label(scrollable_frame, text="Examples",
+                                  font=("JetBrains Mono", 12, "bold"),
+                                  foreground=theme.PRIMARY_ACCENT,
+                                  style='TLabel')
+        examples_label.pack(anchor='w', pady=(15, 5))
+        
+        # Generate example code
+        examples = self._generate_examples(command, cmd_details)
+        
+        for i, example in enumerate(examples):
+            example_frame = ttk.Frame(scrollable_frame, style='TFrame')
+            example_frame.pack(fill='x', pady=(0, 10))
+            
+            # Example text widget with copy button
+            example_text_frame = tk.Frame(example_frame, bg=theme.WIDGET_BG, 
+                                         highlightthickness=1, 
+                                         highlightbackground=theme.COMMENT_COLOR)
+            example_text_frame.pack(fill='x')
+            
+            example_text = tk.Text(example_text_frame, 
+                                  height=example.count('\n') + 1,
+                                  font=("JetBrains Mono", 10),
+                                  bg=theme.WIDGET_BG,
+                                  fg=theme.FG_COLOR,
+                                  insertbackground=theme.FG_COLOR,
+                                  selectbackground=theme.PRIMARY_ACCENT,
+                                  relief=tk.FLAT,
+                                  padx=10,
+                                  pady=10,
+                                  wrap=tk.NONE)
+            example_text.insert('1.0', example)
+            example_text.config(state=tk.DISABLED)
+            example_text.pack(side=tk.LEFT, fill='both', expand=True)
+            
+            # Copy button
+            copy_btn = ttk.Button(example_text_frame,
+                                 text="📋",
+                                 width=4,
+                                 command=lambda ex=example: self._copy_example(ex))
+            copy_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind escape to close
+        info_window.bind('<Escape>', lambda e: info_window.destroy())
+        
+        # Auto-size window to content and center
+        info_window.update_idletasks()
+        
+        # Calculate required height based on content
+        scrollable_frame.update_idletasks()
+        content_height = scrollable_frame.winfo_reqheight()
+        header_height = header_frame.winfo_reqheight()
+        
+        # Add padding and constraints
+        total_height = min(content_height + header_height + 60, info_window.winfo_screenheight() - 100)
+        window_width = 700
+        
+        # Center the window
+        x = (info_window.winfo_screenwidth() // 2) - (window_width // 2)
+        y = (info_window.winfo_screenheight() // 2) - (total_height // 2)
+        info_window.geometry(f"{window_width}x{total_height}+{x}+{y}")
+    
+    def _generate_examples(self, command, cmd_details):
+        """Generate usage examples for a command."""
+        examples = []
+        params = cmd_details.get('params', [])
+        
+        def extract_unit(param_name):
+            try:
+                start = param_name.index('(')
+                end = param_name.index(')', start + 1)
+                return param_name[start+1:end]
+            except ValueError:
+                return ""
+
+        def default_for_unit(param_type, unit, choices=None):
+            """Return a reasonable default value (as string) based on unit and type."""
+            if choices:
+                return str(choices[0])
+            normalized = unit.strip().lower()
+            # Common unit defaults
+            unit_defaults_float = {
+                'mm': '10.5',
+                'mm/s': '20',
+                'kg': '120',
+                '%': '40',
+                'n': '1000',
+                's': '2',
+                'ms': '500',
+                'ml': '5',
+                'c': '70',            # Celsius abbreviated
+                '°c': '70',
+                'deg': '45',
+                'psi': '30',
+                'bar': '2',
+                'pa': '100000',
+                'v': '12',
+                'a': '1',
+            }
+            unit_defaults_int = {
+                'mm': '10',
+                'mm/s': '20',
+                'kg': '120',
+                '%': '40',
+                'n': '1000',
+                's': '2',
+                'ms': '500',
+                'ml': '5',
+                'psi': '30',
+                'bar': '2',
+                'pa': '100000',
+                'v': '12',
+                'a': '1',
+            }
+            if param_type == 'int':
+                if normalized in unit_defaults_int:
+                    return unit_defaults_int[normalized]
+                return '100'
+            # float and others default
+            if normalized in unit_defaults_float:
+                return unit_defaults_float[normalized]
+            return '10.5' if param_type == 'float' else 'value'
+
+        if not params:
+            # No parameters - show simple usage
+            examples.append(f"# Simple usage\n{command}")
+        else:
+            # Basic example with all required params
+            param_values_with_units = []
+            param_values_plain = []
+            
+            for param in params:
+                param_type = param.get('type', 'str')
+                choices = param.get('enum') or param.get('options')
+                unit = extract_unit(param.get('name', ''))
+                # Unit-aware default selection
+                val = default_for_unit(param_type, unit, choices)
+
+                param_values_plain.append(val)
+                if unit:
+                    param_values_with_units.append(f"{val} {unit}")
+                else:
+                    param_values_with_units.append(val)
+
+            basic_example = f"# Basic usage\n{command} {' '.join(param_values_with_units)}"
+            examples.append(basic_example)
+            
+            # If there are optional params, show example with and without
+            if any(p.get('optional') for p in params):
+                required_values_with_units = []
+                
+                for i, param in enumerate(params):
+                    if not param.get('optional'):
+                        val = param_values_plain[i]
+                        unit = extract_unit(param.get('name', ''))
+                        if unit:
+                            required_values_with_units.append(f"{val} {unit}")
+                        else:
+                            required_values_with_units.append(val)
+                
+                if required_values_with_units:
+                    optional_example = f"# With only required parameters\n{command} {' '.join(required_values_with_units)}"
+                    examples.append(optional_example)
+            
+            # Multi-line script example
+            if len(examples) == 1:
+                multi_example = f"# In a script sequence\nWAIT 1000\n{command} {' '.join(param_values_with_units)}\nWAIT 500"
+                examples.append(multi_example)
+        
+        return examples
+    
+    def _copy_example(self, text):
+        """Copy example text to clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(text)
 
 def create_command_reference(parent, script_editor_widget, device_manager):
     # This is now a wrapper for the class
@@ -680,9 +1097,16 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def update_window_title():
         filename = "Untitled"
-        if current_filepath: filename = os.path.basename(current_filepath)
+        unsaved_tag = ""
+        if current_filepath:
+            filename = os.path.basename(current_filepath)
+            # Check if it's a temp file
+            import tempfile
+            if current_filepath.startswith(tempfile.gettempdir()):
+                filename = "Untitled"
+                unsaved_tag = " (unsaved)"
         modified_star = "*" if script_editor.edit_modified() else "";
-        root.title(f"{filename}{modified_star} - BR Equipment Control App")
+        root.title(f"{filename}{modified_star}{unsaved_tag} - BR Equipment Control App")
 
     def on_text_modified(event):
         """Updates window title and triggers autosave if enabled."""
@@ -727,8 +1151,36 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     # --- File Operations ---
     def check_unsaved_changes():
-        if not script_editor.edit_modified(): return True
+        is_modified = script_editor.edit_modified()
+        
+        # Check if current file is a temp file (unsaved)
+        import tempfile
+        is_temp_file = current_filepath and current_filepath.startswith(tempfile.gettempdir())
+        has_content = len(script_editor.get('1.0', tk.END).strip()) > 0
+        
+        print(f"[DEBUG] check_unsaved_changes: edit_modified={is_modified}, is_temp_file={is_temp_file}, has_content={has_content}, current_filepath={current_filepath}")
+        
+        # If it's a temp file with content, always warn even if autosaved
+        if is_temp_file and has_content:
+            print("[DEBUG] Temp file with content, showing save dialog")
+            response = messagebox.askyesnocancel("Save Untitled Script?", 
+                "This script has not been saved to a permanent location. Do you want to save it?")
+            print(f"[DEBUG] User response: {response}")
+            if response is True:
+                return save_script()  # This will trigger "Save As" dialog for temp files
+            elif response is False:
+                return True  # User chose not to save
+            else:
+                return False  # User cancelled
+        
+        # Normal modification check for regular files
+        if not is_modified:
+            print("[DEBUG] No changes, returning True")
+            return True
+        
+        print("[DEBUG] Showing unsaved changes dialog")
         response = messagebox.askyesnocancel("Unsaved Changes", "You have unsaved changes. Do you want to save them?")
+        print(f"[DEBUG] User response: {response}")
         if response is True:
             return save_script()
         elif response is False:
@@ -741,13 +1193,34 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if not check_unsaved_changes(): return
         script_editor.delete('1.0', tk.END);
         script_editor.edit_modified(False);
-        current_filepath = None;
+        
+        # Create a temporary autosave file for new unsaved scripts
+        import tempfile
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        temp_dir = tempfile.gettempdir()
+        current_filepath = os.path.join(temp_dir, f"untitled_{timestamp}.txt")
+        
+        # Create the empty temp file
+        try:
+            with open(current_filepath, 'w') as f:
+                f.write("")
+        except Exception as e:
+            print(f"Warning: Could not create temp file for autosave: {e}")
+            current_filepath = None
+        
         update_window_title();
         update_selection_highlight(1)
 
     def save_script():
         nonlocal current_filepath
-        if current_filepath:
+        
+        # Check if current file is a temp file - if so, always do "Save As"
+        import tempfile
+        is_temp_file = current_filepath and current_filepath.startswith(tempfile.gettempdir())
+        
+        if current_filepath and not is_temp_file:
+            # Normal save to existing permanent file
             try:
                 with open(current_filepath, 'w') as f:
                     f.write(script_editor.get('1.0', tk.END))
@@ -761,15 +1234,37 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 messagebox.showerror("Save Error", f"Could not save file:\n{e}");
                 return False
         else:
+            # No file or temp file - trigger "Save As" dialog
             return save_script_as()
 
     def save_script_as():
         nonlocal current_filepath
+        
+        # Remember the old temp file so we can delete it after saving
+        import tempfile
+        old_temp_file = None
+        if current_filepath and current_filepath.startswith(tempfile.gettempdir()):
+            old_temp_file = current_filepath
+        
         filepath = filedialog.asksaveasfilename(title="Save Script As", defaultextension=".txt",
                                                 filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-        if not filepath: return False
-        current_filepath = filepath;
-        return save_script()
+        if not filepath:
+            print("[DEBUG] Save As cancelled by user")
+            return False
+        
+        print(f"[DEBUG] Saving to: {filepath}")
+        current_filepath = filepath
+        result = save_script()
+        
+        # Clean up old temp file if save was successful
+        if result and old_temp_file:
+            try:
+                os.remove(old_temp_file)
+                print(f"[DEBUG] Deleted old temp file: {old_temp_file}")
+            except Exception as e:
+                print(f"[DEBUG] Could not delete temp file: {e}")
+        
+        return result
 
     def load_specific_script(filepath):
         nonlocal current_filepath
@@ -1060,6 +1555,83 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     edit_commands = {
         "find_replace": find_replace_frame.show
     }
+    
+    # --- Check for recovery files on startup ---
+    def check_for_recovery():
+        """Check for temp autosave files and offer to recover them."""
+        import tempfile
+        import glob
+        import time
+        
+        temp_dir = tempfile.gettempdir()
+        pattern = os.path.join(temp_dir, "untitled_*.txt")
+        temp_files = glob.glob(pattern)
+        
+        print(f"[DEBUG RECOVERY] Found {len(temp_files)} temp files: {temp_files}")
+        
+        # Filter files: must have content, ignore very new files (< 5 seconds, likely current session)
+        recoverable_files = []
+        for tf in temp_files:
+            try:
+                # Check file age and size
+                age_seconds = time.time() - os.path.getmtime(tf)
+                size = os.path.getsize(tf)
+                print(f"[DEBUG RECOVERY] File: {os.path.basename(tf)}, age: {age_seconds:.1f}s, size: {size}")
+                
+                # Only offer recovery if file is > 5 seconds old and has content
+                # (5 seconds gives time for the new session to create its own temp file)
+                if age_seconds > 5 and size > 0:
+                    recoverable_files.append((tf, age_seconds))
+                    print(f"[DEBUG RECOVERY] -> Recoverable")
+            except Exception as e:
+                print(f"[DEBUG RECOVERY] Error checking {tf}: {e}")
+        
+        print(f"[DEBUG RECOVERY] Found {len(recoverable_files)} recoverable files")
+        
+        if recoverable_files:
+            # Sort by most recent first
+            recoverable_files.sort(key=lambda x: x[1])
+            
+            # Show recovery dialog
+            msg = f"Found {len(recoverable_files)} unsaved script(s) from a previous session.\n\n"
+            msg += "Would you like to recover the most recent one?"
+            
+            response = messagebox.askyesno("Recover Unsaved Work?", msg)
+            if response:
+                # Load the most recent file
+                most_recent = recoverable_files[0][0]
+                print(f"[DEBUG RECOVERY] Recovering: {most_recent}")
+                try:
+                    with open(most_recent, 'r') as f:
+                        content = f.read()
+                    script_editor.delete('1.0', tk.END)
+                    script_editor.insert('1.0', content)
+                    script_editor.edit_modified(False)  # Mark as unmodified since it's from autosave
+                    nonlocal current_filepath
+                    current_filepath = most_recent
+                    update_window_title()
+                    status_var.set("Recovered unsaved script - use 'Save As' to choose a permanent location")
+                    print(f"[DEBUG RECOVERY] Successfully recovered")
+                except Exception as e:
+                    messagebox.showerror("Recovery Error", f"Could not recover file:\n{e}")
+                    print(f"[DEBUG RECOVERY] Recovery error: {e}")
+            else:
+                print("[DEBUG RECOVERY] User declined recovery")
+            
+            # Clean up old temp files (ask first) - but NOT the one we just recovered
+            if len(recoverable_files) > 1:
+                cleanup = messagebox.askyesno("Clean Up", 
+                    f"Would you like to delete the other {len(recoverable_files)-1} old temp file(s)?")
+                if cleanup:
+                    for tf, _ in recoverable_files[1:]:
+                        try:
+                            os.remove(tf)
+                            print(f"[DEBUG RECOVERY] Deleted old temp file: {tf}")
+                        except Exception as e:
+                            print(f"[DEBUG RECOVERY] Could not delete {tf}: {e}")
+    
+    # Schedule recovery check after GUI is fully loaded
+    root.after(500, check_for_recovery)
     
     return {
         "file_commands": file_commands,

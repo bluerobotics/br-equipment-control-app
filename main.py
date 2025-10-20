@@ -444,6 +444,15 @@ class MainApplication:
         # --- Store references for dynamic updates ---
         self.shared_gui_refs['refresh_commands_ref'] = self.refresh_command_components
         self.shared_gui_refs['add_device_panels_ref'] = self.add_new_device_panels
+        
+        # --- Register window close handler ---
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # --- macOS: Intercept Cmd+Q quit command ---
+        import platform
+        if platform.system() == 'Darwin':  # macOS
+            # Override the default quit behavior
+            self.root.createcommand('::tk::mac::Quit', self.on_closing)
 
     def refresh_command_components(self):
         """Refreshes all UI components that depend on the list of commands."""
@@ -482,12 +491,18 @@ class MainApplication:
         """
         Handles the window close event, checking for unsaved changes before exiting.
         """
+        print("[DEBUG] on_closing called")
         # Ask the scripting GUI to check for unsaved changes before closing
-        if self.scripting_gui_refs['check_unsaved']():
+        check_result = self.scripting_gui_refs['check_unsaved']()
+        print(f"[DEBUG] check_unsaved returned: {check_result}")
+        if check_result:
+            print("[DEBUG] Proceeding with close")
             # Terminate simulator if it's running
             if device_actions.simulator_process and device_actions.simulator_process.poll() is None:
                 device_actions.simulator_process.terminate()
             self.root.destroy()
+        else:
+            print("[DEBUG] Close cancelled by user")
 
     def load_last_script(self):
         """
