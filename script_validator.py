@@ -25,7 +25,16 @@ def _validate_line(line_content, line_num, commands):
             continue
 
         parts = sub_cmd_str.split()
-        command_word = parts[0].upper()
+        command_word = parts[0]
+
+        # --- Case-insensitive command lookup ---
+        command_info = None
+        canonical_cmd = None
+        for cmd_key in commands:
+            if cmd_key.lower() == command_word.lower():
+                command_info = commands[cmd_key]
+                canonical_cmd = cmd_key
+                break
 
         # --- NEW: Extract only numeric parts for arguments ---
         args = []
@@ -36,11 +45,10 @@ def _validate_line(line_content, line_num, commands):
             if match:
                 args.append(match.group(0))
 
-        if command_word not in commands:
-            errors.append({"line": line_num, "error": f"In '{sub_cmd_str}': Unknown command '{command_word}'."})
+        if not command_info:
+            errors.append({"line": line_num, "error": f"In '{sub_cmd_str}': Unknown command '{command_word.upper()}'."})
             continue
 
-        command_info = commands[command_word]
         params_def = command_info['params']
         num_required_params = sum(1 for p in params_def if not p.get("optional"))
 

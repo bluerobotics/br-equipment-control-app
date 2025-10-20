@@ -55,6 +55,25 @@ SELECTION_FG = "#FFFFFF"      # Bright white for selected text
 
 # --- Fonts ---
 import platform
+import ctypes
+
+def dark_title_bar(window):
+    """
+    Sets the title bar to dark mode on Windows 10/11.
+    """
+    if platform.system() == "Windows":
+        try:
+            window.update()
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            set_window_attribute = ctypes.windll.dwmapi.DwmSetWindowAttribute
+            get_parent = ctypes.windll.user32.GetParent
+            hwnd = get_parent(window.winfo_id())
+            rendering_policy = DWMWA_USE_IMMERSIVE_DARK_MODE
+            value = 2
+            value = ctypes.c_int(value)
+            set_window_attribute(hwnd, rendering_policy, ctypes.byref(value), ctypes.sizeof(value))
+        except Exception as e:
+            print(f"Failed to set dark title bar: {e}")
 
 def _get_monospace_font():
     """Returns a monospace font appropriate for the platform (matches VS Code defaults)."""
