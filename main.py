@@ -338,7 +338,8 @@ class MainApplication:
         splitter.add(center_container, weight=1)
         
         # Left-side container for the status bar
-        left_bar_frame = ttk.Frame(center_container, width=600, style='TFrame')
+        status_panel_width = 600 if platform.system() == "Windows" else 400
+        left_bar_frame = ttk.Frame(center_container, width=status_panel_width, style='TFrame')
         left_bar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0), pady=10)
         left_bar_frame.pack_propagate(False)
 
