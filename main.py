@@ -66,32 +66,24 @@ class CollapsiblePanel(ttk.Frame):
                         total_width = pw.winfo_width()
                         
                         if self.is_collapsed:
+                            # Move sash to make this pane only trigger_width wide
                             target_pos = total_width - trigger_width
+                            # Add a small buffer for the sash itself
                             if target_pos < total_width - 5:
                                 target_pos -= 5
                             pw.sashpos(sash_index, target_pos)
                         else:
-                            # Handle both fixed pixel width and percentage width
-                            pixel_width = self.width
-                            if isinstance(self.width, float) and 0.0 < self.width < 1.0:
-                                pixel_width = int(total_width * self.width)
-                            
-                            target_pos = total_width - pixel_width
+                            # Move sash to make this pane its full configured width
+                            target_pos = total_width - self.width
                             pw.sashpos(sash_index, target_pos)
         except Exception:
             pass # Fail silently
 
     def toggle_panel(self, event=None):
         if self.is_collapsed:
+            # Expand to configured width
             self.content_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
-            # Handle both fixed pixel and percentage widths for configure
-            pixel_width = self.width
-            if isinstance(self.width, float) and 0.0 < self.width < 1.0:
-                parent_width = self.master.winfo_width()
-                pixel_width = int(parent_width * self.width)
-            
-            self.configure(width=pixel_width)
+            self.configure(width=self.width)
         else:
             # Collapse to trigger width
             self.content_panel.pack_forget()
@@ -338,20 +330,21 @@ class MainApplication:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create a horizontal splitter for center content and commands (resizable)
-        right_splitter = ttk.Panedwindow(main_frame, orient=tk.HORIZONTAL, style='TPanedwindow')
-        right_splitter.pack(fill=tk.BOTH, expand=True, pady=10, padx=10)
+        splitter = ttk.Panedwindow(main_frame, orient=tk.HORIZONTAL, style='TPanedwindow')
+        splitter.pack(fill=tk.BOTH, expand=True, pady=10, padx=10)
 
-        # Central container is now also a splitter for responsive width
-        center_splitter = ttk.Panedwindow(right_splitter, orient=tk.HORIZONTAL, style='TPanedwindow')
-        right_splitter.add(center_splitter, weight=1)
+        # Central container for the main content (left pane of splitter)
+        center_container = ttk.Frame(splitter, style='TFrame')
+        splitter.add(center_container, weight=1)
         
         # Left-side container for the status bar
-        left_bar_frame = ttk.Frame(center_splitter, style='TFrame')
-        center_splitter.add(left_bar_frame, weight=0) # weight=0 makes it non-expanding by default
-        
+        left_bar_frame = ttk.Frame(center_container, width=600, style='TFrame')
+        left_bar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0), pady=10)
+        left_bar_frame.pack_propagate(False)
+
         # Main content area (scripting, console)
-        main_content_frame = ttk.Frame(center_splitter, style='TFrame')
-        center_splitter.add(main_content_frame, weight=1) # weight=1 makes it take remaining space
+        main_content_frame = ttk.Frame(center_container, style='TFrame')
+        main_content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         terminal_widgets = create_terminal_panel(main_content_frame, self.shared_gui_refs)
         self.shared_gui_refs.update(terminal_widgets)
@@ -369,33 +362,32 @@ class MainApplication:
 
         # --- Populate UI Components ---
         # Commands panel lives in the splitter (right pane), resizable
-        cmd_ref_collapsible = CollapsiblePanel(right_splitter, text="Commands", width=0.25)
-        right_splitter.add(cmd_ref_collapsible) # Add the pane
+        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Commands", width=800)
+        splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
 
         def set_initial_sash_pos(event=None):
-            # This function runs once after the window is drawn to set the sashes.
-            right_splitter.unbind("<Configure>")
+            # This function runs once after the window is drawn to set the sash.
+            # We unbind immediately to ensure it's not called again on resize.
+            splitter.unbind("<Configure>")
 
-            def position_sashes():
-                # --- Right Splitter (Commands Panel) ---
+            def position_sash():
+                """Calculates and sets the sash position."""
                 trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
-                splitter_width = right_splitter.winfo_width()
-                target_pos_right = splitter_width - (trigger_width + 5)
-                if target_pos_right > 0:
-                    right_splitter.sashpos(0, target_pos_right)
+                splitter_width = splitter.winfo_width()
+                # Position sash so the right pane is only trigger_width wide,
+                # leaving a few pixels for the sash handle itself.
+                target_pos = splitter_width - (trigger_width + 5)
+                if target_pos > 0:
+                    splitter.sashpos(0, target_pos)
 
-                # --- Center Splitter (Status Panels) ---
-                center_splitter_width = center_splitter.winfo_width()
-                # Set status panel to be 12% of the center area width
-                target_pos_center = int(center_splitter_width * 0.12) 
-                if target_pos_center > 0:
-                    center_splitter.sashpos(0, target_pos_center)
-
-            right_splitter.after(10, position_sashes)
+            # Schedule this to run after a short delay. This allows the Tkinter
+            # event loop to process all initial geometry calculations, ensuring
+            # winfo_width() returns a correct, stable value.
+            splitter.after(10, position_sash)
 
         # Bind to the splitter's configure event, which fires when it's first sized.
-        right_splitter.bind("<Configure>", set_initial_sash_pos, add="+")
+        splitter.bind("<Configure>", set_initial_sash_pos, add="+")
 
         # Populate the collapsible panels' content frames
         cmd_ref_content = cmd_ref_collapsible.get_content_frame()
