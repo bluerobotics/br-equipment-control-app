@@ -450,7 +450,6 @@ class MainApplication:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # --- macOS: Intercept Cmd+Q quit command ---
-        import platform
         if platform.system() == 'Darwin':  # macOS
             # Override the default quit behavior
             self.root.createcommand('::tk::mac::Quit', self.on_closing)
