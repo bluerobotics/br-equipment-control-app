@@ -67,7 +67,7 @@ class DeviceManager:
                         'telemetry_data': telemetry_data, # Store the schema
                         'scripting_commands': scripting_commands, # Store loaded JSON data
                         'config': {}, # Keep the key for consistent structure, but it's now unused
-                        'status_var': tk.StringVar(value=f'🔌 {device_name.capitalize()} Disconnected')
+                        'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
                     # Initialize the state for this device
                     self.device_state[device_name] = {
@@ -140,7 +140,7 @@ class DeviceManager:
                         'telemetry_data': telemetry_data,
                         'scripting_commands': scripting_commands,
                         'config': {},
-                        'status_var': tk.StringVar(value=f'🔌 {device_name.capitalize()} Disconnected')
+                        'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
                     self.device_state[device_name] = {
                         "ip": None, "last_rx": 0, "connected": False, "last_discovery_attempt": 0
@@ -166,6 +166,10 @@ class DeviceManager:
     def get_device_modules(self):
         """Returns the dictionary of loaded device modules."""
         return self.devices
+
+    def get_all_device_names(self):
+        """Returns a list of the names of all loaded devices."""
+        return list(self.devices.keys())
 
     def get_discovery_logs(self):
         """Returns the list of discovery log messages."""
@@ -251,8 +255,29 @@ class DeviceManager:
         for device_name, modules in self.devices.items():
             # Check for commands loaded from JSON
             if modules.get('scripting_commands'):
-                all_commands.update(modules['scripting_commands'])
+                device_commands = modules['scripting_commands']
+                # Add device information to each command
+                for cmd_name, cmd_details in device_commands.items():
+                    # Check if command already has device prefix
+                    if cmd_name.startswith(f"{device_name}."):
+                        # Command already has device prefix, use it as-is
+                        full_cmd_key = cmd_name
+                    else:
+                        # Command doesn't have device prefix, add it
+                        full_cmd_key = f"{device_name}.{cmd_name}"
+                    
+                    # Add device information to command details
+                    cmd_details_with_device = cmd_details.copy()
+                    cmd_details_with_device['device'] = device_name
+                    all_commands[full_cmd_key] = cmd_details_with_device
         return all_commands
+
+    def get_device_scripting_commands(self, device_name):
+        """Returns the scripting commands for a specific device."""
+        device = self.devices.get(device_name)
+        if device:
+            return device.get('scripting_commands', {})
+        return {}
 
     def get_all_device_variable_names(self):
         """

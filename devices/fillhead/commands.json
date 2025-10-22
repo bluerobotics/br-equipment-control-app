@@ -1,118 +1,121 @@
 {
-    "fillhead.heater_on": {
+    "heater_on": {
         "device": "fillhead",
+        "target": "device",
         "params": [
-            {"name": "setpoint_C", "type": "float", "optional": true, "keywords": ["temp", "temperature", "C"]}
+            {"parameter": "setpoint", "unit": "°C", "type": "float", "optional": true}
         ],
+        "returns": ["done", "error"],
         "help": "Turns the heater on. Optionally sets the target temperature."
     },
-    "fillhead.heater_off": {
+    "heater_off": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Turns the heater off."
     },
-    "fillhead.vacuum_leak_test": {
+    "vacuum_leak_test": {
         "device": "fillhead",
+        "target": "device",
         "params": [
-            {"name": "delta_psi", "type": "float", "optional": true, "keywords": ["delta", "d"]},
-            {"name": "duration_s", "type": "float", "optional": true, "keywords": ["duration", "dur", "s", "sec"]}
+            {"parameter": "delta", "unit": "psi", "type": "float", "optional": true},
+            {"parameter": "duration", "unit": "s", "type": "float", "optional": true}
         ],
+        "returns": ["passed", "failed"],
         "help": "Performs a vacuum leak test. All parameters are optional."
     },
-    "fillhead.vacuum_on": {
+    "vacuum_on": {
         "device": "fillhead",
+        "target": "device",
         "params": [
-            {"name": "target_psi", "type": "float", "optional": true, "keywords": ["vacuum", "vac", "psi"]}
+            {"parameter": "target", "unit": "psi", "type": "float", "optional": true}
         ],
+        "returns": ["done", "error"],
         "help": "Turns the vacuum on. Optionally sets the target vacuum pressure."
     },
-    "fillhead.vacuum_off": {
+    "vacuum_off": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Turns the vacuum off."
     },
-    "fillhead.inj_valve_home_tubed": {
+    "inj_valve_home": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Homes the injection valve (tubed)."
     },
-    "fillhead.inj_valve_home_untubed": {
+    "inj_valve_open": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
-        "help": "Homes the injection valve (untubed)."
-    },
-    "fillhead.inj_valve_open": {
-        "device": "fillhead",
-        "params": [],
+        "returns": ["done", "error"],
         "help": "Opens the injection valve."
     },
-    "fillhead.inj_valve_close": {
+    "inj_valve_close": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Closes the injection valve."
     },
-    "fillhead.vac_valve_home_tubed": {
+    "vac_valve_home": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Homes the vacuum valve (tubed)."
     },
-    "fillhead.vac_valve_home_untubed": {
+    "vac_valve_open": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
-        "help": "Homes the vacuum valve (untubed)."
-    },
-    "fillhead.vac_valve_open": {
-        "device": "fillhead",
-        "params": [],
+        "returns": ["done", "error"],
         "help": "Opens the vacuum valve."
     },
-    "fillhead.vac_valve_close": {
+    "vac_valve_close": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Closes the vacuum valve."
     },
-    "fillhead.wait_until_heater_at_temp": {
+    "machine_home": {
         "device": "fillhead",
-        "handler": "script",
-        "params": [
-            {"name": "temperature_C", "type": "float", "keywords": ["temp", "temperature", "C"]},
-            {"name": "timeout_sec", "type": "int", "optional": true, "default": 300, "keywords": ["timeout", "t"]}
-        ],
-        "help": "Pauses script until the heater reaches the target temperature."
-    },
-    "fillhead.wait_until_vacuum": {
-        "device": "fillhead",
-        "handler": "script",
-        "params": [
-            {"name": "target_psi", "type": "float", "keywords": ["vacuum", "vac", "psi"]},
-            {"name": "timeout_s", "type": "float", "optional": true, "keywords": ["timeout", "t"]}
-        ],
-        "help": "Pauses script until vacuum reaches target. All params optional."
-    },
-    "fillhead.machine_home": {
-        "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Homes the main machine axis."
     },
-    "fillhead.cartridge_home": {
+    "cartridge_home": {
         "device": "fillhead",
+        "target": "device",
         "params": [],
+        "returns": ["done", "error"],
         "help": "Homes the injector against the cartridge."
     },
-    "fillhead.inject_stator": {
+    "inject_stator": {
         "device": "fillhead",
+        "target": "device",
         "params": [
-            {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},
-            {"name": "speed_ml_s", "type": "float", "optional": true, "keywords": ["speed", "sp"]}
+            {"parameter": "volume", "unit": "ml", "type": "float"},
+            {"parameter": "speed", "unit": "ml/s", "type": "float", "optional": true}
         ],
+        "returns": ["done", "error"],
         "help": "Injects a volume using the Stator (5:1) settings."
     },
-    "fillhead.inject_rotor": {
+    "inject_rotor": {
         "device": "fillhead",
+        "target": "device",
         "params": [
-            {"name": "volume_ml", "type": "float", "keywords": ["vol", "volume"]},
-            {"name": "speed_ml_s", "type": "float", "optional": true, "keywords": ["speed", "sp"]}
+            {"parameter": "volume", "unit": "ml", "type": "float"},
+            {"parameter": "speed", "unit": "ml/s", "type": "float", "optional": true}
         ],
+        "returns": ["done", "error"],
         "help": "Injects a volume using the Rotor (1:1) settings."
     }
 }
+

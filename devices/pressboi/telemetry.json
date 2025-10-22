@@ -1,13 +1,94 @@
 {
-    "MAIN_STATE":   {"gui_var": "pressboi_main_state_var", "default": "STANDBY"},
-    "force":        {"gui_var": "pressboi_force_var", "format": {"suffix": " kg", "precision": 1}, "default": 0.0},
-    "force_limit":  {"gui_var": "pressboi_force_limit_var", "format": {"suffix": " kg", "precision": 1}, "default": 1000.0},
-    "enabled0":     {"gui_var": "pressboi_enabled0_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "enabled1":     {"gui_var": "pressboi_enabled1_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "current_pos":  {"gui_var": "pressboi_current_pos_var", "format": {"precision": 2}, "default": 0.0},
-    "start_pos":    {"gui_var": "pressboi_start_pos_var", "format": {"precision": 2}, "default": 0.0},
-    "target_pos":   {"gui_var": "pressboi_target_pos_var", "format": {"precision": 2}, "default": 0.0},
-    "torque_m1":    {"gui_var": "pressboi_torque_m1_var", "default": 0.0},
-    "torque_m2":    {"gui_var": "pressboi_torque_m2_var", "default": 0.0},
-    "homed":        {"gui_var": "pressboi_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0}
+    "MAIN_STATE": {
+        "type": "string",
+        "default": "STANDBY",
+        "help": "Overall press system state",
+        "gui_var": "pressboi_main_state_var"
+    },
+    "force": {
+        "unit": "kg",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current force being applied by the press",
+        "gui_var": "pressboi_force_var"
+    },
+    "force_limit": {
+        "unit": "kg",
+        "type": "float",
+        "default": 1000.0,
+        "precision": 1,
+        "help": "Maximum force limit for current operation",
+        "gui_var": "pressboi_force_limit_var"
+    },
+    "enabled0": {
+        "type": "int",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Power enable status for motor 1",
+        "gui_var": "pressboi_enabled0_var"
+    },
+    "enabled1": {
+        "type": "int",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Power enable status for motor 2",
+        "gui_var": "pressboi_enabled1_var"
+    },
+    "current_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of press axis",
+        "gui_var": "pressboi_current_pos_var"
+    },
+    "start_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Preset starting position for pressing routine",
+        "gui_var": "pressboi_start_pos_var"
+    },
+    "target_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Target position for current move operation",
+        "gui_var": "pressboi_target_pos_var"
+    },
+    "torque_m1": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for motor 1",
+        "gui_var": "pressboi_torque_m1_var"
+    },
+    "torque_m2": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for motor 2",
+        "gui_var": "pressboi_torque_m2_var"
+    },
+    "homed": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if press has been homed to zero position",
+        "gui_var": "pressboi_homed_var"
+    }
 }

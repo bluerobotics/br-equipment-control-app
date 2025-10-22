@@ -6,8 +6,6 @@ import json
 from functools import partial
 import re
 import tkinter.font as tkfont
-import platform
-import webbrowser
 
 from script_validator import validate_single_line, validate_script
 from script_processor import ScriptRunner, SCRIPT_COMMANDS
@@ -208,8 +206,7 @@ class CustomText(tk.Text):
             inactiveselectbackground=theme.SELECTION_BG, # Keep selection color when widget loses focus
             undo=True,
             wrap=tk.NONE,
-            spacing1=2,
-            spacing3=2
+            spacing3=3
         )
         
         # Verify font is actually monospace
@@ -271,15 +268,12 @@ class SyntaxHighlighter:
         self.script_keywords = script_keywords
         self.device_manager = device_manager
         self.valid_string_params = set()  # Will hold all valid enum/option values
-        self.all_variables = []  # Will hold all device.variable names
         self._load_valid_string_params()
-        self._load_all_variables()
         
         self.tags = {
             'device': {'foreground': theme.DEVICE_COLOR, 'font': theme.FONT_BOLD},  # Purple for device namespace
             'command': {'foreground': theme.COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'script_command': {'foreground': theme.SCRIPT_COMMAND_COLOR, 'font': theme.FONT_BOLD},
-            'variable': {'foreground': '#C04848'},  # Burgundy for variables (device.variable)
             'parameter': {'foreground': theme.PARAMETER_COLOR},
             'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
             'comment': {'foreground': theme.COMMENT_COLOR},
@@ -306,36 +300,15 @@ class SyntaxHighlighter:
                 if choices:
                     for choice in choices:
                         self.valid_string_params.add(choice.lower())
-    
-    def _load_all_variables(self):
-        """Load all telemetry variables from all devices."""
-        self.all_variables = []
-        if not self.device_manager:
-            return
-        
-        for device_name in self.device_manager.get_all_device_names():
-            device_data = self.device_manager.devices.get(device_name, {})
-            telemetry_data = device_data.get('telemetry_data', {})
-            
-            for param_name in telemetry_data.keys():
-                full_var_name = f"{device_name}.{param_name}"
-                self.all_variables.append(full_var_name)
 
     def refresh_keywords(self):
         """Re-fetches the keywords from the device manager and re-highlights the text."""
         # This assumes the device_manager reference passed in initially is still valid
         # and has been updated with the new device info.
         all_commands = self.device_manager.get_all_scripting_commands()
-        all_commands.update(SCRIPT_COMMANDS)  # Add the generic script commands
-        
-        self.device_keywords = [cmd for cmd, details in all_commands.items() if details.get('device') not in ['script', 'both']]
-        self.script_keywords = [cmd for cmd, details in all_commands.items() if details.get('device') in ['script', 'both']]
-        
-        # Add the hardcoded script commands (like CYCLE, REPEAT) to the script keywords
-        self.script_keywords.extend(list(SCRIPT_COMMANDS.keys()))
-        
+        self.device_keywords = [cmd for cmd, details in all_commands.items() if details['device'] not in ['script', 'both']]
+        self.script_keywords = [cmd for cmd, details in all_commands.items() if details['device'] in ['script', 'both']]
         self._load_valid_string_params()  # Refresh valid string params too
-        self._load_all_variables()  # Refresh variables too
         self.highlight()
 
 
@@ -376,23 +349,6 @@ class SyntaxHighlighter:
                 else:
                     # No dot, just highlight the whole thing as a command
                     self.text.tag_add("command", f"1.0+{start}c", f"1.0+{end}c")
-        
-        # Highlight variables (device.variable format) - purple.burgundy
-        if self.all_variables:
-            variable_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(v) for v in self.all_variables) + r')(?=\s|,|$)'
-            for match in re.finditer(variable_pattern, content, re.IGNORECASE | re.MULTILINE):
-                start, end = match.span(1)
-                full_variable = match.group(1)
-                
-                # Variables always have a dot (device.variable format)
-                if '.' in full_variable:
-                    dot_pos = full_variable.index('.')
-                    # Highlight device part (before dot) in purple
-                    device_end = start + dot_pos
-                    self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
-                    # Highlight variable part (after dot) in burgundy
-                    variable_start = start + dot_pos + 1
-                    self.text.tag_add("variable", f"1.0+{variable_start}c", f"1.0+{end}c")
 
         # Highlight script commands
         if self.script_keywords:
@@ -470,11 +426,6 @@ class ScriptEditor(tk.Frame):
         self.text.bind("<Button-1>", self._on_change)
         self.text.bind("<Tab>", self._on_tab)
 
-        # --- Right-click Context Menu ---
-        self.context_menu = ThemedContextMenu(self.text)
-        right_click_event = "<Button-2>" if platform.system() == 'Darwin' else "<Button-3>"
-        self.text.bind(right_click_event, self.show_context_menu)
-
         self.text.tag_configure("current_line", background=theme.SECONDARY_ACCENT)
         self._highlight_current_line()
         
@@ -482,71 +433,15 @@ class ScriptEditor(tk.Frame):
         all_commands = self.device_manager.get_all_scripting_commands()
         all_commands.update(SCRIPT_COMMANDS) # Add the generic script commands
 
-        # Separate the keywords for the highlighter based on the 'device' key
-        device_keywords = [cmd for cmd, details in all_commands.items() if details.get('device') not in ['script', 'both']]
-        script_keywords = [cmd for cmd, details in all_commands.items() if details.get('device') in ['script', 'both']]
+        # Separate the keywords for the highlighter based on the 'handler' key
+        device_keywords = [cmd for cmd, details in all_commands.items() if details.get('handler') != 'script']
+        script_keywords = [cmd for cmd, details in all_commands.items() if details.get('handler') == 'script']
         
         # Add the hardcoded script commands (like CYCLE, REPEAT) to the script keywords
         script_keywords.extend(list(SCRIPT_COMMANDS.keys()))
 
         self.highlighter = SyntaxHighlighter(self.text, device_keywords, list(set(script_keywords)), device_manager) # Use set to remove duplicates
     
-    def _on_tab(self, event):
-        # Smart tab: jump to next absolute column boundary
-        # Get current line content to count actual characters
-        cursor_pos = self.text.index(tk.INSERT)
-        line_num, col = cursor_pos.split('.')
-        col = int(col)
-        
-        # Get the actual content of the current line up to cursor
-        line_content = self.text.get(f"{line_num}.0", cursor_pos)
-        # Expand tabs to spaces to get true column position
-        expanded_line = line_content.expandtabs(8)
-        true_col = len(expanded_line)
-        
-        print(f"[DEBUG TAB] Line content: {repr(line_content)}")
-        print(f"[DEBUG TAB] Expanded: {repr(expanded_line)}")
-        print(f"[DEBUG TAB] Col index: {col}, True char col: {true_col}")
-        
-        # Define tab stops at specific character columns for comment alignment
-        tab_stops = [40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120]
-        
-        # Find the next tab stop after current true column position
-        next_stop = None
-        for stop in tab_stops:
-            if stop > true_col:
-                next_stop = stop
-                break
-        
-        print(f"[DEBUG TAB] Next stop: {next_stop}")
-        
-        if next_stop:
-            # Insert spaces to reach that column
-            spaces_needed = next_stop - true_col
-            print(f"[DEBUG TAB] Inserting {spaces_needed} spaces to reach column {next_stop}")
-            self.text.insert(tk.INSERT, ' ' * spaces_needed)
-        else:
-            # If past all tab stops, just insert 8 spaces
-            print(f"[DEBUG TAB] Past all stops, inserting 8 spaces")
-            self.text.insert(tk.INSERT, '        ')
-        
-        # Verify final position
-        final_pos = self.text.index(tk.INSERT)
-        final_line, final_col = final_pos.split('.')
-        final_content = self.text.get(f"{final_line}.0", final_pos)
-        print(f"[DEBUG TAB] Final col index: {final_col}, Final content len: {len(final_content)}")
-        
-        return 'break' # Prevents the default tab behavior
-
-    def show_context_menu(self, event):
-        """Shows the right-click context menu."""
-        self.context_menu.show(event)
-
-    def add_command_to_script(self, command_text):
-        """A helper method to allow the command reference to insert text."""
-        self.text.insert(tk.INSERT, f"{command_text} ")
-        self.text.focus_set() # Move focus back to the editor
-
     def _on_tab(self, event):
         # Smart tab: jump to next absolute column boundary
         # Get current line content to count actual characters
@@ -615,56 +510,6 @@ class ScriptEditor(tk.Frame):
     def edit_modified(self, *args, **kwargs): return self.text.edit_modified(*args, **kwargs)
     def edit_reset(self, *args, **kwargs): return self.text.edit_reset(*args, **kwargs)
 
-# --- Themed Right-click Menu ---
-class ThemedContextMenu(tk.Menu):
-    def __init__(self, parent_widget, **kwargs):
-        super().__init__(parent_widget, tearoff=0, **kwargs)
-        self.parent_widget = parent_widget
-
-        # --- Theming ---
-        self.configure(
-            bg=theme.WIDGET_BG,
-            fg=theme.FG_COLOR,
-            activebackground=theme.PRIMARY_ACCENT,
-            activeforeground=theme.SELECTION_FG,
-            relief='flat',
-            bd=1
-        )
-
-        # --- Menu Items ---
-        self.add_command(label="Cut", command=self._cut)
-        self.add_command(label="Copy", command=self._copy)
-        self.add_command(label="Paste", command=self._paste)
-
-    def _cut(self):
-        self.parent_widget.event_generate("<<Cut>>")
-
-    def _copy(self):
-        self.parent_widget.event_generate("<<Copy>>")
-
-    def _paste(self):
-        self.parent_widget.event_generate("<<Paste>>")
-
-    def show(self, event):
-        """Updates menu state and displays it."""
-        # Enable/disable based on selection
-        try:
-            selection = self.parent_widget.get(tk.SEL_FIRST, tk.SEL_LAST)
-            self.entryconfig("Cut", state=tk.NORMAL)
-            self.entryconfig("Copy", state=tk.NORMAL)
-        except tk.TclError: # No selection
-            self.entryconfig("Cut", state=tk.DISABLED)
-            self.entryconfig("Copy", state=tk.DISABLED)
-
-        # Enable/disable based on clipboard content
-        try:
-            clipboard = self.parent_widget.clipboard_get()
-            self.entryconfig("Paste", state=tk.NORMAL)
-        except tk.TclError: # No clipboard content
-            self.entryconfig("Paste", state=tk.DISABLED)
-
-        self.tk_popup(event.x_root, event.y_root)
-
 # --- Validation Window (Themed) ---
 class ValidationResultsWindow(tk.Toplevel):
     def __init__(self, parent, errors, on_close_callback=None):
@@ -700,9 +545,591 @@ class ValidationResultsWindow(tk.Toplevel):
         super().destroy()
 
 
+# --- GUI Creation Functions (Wiring everything up) ---
+class CommandReference(ttk.Frame):
+    def __init__(self, parent, script_editor_widget, device_manager, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.script_editor_widget = script_editor_widget
+        self.device_manager = device_manager
+        self.command_lines = {}  # Map line numbers to command names
+        
+        self.configure(style='TFrame', padding=10)
+
+        # --- Title Section (minimal) ---
+        title_frame = ttk.Frame(self, style='TFrame')
+        title_frame.pack(fill=tk.X, pady=(0, 8))
+        
+        title_label = ttk.Label(title_frame, 
+                               text="Command Reference", 
+                               font=theme.FONT_LARGE_BOLD,
+                               foreground=theme.PRIMARY_ACCENT,
+                               style='TLabel')
+        title_label.pack(side=tk.LEFT)
+        
+        help_label = ttk.Label(title_frame, 
+                              text="double-click to add  |  right-click for options",
+                              font=theme.FONT_NORMAL,
+                              foreground=theme.COMMENT_COLOR,
+                              style='TLabel')
+        help_label.pack(side=tk.RIGHT, anchor='e')
+
+        # --- Text widget for multi-color support ---
+        text_frame = ttk.Frame(self, style='TFrame')
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.text = tk.Text(text_frame,
+                           bg=theme.WIDGET_BG,
+                           fg=theme.FG_COLOR,
+                           font=theme.FONT_NORMAL,
+                           selectbackground=theme.SELECTION_BG,
+                           selectforeground=theme.SELECTION_FG,
+                           borderwidth=0,
+                           highlightthickness=0,
+                           cursor="arrow",
+                           wrap=tk.NONE,
+                           spacing1=2,
+                           spacing3=2)
+        
+        vsb = ttk.Scrollbar(text_frame, orient="vertical", command=self.text.yview)
+        self.text.configure(yscrollcommand=vsb.set)
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Configure text tags for syntax highlighting
+        self.text.tag_configure('device', foreground=theme.DEVICE_COLOR, font=theme.FONT_BOLD)
+        self.text.tag_configure('device_part', foreground=theme.DEVICE_COLOR)
+        self.text.tag_configure('command', foreground=theme.COMMAND_COLOR)
+        self.text.tag_configure('params', foreground=theme.PARAMETER_COLOR)
+        self.text.tag_configure('unit', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('desc', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('disconnected', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('clickable', foreground=theme.COMMAND_COLOR)
+        self.text.tag_configure('hover', background=theme.SECONDARY_ACCENT)
+        
+        # Track current hover line
+        self.current_hover_line = None
+        
+        # Make text read-only
+        self.text.bind("<Key>", lambda e: "break")
+        
+        # Hover highlighting
+        self.text.bind("<Motion>", self._on_mouse_motion)
+        self.text.bind("<Leave>", self._on_mouse_leave)
+
+        self.refresh() # Initial population
+
+        self.context_menu = tk.Menu(self, tearoff=0, 
+                               bg=theme.WIDGET_BG, 
+                               fg=theme.FG_COLOR,
+                               activebackground=theme.PRIMARY_ACCENT,
+                               activeforeground=theme.FG_COLOR)
+        self.context_menu.add_command(label="Copy Command", command=self.copy_command)
+        self.context_menu.add_command(label="Add to Script", command=self.add_to_script)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="More Info...", command=self.show_more_info)
+
+        self.text.bind("<Button-3>", self.show_context_menu)
+        self.text.bind("<Double-1>", lambda e: self.add_to_script())
+
+    def _extract_param_and_unit(self, param_name):
+        """Extract parameter name and unit from 'param(unit)' format."""
+        try:
+            if '(' in param_name and ')' in param_name:
+                start = param_name.index('(')
+                end = param_name.index(')', start + 1)
+                name = param_name[:start]
+                unit = param_name[start+1:end]
+                return name, unit
+            return param_name, ""
+        except ValueError:
+            return param_name, ""
+    
+    def refresh(self):
+        """Clears and repopulates the text widget with syntax-highlighted commands."""
+        self.scripting_commands = self.device_manager.get_all_scripting_commands()
+        self.command_lines = {}
+        
+        # Clear text
+        self.text.config(state=tk.NORMAL)
+        self.text.delete('1.0', tk.END)
+        
+        line_num = 1
+        
+        # Group commands by device
+        device_commands = {}
+        for cmd, details in self.scripting_commands.items():
+            device = details['device']
+            if device not in device_commands:
+                device_commands[device] = []
+            device_commands[device].append((cmd, details))
+        
+        with devices_lock:
+            device_states = self.device_manager.get_all_device_states()
+            
+            for device_name in sorted(device_commands.keys()):
+                is_connected = device_states.get(device_name, {}).get('connected', False)
+                
+                # Device header (bold purple or gray if disconnected)
+                device_start = f"{line_num}.0"
+                self.text.insert(tk.END, f"{device_name.lower()}\n")
+                device_end = f"{line_num}.end"
+                
+                if is_connected:
+                    self.text.tag_add('device', device_start, device_end)
+                else:
+                    self.text.tag_add('disconnected', device_start, device_end)
+                
+                line_num += 1
+                
+                # Commands under this device
+                for cmd, details in sorted(device_commands[device_name]):
+                    cmd_start_line = line_num
+                    
+                    # Store command for this line
+                    self.command_lines[line_num] = cmd
+                    
+                    # Parse command for multi-color: device.command
+                    if '.' in cmd:
+                        device_part, cmd_part = cmd.split('.', 1)
+                        
+                        # Insert with proper spacing
+                        line_start = f"{line_num}.0"
+                        self.text.insert(tk.END, f"  {device_part}")
+                        device_part_end = f"{line_num}.{2 + len(device_part)}"
+                        self.text.tag_add('device_part', f"{line_num}.2", device_part_end)
+                        
+                        self.text.insert(tk.END, ".")
+                        dot_pos = f"{line_num}.{2 + len(device_part)}"
+                        self.text.tag_add('device_part', dot_pos, f"{line_num}.{3 + len(device_part)}")
+                        
+                        cmd_start_pos = f"{line_num}.{3 + len(device_part)}"
+                        self.text.insert(tk.END, cmd_part)
+                        cmd_end_pos = f"{line_num}.{3 + len(device_part) + len(cmd_part)}"
+                        self.text.tag_add('command', cmd_start_pos, cmd_end_pos)
+                    else:
+                        self.text.insert(tk.END, f"  {cmd}")
+                        self.text.tag_add('command', f"{line_num}.2", f"{line_num}.{2 + len(cmd)}")
+                    
+                    # Add params with separate colors for parameter names and units
+                    if details['params']:
+                        for param in details['params']:
+                            param_name, unit = self._extract_param_and_unit(param['name'])
+                            
+                            # Add space before parameter
+                            self.text.insert(tk.END, " ")
+                            
+                            # Add parameter name in yellow
+                            param_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                            self.text.insert(tk.END, param_name)
+                            param_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                            self.text.tag_add('params', f"{line_num}.{param_start_col}", f"{line_num}.{param_end_col}")
+                            
+                            # Add unit in grey if present
+                            if unit:
+                                self.text.insert(tk.END, " ")
+                                unit_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                                self.text.insert(tk.END, unit)
+                                unit_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                                self.text.tag_add('unit', f"{line_num}.{unit_start_col}", f"{line_num}.{unit_end_col}")
+                    
+                    # Add description
+                    if details['help']:
+                        desc = details['help'][:80]  # Truncate long descriptions
+                        self.text.insert(tk.END, "  ")
+                        desc_start_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                        self.text.insert(tk.END, f"# {desc}")
+                        desc_end_col = int(self.text.index(f'{line_num}.end').split('.')[1])
+                        self.text.tag_add('desc', f"{line_num}.{desc_start_col}", f"{line_num}.{desc_end_col}")
+                    
+                    self.text.insert(tk.END, "\n")
+                    line_num += 1
+                
+                # Add blank line between devices
+                self.text.insert(tk.END, "\n")
+                line_num += 1
+        
+        self.text.config(state=tk.DISABLED)
+
+
+    def get_selected_command(self):
+        """Get command at current cursor position."""
+        try:
+            cursor_pos = self.text.index(tk.INSERT)
+            line_num = int(cursor_pos.split('.')[0])
+            return self.command_lines.get(line_num)
+        except:
+            return None
+
+    def copy_command(self):
+        command = self.get_selected_command()
+        if command: 
+            self.clipboard_clear()
+            self.clipboard_append(command)
+
+    def add_to_script(self):
+        command = self.get_selected_command()
+        if command: 
+            self.script_editor_widget.insert(tk.INSERT, f"{command} ")
+
+    def show_context_menu(self, event):
+        # Set cursor to click position
+        self.text.mark_set(tk.INSERT, f"@{event.x},{event.y}")
+        command = self.get_selected_command()
+        if command:
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def show_more_info(self):
+        """Opens a detailed information window for the selected command."""
+        command = self.get_selected_command()
+        if not command:
+            return
+        
+        # Get full command details
+        cmd_details = self.scripting_commands.get(command)
+        if not cmd_details:
+            return
+        
+        # Create the info window
+        info_window = tk.Toplevel(self)
+        info_window.title(f"Command Info: {command}")
+        info_window.geometry("700x600")
+        info_window.configure(bg=theme.BG_COLOR)
+        
+        # Make it modal
+        info_window.transient(self.winfo_toplevel())
+        info_window.grab_set()
+        
+        # Header frame with title and close button
+        header_frame = ttk.Frame(info_window, style='TFrame', padding=(15, 15, 15, 0))
+        header_frame.pack(fill='x')
+        
+        # Title
+        title_label = ttk.Label(header_frame, text=command, 
+                               font=("JetBrains Mono", 18, "bold"),
+                               foreground=theme.PRIMARY_ACCENT,
+                               style='TLabel')
+        title_label.pack(side=tk.LEFT, anchor='w')
+        
+        # Close button in top right
+        close_btn_top = ttk.Button(header_frame, text="✕", width=3, 
+                                   command=info_window.destroy)
+        close_btn_top.pack(side=tk.RIGHT)
+        
+        # Main frame with padding
+        main_frame = ttk.Frame(info_window, style='TFrame', padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Device badge
+        device_frame = ttk.Frame(main_frame, style='TFrame')
+        device_frame.pack(anchor='w', pady=(5, 15))
+        device_label = ttk.Label(device_frame, 
+                                text=f" {cmd_details['device'].upper()} ",
+                                font=("JetBrains Mono", 9, "bold"),
+                                background=theme.SECONDARY_ACCENT,
+                                foreground=theme.FG_COLOR,
+                                padding=(8, 4))
+        device_label.pack(side=tk.LEFT)
+        
+        # Create scrollable content area
+        canvas = tk.Canvas(main_frame, bg=theme.BG_COLOR, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Description section
+        desc_label = ttk.Label(scrollable_frame, text="Description",
+                              font=("JetBrains Mono", 12, "bold"),
+                              foreground=theme.PRIMARY_ACCENT,
+                              style='TLabel')
+        desc_label.pack(anchor='w', pady=(0, 5))
+        
+        desc_text = ttk.Label(scrollable_frame, 
+                             text=cmd_details.get('help', 'No description available.'),
+                             font=("JetBrains Mono", 10),
+                             wraplength=650,
+                             justify='left',
+                             style='TLabel')
+        desc_text.pack(anchor='w', pady=(0, 15))
+        
+        # Parameters section
+        if cmd_details.get('params'):
+            params_label = ttk.Label(scrollable_frame, text="Parameters",
+                                    font=("JetBrains Mono", 12, "bold"),
+                                    foreground=theme.PRIMARY_ACCENT,
+                                    style='TLabel')
+            params_label.pack(anchor='w', pady=(0, 5))
+            
+            for param in cmd_details['params']:
+                param_frame = ttk.Frame(scrollable_frame, style='Card.TFrame', padding=10)
+                param_frame.pack(fill='x', pady=(0, 8))
+                
+                # Parameter name
+                param_name = ttk.Label(param_frame,
+                                      text=f"• {param['name']}",
+                                      font=("JetBrains Mono", 10, "bold"),
+                                      foreground=theme.SUCCESS_GREEN,
+                                      style='TLabel')
+                param_name.pack(anchor='w')
+                
+                # Parameter type
+                param_type = param.get('type', 'str')
+                type_label = ttk.Label(param_frame,
+                                      text=f"  Type: {param_type}",
+                                      font=("JetBrains Mono", 9),
+                                      foreground=theme.COMMENT_COLOR,
+                                      style='TLabel')
+                type_label.pack(anchor='w', padx=(10, 0))
+                
+                # Show enum/choice options for string types
+                choices = param.get('enum') or param.get('options')
+                if param_type in ('str', 'string') and choices:
+                    enum_label = ttk.Label(param_frame,
+                                          text=f"  Choices: {', '.join(choices)}",
+                                          font=("JetBrains Mono", 9),
+                                          foreground=theme.SUCCESS_GREEN,
+                                          style='TLabel')
+                    enum_label.pack(anchor='w', padx=(10, 0))
+                
+                # Optional flag
+                if param.get('optional'):
+                    optional_label = ttk.Label(param_frame,
+                                              text=f"  Optional (default: {param.get('default', 'N/A')})",
+                                              font=("JetBrains Mono", 9),
+                                              foreground=theme.WARNING_YELLOW,
+                                              style='TLabel')
+                    optional_label.pack(anchor='w', padx=(10, 0))
+        
+        # Examples section
+        examples_label = ttk.Label(scrollable_frame, text="Examples",
+                                  font=("JetBrains Mono", 12, "bold"),
+                                  foreground=theme.PRIMARY_ACCENT,
+                                  style='TLabel')
+        examples_label.pack(anchor='w', pady=(15, 5))
+        
+        # Generate example code
+        examples = self._generate_examples(command, cmd_details)
+        
+        for i, example in enumerate(examples):
+            example_frame = ttk.Frame(scrollable_frame, style='TFrame')
+            example_frame.pack(fill='x', pady=(0, 10))
+            
+            # Example text widget with copy button
+            example_text_frame = tk.Frame(example_frame, bg=theme.WIDGET_BG, 
+                                         highlightthickness=1, 
+                                         highlightbackground=theme.COMMENT_COLOR)
+            example_text_frame.pack(fill='x')
+            
+            example_text = tk.Text(example_text_frame, 
+                                  height=example.count('\n') + 1,
+                                  font=("JetBrains Mono", 10),
+                                  bg=theme.WIDGET_BG,
+                                  fg=theme.FG_COLOR,
+                                  insertbackground=theme.FG_COLOR,
+                                  selectbackground=theme.PRIMARY_ACCENT,
+                                  relief=tk.FLAT,
+                                  padx=10,
+                                  pady=10,
+                                  wrap=tk.NONE)
+            example_text.insert('1.0', example)
+            example_text.config(state=tk.DISABLED)
+            example_text.pack(side=tk.LEFT, fill='both', expand=True)
+            
+            # Copy button
+            copy_btn = ttk.Button(example_text_frame,
+                                 text="📋",
+                                 width=4,
+                                 command=lambda ex=example: self._copy_example(ex))
+            copy_btn.pack(side=tk.RIGHT, padx=5, pady=5)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind escape to close
+        info_window.bind('<Escape>', lambda e: info_window.destroy())
+        
+        # Auto-size window to content and center
+        info_window.update_idletasks()
+        
+        # Calculate required height based on content
+        scrollable_frame.update_idletasks()
+        content_height = scrollable_frame.winfo_reqheight()
+        header_height = header_frame.winfo_reqheight()
+        
+        # Add padding and constraints
+        total_height = min(content_height + header_height + 60, info_window.winfo_screenheight() - 100)
+        window_width = 700
+        
+        # Center the window
+        x = (info_window.winfo_screenwidth() // 2) - (window_width // 2)
+        y = (info_window.winfo_screenheight() // 2) - (total_height // 2)
+        info_window.geometry(f"{window_width}x{total_height}+{x}+{y}")
+    
+    def _generate_examples(self, command, cmd_details):
+        """Generate usage examples for a command."""
+        examples = []
+        params = cmd_details.get('params', [])
+        
+        def extract_unit(param_name):
+            try:
+                start = param_name.index('(')
+                end = param_name.index(')', start + 1)
+                return param_name[start+1:end]
+            except ValueError:
+                return ""
+
+        def default_for_unit(param_type, unit, choices=None):
+            """Return a reasonable default value (as string) based on unit and type."""
+            if choices:
+                return str(choices[0])
+            normalized = unit.strip().lower()
+            # Common unit defaults
+            unit_defaults_float = {
+                'mm': '10.5',
+                'mm/s': '20',
+                'kg': '120',
+                '%': '40',
+                'n': '1000',
+                's': '2',
+                'ms': '500',
+                'ml': '5',
+                'c': '70',            # Celsius abbreviated
+                '°c': '70',
+                'deg': '45',
+                'psi': '30',
+                'bar': '2',
+                'pa': '100000',
+                'v': '12',
+                'a': '1',
+            }
+            unit_defaults_int = {
+                'mm': '10',
+                'mm/s': '20',
+                'kg': '120',
+                '%': '40',
+                'n': '1000',
+                's': '2',
+                'ms': '500',
+                'ml': '5',
+                'psi': '30',
+                'bar': '2',
+                'pa': '100000',
+                'v': '12',
+                'a': '1',
+            }
+            if param_type == 'int':
+                if normalized in unit_defaults_int:
+                    return unit_defaults_int[normalized]
+                return '100'
+            # float and others default
+            if normalized in unit_defaults_float:
+                return unit_defaults_float[normalized]
+            return '10.5' if param_type == 'float' else 'value'
+
+        if not params:
+            # No parameters - show simple usage
+            examples.append(f"# Simple usage\n{command}")
+        else:
+            # Basic example with all required params
+            param_values_with_units = []
+            param_values_plain = []
+            
+            for param in params:
+                param_type = param.get('type', 'str')
+                choices = param.get('enum') or param.get('options')
+                unit = extract_unit(param.get('name', ''))
+                # Unit-aware default selection
+                val = default_for_unit(param_type, unit, choices)
+
+                param_values_plain.append(val)
+                if unit:
+                    param_values_with_units.append(f"{val} {unit}")
+                else:
+                    param_values_with_units.append(val)
+
+            basic_example = f"# Basic usage\n{command} {' '.join(param_values_with_units)}"
+            examples.append(basic_example)
+            
+            # If there are optional params, show example with and without
+            if any(p.get('optional') for p in params):
+                required_values_with_units = []
+                
+                for i, param in enumerate(params):
+                    if not param.get('optional'):
+                        val = param_values_plain[i]
+                        unit = extract_unit(param.get('name', ''))
+                        if unit:
+                            required_values_with_units.append(f"{val} {unit}")
+                        else:
+                            required_values_with_units.append(val)
+                
+                if required_values_with_units:
+                    optional_example = f"# With only required parameters\n{command} {' '.join(required_values_with_units)}"
+                    examples.append(optional_example)
+            
+            # Multi-line script example
+            if len(examples) == 1:
+                multi_example = f"# In a script sequence\nWAIT 1000\n{command} {' '.join(param_values_with_units)}\nWAIT 500"
+                examples.append(multi_example)
+        
+        return examples
+    
+    def _copy_example(self, text):
+        """Copy example text to clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(text)
+    
+    def _on_mouse_motion(self, event):
+        """Highlight the row under the mouse cursor."""
+        try:
+            # Get the line number at the mouse position
+            index = self.text.index(f"@{event.x},{event.y}")
+            line_num = int(index.split('.')[0])
+            
+            # Only highlight command lines (not device headers or blank lines)
+            if line_num in self.command_lines:
+                if self.current_hover_line != line_num:
+                    # Remove previous hover highlight
+                    if self.current_hover_line:
+                        self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+                    
+                    # Add new hover highlight
+                    self.text.tag_add('hover', f"{line_num}.0", f"{line_num}.end")
+                    self.current_hover_line = line_num
+                    
+                    # Change cursor to hand
+                    self.text.config(cursor="hand2")
+            else:
+                # Not on a command line, remove hover
+                if self.current_hover_line:
+                    self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+                    self.current_hover_line = None
+                self.text.config(cursor="arrow")
+        except:
+            pass
+    
+    def _on_mouse_leave(self, event):
+        """Remove hover highlight when mouse leaves the widget."""
+        if self.current_hover_line:
+            self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+            self.current_hover_line = None
+        self.text.config(cursor="arrow")
+
+def create_command_reference(parent, script_editor_widget, device_manager):
+    # This is now a wrapper for the class
+    return CommandReference(parent, script_editor_widget, device_manager)
+
+
 def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var):
     """
-    Creates the main scripting area.
+    Creates the main scripting area, including the editor and command reference.
     Returns a dictionary containing file commands and a callback to update the recent menu.
     """
     scripting_area = ttk.Frame(parent, style='TFrame')

@@ -134,7 +134,7 @@ def monitor_connections(gui_refs, device_manager):
                 with devices_lock:
                     device_manager.update_device_state(key, {"connected": False, "ip": None})
                 
-                log_to_terminal(f"🔌 {key.capitalize()} Disconnected", gui_refs)
+                log_to_terminal(f"{key.capitalize()} Disconnected", gui_refs)
                 
                 # Queue the panel reset/hide function to run on the main thread
                 if gui_queue and 'reset_and_hide_panel' in gui_refs:
@@ -199,7 +199,7 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
         })
 
     if is_new_connection:
-        status_text = f"✅ {device_key.capitalize()} Connected ({source_ip})"
+        status_text = f"{device_key.capitalize()} ({source_ip})"
         log_to_terminal(status_text, gui_refs)
         
         status_var = gui_refs.get(f'status_var_{device_key}')
@@ -372,4 +372,15 @@ def recv_loop(gui_refs, device_manager):
             # Check if the socket was closed intentionally.
             if isinstance(e, socket.error) and e.errno == 10004: # WSAEINTR on Windows
                 break # Exit loop if socket is closed.
+            
+            # Suppress common connection errors that occur when devices are not available
+            if isinstance(e, socket.error):
+                if e.errno == 10054:  # WSAECONNRESET - Connection reset by peer
+                    continue  # Silently continue, this is normal when devices are offline
+                elif e.errno == 10053:  # WSAECONNABORTED - Software caused connection abort
+                    continue  # Silently continue, this is normal when devices are offline
+                elif e.errno == 10057:  # WSAENOTCONN - Socket is not connected
+                    continue  # Silently continue, this is normal when devices are offline
+            
+            # Only log other types of errors
             log_to_terminal(f"Recv_loop error: {e}\n", gui_refs)

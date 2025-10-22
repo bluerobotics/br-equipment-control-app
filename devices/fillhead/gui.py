@@ -1,5 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
+import sys
+import os
+
+# Adjust path for standalone execution
+if __name__ == "__main__":
+    # This allows the script to find modules in the parent directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(os.path.dirname(current_dir))
+    sys.path.insert(0, parent_dir)
+
 import theme
 
 # --- GUI Helper Functions (self-contained in each module) ---
@@ -93,8 +103,6 @@ def create_device_frame(parent, title, state_var, conn_var):
     container.pack(fill='x', expand=True)
     header_frame = ttk.Frame(container, style='Card.TFrame')
     header_frame.pack(fill='x', expand=True, anchor='n')
-    conn_icon_label = ttk.Label(header_frame, text="🔌", font=("JetBrains Mono", 12), style='Subtle.TLabel')
-    conn_icon_label.pack(side=tk.LEFT, padx=(0, 2))
     title_label = ttk.Label(header_frame, text=title.lower(), font=("JetBrains Mono", 14, "bold"), foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
     title_label.pack(side=tk.LEFT, padx=(0, 5))
     ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
@@ -112,7 +120,6 @@ def create_device_frame(parent, title, state_var, conn_var):
             try:
                 ip_address = full_status.split('(')[1].split(')')[0]
             except IndexError: ip_address = "?.?.?.?"
-        conn_icon_label.config(text="✅" if is_connected else "🔌", foreground=theme.SUCCESS_GREEN if is_connected else theme.ERROR_RED)
         ip_label.config(text=ip_address)
     header_frame.conn_tracer = conn_tracer
     conn_var.trace_add("write", header_frame.conn_tracer)

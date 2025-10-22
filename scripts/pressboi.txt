@@ -4,23 +4,73 @@ pressboi.home
 pressboi.set_start_pos 154 mm
 pressboi.move_to_start
 
-pressboi.move 170 mm 10 mm/s 10 kg return       # search move
+pressboi.move_abs 170 mm 10 mm/s 10 kg return       # search move
 wait 1 sec
-pressboi.move 176 mm 2 mm/s 10 kg return        # alignment move
+pressboi.move_abs 176 mm 2 mm/s 10 kg return        # alignment move
 wait 1 sec
-pressboi.move 178 mm 0.5 mm/s 320 kg return     # approach move
+pressboi.move_abs 178 mm 0.5 mm/s 320 kg return     # approach move
 
-
+fillhead.wait_until_heater_at_temp 
 pressboi.home
-
-
+pressboi.home 
+gantry.move_abs_y 
 fillhead.vacuum_leak_test
 
 fillhead.inject_stator
-
+wait_for fillhead.temp_c = 70 C
 gantry.home_y 
 
 gantry.home_y 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

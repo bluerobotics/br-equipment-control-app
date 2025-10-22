@@ -223,7 +223,13 @@ class DeviceSimulator(threading.Thread):
 class SimulatorApp:
     def __init__(self, root, device_schemas):
         self.root = root
-        self.root.title("St8erBoi Device Simulator")
+        self.root.title("Device Simulator")
+
+        # --- Dark Mode ---
+        BG_COLOR = "#282c34"
+        FG_COLOR = "#abb2bf"
+        self.root.configure(bg=BG_COLOR)
+
         # Let window auto-size to fit contents
         self.root.lift()  # Bring window to front
         self.root.attributes('-topmost', True)  # Make window appear on top
@@ -233,7 +239,16 @@ class SimulatorApp:
         self.device_schemas = device_schemas
         self.device_vars = {}
 
-        frame = ttk.Frame(self.root, padding="10")
+        style = ttk.Style()
+        style.configure('TFrame', background=BG_COLOR)
+        style.configure('TLabel', background=BG_COLOR, foreground=FG_COLOR, font=('JetBrains Mono', 9))
+        style.configure('TCheckbutton', background=BG_COLOR, foreground=FG_COLOR, font=('JetBrains Mono', 9))
+        style.map('TCheckbutton',
+                  foreground=[('active', FG_COLOR)],
+                  background=[('active', BG_COLOR)],
+                  indicatorcolor=[('selected', '#61afef'), ('!selected', FG_COLOR)])
+
+        frame = ttk.Frame(self.root, padding="10", style='TFrame')
         frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Dynamically create checkbuttons for each discovered device
@@ -253,17 +268,18 @@ class SimulatorApp:
                 frame,
                 text=f"Simulate {device_name.capitalize()}",
                 variable=self.device_vars[device_name],
-                command=make_callback(device_name)
+                command=make_callback(device_name),
+                style='TCheckbutton'
             )
             cb.grid(row=row, column=0, sticky=tk.W, pady=2)
             
             # Each device gets its own port on localhost
             device_port = self.device_schemas[device_name]['port']
-            ttk.Label(frame, text=f"IP: {SIMULATOR_IP} Port: {device_port}").grid(row=row, column=1, sticky=tk.W, padx=5)
+            ttk.Label(frame, text=f"IP: {SIMULATOR_IP} Port: {device_port}", style='TLabel').grid(row=row, column=1, sticky=tk.W, padx=5)
             row += 1
 
         if not self.device_schemas:
-            ttk.Label(frame, text="No device schemas found. Check paths and telemetry.json files.").grid(row=0, column=0)
+            ttk.Label(frame, text="No device schemas found. Check paths and telemetry.json files.", style='TLabel').grid(row=0, column=0)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 

@@ -1,29 +1,64 @@
 {
-    "pressboi.home": {"device": "pressboi", "params": [], "help": "Homes the press."},
-    "pressboi.move": {
-        "device": "pressboi", 
-        "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true, "default": 10},
-            {"name": "Force(kg)", "type": "float", "min": 0, "max": 50000, "optional": true, "default": 10},
-            {"name": "ForceLimit", "type": "string", "options": ["continue", "stop", "return"], "optional": true, "default": "return"}
-        ], 
-        "help": "Moves the press to an absolute position. ForceLimit: 'continue' to ignore force limit, 'stop' to stop if force limit reached, 'return' to retract to start position."
+    "home": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Homes the press axis to its zero position.",
+        "params": [],
+        "returns": ["done", "error"]
     },
-    "pressboi.set_start_pos": {
-        "device": "pressboi", 
+    "move_abs": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Moves the press to an absolute position with speed and force limits.",
         "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": false}
-        ], 
-        "help": "Sets the starting position for relative moves."
+            { "parameter": "position", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "force", "unit": "kg", "type": "float" },
+            { "parameter": "return", "type": "keyword", "optional": true }
+        ],
+        "returns": ["done", "force_exceeded"]
     },
-    "pressboi.move_to_start": {
-        "device": "pressboi", 
+    "move_inc": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Moves the press by a relative distance with speed and force limits.",
         "params": [
-            {"name": "Pos(mm)", "type": "float", "min": -500, "max": 500, "optional": true, "default": 0},
-            {"name": "Speed(mm/s)", "type": "float", "min": 0.1, "max": 100, "optional": true, "default": 10},
-            {"name": "Force(kg)", "type": "float", "min": 0, "max": 50000, "optional": true, "default": 10}
-        ], 
-        "help": "Moves to the defined start position."
+            { "parameter": "distance", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "force", "unit": "kg", "type": "float" },
+            { "parameter": "return", "type": "keyword", "optional": true }
+        ],
+        "returns": ["done", "force_exceeded"]
+    },
+    "set_start_pos": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Sets the starting position for a pressing routine.",
+        "params": [
+            { "parameter": "position", "unit": "mm", "type": "float" }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_to_start": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Moves the press to the preset starting position.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "enable": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Enables power to the press motors.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "disable": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Disables power to the press motors.",
+        "params": [],
+        "returns": ["done", "error"]
     }
 }
+

@@ -88,7 +88,7 @@ def _get_monospace_font():
         return "Droid Sans Mono"  # VS Code default on Linux
 
 MONOSPACE_FONT = _get_monospace_font()
-FONT_NORMAL = (MONOSPACE_FONT, 9)
-FONT_BOLD = (MONOSPACE_FONT, 9, "bold")
-FONT_LARGE = (MONOSPACE_FONT, 11)
-FONT_LARGE_BOLD = (MONOSPACE_FONT, 11, "bold")
+FONT_NORMAL = (MONOSPACE_FONT, 11)
+FONT_BOLD = (MONOSPACE_FONT, 11, "bold")
+FONT_LARGE = (MONOSPACE_FONT, 13)
+FONT_LARGE_BOLD = (MONOSPACE_FONT, 13, "bold")

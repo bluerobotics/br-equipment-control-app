@@ -1,13 +1,16 @@
 {
 	"folders": [
 		{
-			"path": "../pressboi"
-		},
-		{
+			"name": "br-equipment-control-app",
 			"path": "."
 		},
 		{
+			"name": "st8erboi",
 			"path": "../st8erboi"
+		},
+		{
+			"name": "pressboi",
+			"path": "../pressboi"
 		}
 	],
 	"settings": {}

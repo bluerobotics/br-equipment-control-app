@@ -4,17 +4,39 @@ import queue
 import tkinter as tk  # For TclError and StringVar
 import re
 
-# --- Script-Specific Command Definitions ---
+# --- Built-in Script Commands ---
+# These are commands handled directly by the ScriptRunner, not sent to devices.
 SCRIPT_COMMANDS = {
     "wait": {
-        "device": "script",
-        "params": [{"name": "time_s", "type": "float"}],
-        "help": "Pauses script execution for a specified duration in seconds."
+        "description": "Pauses script execution for a specified duration.",
+        "params": [{
+            "parameter": "time",
+            "unit": "sec",
+            "type": "float"
+        }],
+        "handler": "_handle_wait",
+        "device": "script"
+    },
+    "wait_for": {
+        "description": "Waits until a variable reaches a target value (e.g., wait_for fillhead.temp_c = 70).",
+        "params": [
+            {"parameter": "variable", "type": "string"},
+            {"parameter": "operator", "type": "string"},
+            {"parameter": "value", "type": "float"},
+            {"parameter": "timeout", "unit": "sec", "type": "float", "optional": True}
+        ],
+        "handler": "_handle_wait_for",
+        "device": "script"
     },
     "cycle": {
-        "device": "script",
-        "params": [{"name": "count", "type": "int"}],
-        "help": "Repeats the indented block below this line N times."
+        "description": "Repeats a block of commands a specified number of times.",
+        "params": [{
+            "parameter": "count",
+            "unit": "times",
+            "type": "int"
+        }],
+        "handler": "_handle_cycle_start",
+        "device": "script"
     }
 }
 
@@ -181,87 +203,177 @@ class ScriptRunner(threading.Thread):
         if self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
     
-    def _parse_positional_args(self, parts, command_info):
+    def _resolve_params(self, param_words, command_info):
         """
-        Parses a list of command parts for positional arguments.
-        Non-numeric parts are treated as comments or units and ignored.
-        Returns a dictionary of resolved arguments and an error string if applicable.
+        Resolves script parameter words into a dictionary of named parameters.
+        Handles both positional and keyword arguments.
         """
-        resolved_args = {}
-        error = None
-        
-        # --- Extract only numeric values from the command parts ---
-        values = []
-        for part in parts[1:]:  # Start after the command word
-            try:
-                # This will capture integers and floats, we can convert to specific types later
-                float(part)
-                values.append(part)
-            except ValueError:
-                # This part is not a number, so we treat it as a comment/unit and ignore it.
-                continue
-                
-        params_def = command_info.get('params', [])
+        resolved_params = {}
+        unassigned_args = list(param_words)
+        param_defs = command_info.get('params', [])
+        # Use the 'parameter' key from the new JSON structure
+        param_names = [p.get('parameter', f'arg{i}') for i, p in enumerate(param_defs)]
 
-        # Check if more arguments are provided than defined
-        if len(values) > len(params_def):
-            error = f"Too many arguments. Expected {len(params_def)}, got {len(values)}."
-            return resolved_args, error
+        # First pass: find keyword arguments (e.g., "return")
+        for i, word in enumerate(unassigned_args):
+            if word in param_names:
+                # This is a keyword, like 'return'. Assume it's a flag.
+                resolved_params[word] = True
+                unassigned_args[i] = None # Mark for removal
+
+        # Remove used keywords
+        unassigned_args = [arg for arg in unassigned_args if arg is not None]
+
+        # Second pass: assign remaining positional arguments
+        positional_param_defs = [p for p in param_defs if p.get('parameter') not in resolved_params]
         
-        # --- Assign values to parameters based on their position ---
-        for i, param_def in enumerate(params_def):
-            param_name = param_def['name']
+        # Combine value and unit if they are separate words
+        combined_args = []
+        i = 0
+        while i < len(unassigned_args):
+            arg = unassigned_args[i]
+            # Heuristic: if the current arg is a number and the next is not, they might be value+unit
+            is_numeric = self._is_numeric(arg)
             
-            if i < len(values):
-                value_str = values[i]
-                param_type = param_def.get('type', 'str')
-                
-                try:
-                    if param_type == 'int':
-                        # Convert to float first to handle cases like "5.0", then to int
-                        resolved_args[param_name] = int(float(value_str))
-                    elif param_type == 'float':
-                        resolved_args[param_name] = float(value_str)
-                    else: # Default to string if type is not specified or 'str'
-                        resolved_args[param_name] = value_str
-                except ValueError:
-                    error = f"Invalid type for '{param_name}'. Expected {param_type}, got '{value_str}'."
-                    break # Stop processing on the first error
+            if is_numeric and i + 1 < len(unassigned_args) and not self._is_numeric(unassigned_args[i+1]):
+                combined_args.append(f"{arg} {unassigned_args[i+1]}")
+                i += 2
             else:
-                # Not enough values were provided, check for optional parameters
-                if param_def.get('optional'):
-                    if 'default' in param_def:
-                        resolved_args[param_name] = param_def['default']
-                else:
-                    # A required parameter is missing
-                    error = f"Missing required parameter '{param_name}'"
-                    break # Stop processing
+                combined_args.append(arg)
+                i += 1
+        
+        for i, param_def in enumerate(positional_param_defs):
+            if i < len(combined_args):
+                # Use the 'parameter' key here as well
+                param_name = param_def.get('parameter', f'arg{i}')
+                resolved_params[param_name] = combined_args[i]
 
-        return resolved_args, error
+        return resolved_params
 
-    def _handle_wait(self, args, line_num, is_seconds=False):
-        if not args:
-            self.status_cb(f"Error on L{line_num}: WAIT command requires a duration.", line_num)
-            self.is_running = False
-            return False
+    def _handle_wait(self, command_info, resolved_params, line_num=0):
+        """Handler for the built-in 'wait' command."""
         try:
-            duration = float(args[0])
-            duration_ms = duration * 1000 if is_seconds else duration
-            unit = "s" if is_seconds else "ms"
-            self.status_cb(f"L{line_num}: Waiting for {duration} {unit}...", line_num)
-
+            # Use the new parameter name 'time'
+            duration_str = resolved_params.get('time', '0')
+            duration_s = float(duration_str.split()[0]) # Handle cases like "1 sec"
+            
+            self.status_cb(f"Waiting for {duration_s} seconds...", line_num)
+            
             start_time = time.time()
-            end_time = start_time + (duration_ms / 1000.0)
-            while time.time() < end_time:
-                if not self.is_running: return False
-                remaining_time = end_time - time.time()
-                self.status_cb(f"L{line_num}: Waiting... {remaining_time:.1f}s remaining", line_num)
-                time.sleep(0.1) # Update GUI 10 times per second
-            return True
-        except ValueError:
-            self.status_cb(f"Error on L{line_num}: Invalid duration for WAIT command.", line_num)
-            self.is_running = False
-            return False
+            while time.time() - start_time < duration_s:
+                if self._stop_event.is_set():
+                    self.status_cb("Wait cancelled.", line_num)
+                    return "stop"
+                time.sleep(0.05) # Sleep in small intervals to remain responsive
+                
+            return "continue"
+        except (ValueError, IndexError) as e:
+            self.status_cb(f"Error in wait command: Invalid time value '{resolved_params.get('time', '')}'. {e}", line_num)
+            return "error"
+    
+    def _handle_wait_for(self, command_info, resolved_params, line_num):
+        """Handler for the 'wait_for' command - waits for a variable to reach a target value."""
+        try:
+            variable = resolved_params.get('variable', '')
+            operator = resolved_params.get('operator', '=')
+            target_value_str = resolved_params.get('value', '0')
+            timeout_str = resolved_params.get('timeout', '60')
+            
+            # Parse target value and timeout
+            target_value = float(target_value_str.split()[0])
+            timeout = float(timeout_str.split()[0]) if timeout_str else 60.0
+            
+            # Parse device.variable
+            if '.' not in variable:
+                self.status_cb(f"Error: Variable must be in format 'device.variable', got '{variable}'", line_num)
+                return "error"
+            
+            device_name, param_name = variable.split('.', 1)
+            
+            # Get the device manager
+            device_manager = self.gui_refs.get('device_manager')
+            if not device_manager:
+                self.status_cb(f"Error: Device manager not available", line_num)
+                return "error"
+            
+            # Get the device data
+            device_data = None
+            for dev_name in device_manager.get_all_device_names():
+                if dev_name.lower() == device_name.lower():
+                    device_data = device_manager.devices.get(dev_name)
+                    device_name = dev_name
+                    break
+            
+            if not device_data:
+                self.status_cb(f"Error: Unknown device '{device_name}'", line_num)
+                return "error"
+            
+            # Get telemetry info for this parameter
+            telemetry_data = device_data.get('telemetry_data', {})
+            param_info = telemetry_data.get(param_name)
+            
+            if not param_info:
+                self.status_cb(f"Error: Unknown parameter '{param_name}' for device '{device_name}'", line_num)
+                return "error"
+            
+            # Get the GUI variable that stores this value
+            gui_var_name = param_info.get('gui_var')
+            if not gui_var_name:
+                self.status_cb(f"Error: Parameter '{param_name}' has no GUI variable mapping", line_num)
+                return "error"
+            
+            gui_var = self.gui_refs.get(gui_var_name)
+            if not gui_var:
+                self.status_cb(f"Error: GUI variable '{gui_var_name}' not found", line_num)
+                return "error"
+            
+            # Determine comparison function
+            compare_funcs = {
+                '=': lambda a, b: abs(a - b) < 0.01,  # Approximate equality for floats
+                '==': lambda a, b: abs(a - b) < 0.01,
+                '>': lambda a, b: a > b,
+                '<': lambda a, b: a < b,
+                '>=': lambda a, b: a >= b,
+                '<=': lambda a, b: a <= b
+            }
+            
+            compare_func = compare_funcs.get(operator)
+            if not compare_func:
+                self.status_cb(f"Error: Invalid operator '{operator}'. Use =, >, <, >=, or <=", line_num)
+                return "error"
+            
+            self.status_cb(f"Waiting for {variable} {operator} {target_value} (timeout: {timeout}s)...", line_num)
+            
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if self._stop_event.is_set():
+                    self.status_cb("Wait cancelled.", line_num)
+                    return "stop"
+                
+                # Get current value from GUI variable
+                try:
+                    current_value_str = gui_var.get()
+                    # Try to extract numeric value (handle formats like "70.0 °C" or "70.0")
+                    current_value = float(re.search(r'-?\d+\.?\d*', current_value_str).group())
+                    
+                    # Check if condition is met
+                    if compare_func(current_value, target_value):
+                        self.status_cb(f"Condition met: {variable} = {current_value}", line_num)
+                        return "continue"
+                        
+                except (ValueError, AttributeError):
+                    # Can't parse value, keep waiting
+                    pass
+                
+                time.sleep(0.1) # Check every 100ms
+            
+            # Timeout
+            self.status_cb(f"Timeout: {variable} did not reach {operator} {target_value} within {timeout}s", line_num)
+            return "error"
+            
+        except Exception as e:
+            self.status_cb(f"Error in wait_for command: {e}", line_num)
+            return "error"
 
     def _process_line(self, line, line_num):
         sub_commands = line.split(',')
@@ -315,7 +427,15 @@ class ScriptRunner(threading.Thread):
                 # Handle built-in script commands (case-insensitive)
                 cmd_lower = command_word.lower()
                 if cmd_lower == "wait":
-                    if not self._handle_wait([resolved_params.get('time_s', 0)], line_num, is_seconds=True): return False
+                    result = self._handle_wait(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "wait_for":
+                    result = self._handle_wait_for(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
                 elif cmd_lower == "cycle":
                     # Cycle is handled by the loop expander, not here
                     pass

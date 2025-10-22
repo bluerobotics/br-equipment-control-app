@@ -1,57 +1,110 @@
 {
-    "gantry.move_x": {
-        "device": "gantry", 
-        "params": [
-            {"name": "Dist(mm)", "type": "float", "min": -2000, "max": 2000},
-            {"name": "Speed(mm/s)", "type": "float", "min": 1, "max": 500, "optional": true, "default": 50},
-            {"name": "Accel(mm/s^2)", "type": "float", "min": 10, "max": 10000, "optional": true, "default": 200},
-            {"name": "Torque(%)", "type": "float", "min": 0, "max": 100, "optional": true, "default": 25}
-        ],
-        "help": "Moves the gantry X-axis by a relative distance."
-    },
-    "gantry.move_y": {
-        "device": "gantry", 
-        "params": [
-            {"name": "Dist(mm)", "type": "float", "min": -1000, "max": 1000},
-            {"name": "Speed(mm/s)", "type": "float", "min": 1, "max": 500, "optional": true, "default": 50},
-            {"name": "Accel(mm/s^2)", "type": "float", "min": 10, "max": 10000, "optional": true, "default": 200},
-            {"name": "Torque(%)", "type": "float", "min": 0, "max": 100, "optional": true, "default": 25}
-        ],
-        "help": "Moves the gantry Y-axis by a relative distance."
-    },
-    "gantry.move_z": {
-        "device": "gantry", 
-        "params": [
-            {"name": "Dist(mm)", "type": "float", "min": -1000, "max": 1000},
-            {"name": "Speed(mm/s)", "type": "float", "min": 1, "max": 200, "optional": true, "default": 50},
-            {"name": "Accel(mm/s^2)", "type": "float", "min": 10, "max": 10000, "optional": true, "default": 200},
-            {"name": "Torque(%)", "type": "float", "min": 0, "max": 100, "optional": true, "default": 25}
-        ],
-        "help": "Moves the gantry Z-axis by a relative distance."
-    },
-    "gantry.home_x": {
+    "home_x": {
         "device": "gantry",
-        "gui_action": "home_x",
-        "params": [{"name": "Max-Dist(mm)", "type": "float", "min": 1, "max": 2000, "optional": true}],
-        "help": "Homes the gantry X-axis. Searches up to Max-Dist(mm). If no distance is given, it uses the axis travel limit."
+        "target": "device",
+        "description": "Homes the X-axis.",
+        "params": [],
+        "returns": ["done", "error"]
     },
-    "gantry.home_y": {
+    "home_y": {
         "device": "gantry",
-        "gui_action": "home_y",
-        "params": [{"name": "Max-Dist(mm)", "type": "float", "min": 1, "max": 1000, "optional": true}],
-        "help": "Homes the gantry Y-axis. Searches up to Max-Dist(mm). If no distance is given, it uses the axis travel limit."
+        "target": "device",
+        "description": "Homes the Y-axis.",
+        "params": [],
+        "returns": ["done", "error"]
     },
-    "gantry.home_z": {
+    "home_z": {
         "device": "gantry",
-        "gui_action": "home_z",
-        "params": [{"name": "Max-Dist(mm)", "type": "float", "min": 1, "max": 1000, "optional": true}],
-        "help": "Homes the gantry Z-axis. Searches up to Max-Dist(mm). If no distance is given, it uses the axis travel limit."
+        "target": "device",
+        "description": "Homes the Z-axis.",
+        "params": [],
+        "returns": ["done", "error"]
     },
-    "gantry.enable_x": {"device": "gantry", "gui_action": "enable_x", "params": [], "help": "Enables the gantry X-axis motor."},
-    "gantry.enable_y": {"device": "gantry", "gui_action": "enable_y", "params": [], "help": "Enables the gantry Y-axis motor."},
-    "gantry.enable_z": {"device": "gantry", "gui_action": "enable_z", "params": [], "help": "Enables the gantry Z-axis motor."},
-    "gantry.disable_x": {"device": "gantry", "gui_action": "disable_x", "params": [], "help": "Disables the gantry X-axis motor."},
-    "gantry.disable_y": {"device": "gantry", "gui_action": "disable_y", "params": [], "help": "Disables the gantry Y-axis motor."},
-    "gantry.disable_z": {"device": "gantry", "gui_action": "disable_z", "params": [], "help": "Disables the gantry Z-axis motor."},
-    "gantry.start_demo": {"device": "gantry", "gui_action": "start_demo", "params": [], "help": "Starts the circle demo on the gantry."}
+    "move_abs_x": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the X-axis to an absolute position.",
+        "params": [
+            { "parameter": "position", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_abs_y": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the Y-axis to an absolute position.",
+        "params": [
+            { "parameter": "position", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_abs_z": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the Z-axis to an absolute position.",
+        "params": [
+            { "parameter": "position", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_inc_x": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the X-axis by a relative distance.",
+        "params": [
+            { "parameter": "distance", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_inc_y": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the Y-axis by a relative distance.",
+        "params": [
+            { "parameter": "distance", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "move_inc_z": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Moves the Z-axis by a relative distance.",
+        "params": [
+            { "parameter": "distance", "unit": "mm", "type": "float" },
+            { "parameter": "speed", "unit": "mm/s", "type": "float" },
+            { "parameter": "accel", "unit": "mm/s^2", "type": "float", "optional": true },
+            { "parameter": "torque", "unit": "%", "type": "int", "optional": true }
+        ],
+        "returns": ["done", "error"]
+    },
+    "enable": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Enables power to the gantry motors.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "disable": {
+        "device": "gantry",
+        "target": "device",
+        "description": "Disables power to the gantry motors.",
+        "params": [],
+        "returns": ["done", "error"]
+    }
 }
+

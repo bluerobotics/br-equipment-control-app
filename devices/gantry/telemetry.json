@@ -1,18 +1,134 @@
 {
-    "gantry_state": {"gui_var": "gantry_main_state_var", "default": "STANDBY"},
-    "x_st": {"gui_var": "gantry_x_state_var", "default": "Standby"},
-    "y_st": {"gui_var": "gantry_y_state_var", "default": "Standby"},
-    "z_st": {"gui_var": "gantry_z_state_var", "default": "Standby"},
-    "x_p": {"gui_var": "gantry_x_pos_var", "default": 0.0},
-    "x_t": {"gui_var": "gantry_x_torque_var", "default": 0.0},
-    "x_e": {"gui_var": "gantry_x_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "x_h": {"gui_var": "gantry_x_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "y_p": {"gui_var": "gantry_y_pos_var", "default": 0.0},
-    "y_t": {"gui_var": "gantry_y_torque_var", "default": 0.0},
-    "y_e": {"gui_var": "gantry_y_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "y_h": {"gui_var": "gantry_y_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "z_p": {"gui_var": "gantry_z_pos_var", "default": 0.0},
-    "z_t": {"gui_var": "gantry_z_torque_var", "default": 0.0},
-    "z_e": {"gui_var": "gantry_z_enabled_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "z_h": {"gui_var": "gantry_z_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0}
+    "gantry_state": {
+        "type": "string",
+        "default": "STANDBY",
+        "help": "Overall gantry system state",
+        "gui_var": "gantry_main_state_var"
+    },
+    "x_state": {
+        "type": "string",
+        "default": "Standby",
+        "help": "Current operational state of X-axis",
+        "gui_var": "gantry_x_state_var"
+    },
+    "y_state": {
+        "type": "string",
+        "default": "Standby",
+        "help": "Current operational state of Y-axis",
+        "gui_var": "gantry_y_state_var"
+    },
+    "z_state": {
+        "type": "string",
+        "default": "Standby",
+        "help": "Current operational state of Z-axis",
+        "gui_var": "gantry_z_state_var"
+    },
+    "x_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of X-axis",
+        "gui_var": "gantry_x_pos_var"
+    },
+    "x_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for X-axis",
+        "gui_var": "gantry_x_torque_var"
+    },
+    "x_enabled": {
+        "type": "int",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Power enable status for X-axis motor",
+        "gui_var": "gantry_x_enabled_var"
+    },
+    "x_homed": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if X-axis has been homed",
+        "gui_var": "gantry_x_homed_var"
+    },
+    "y_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of Y-axis",
+        "gui_var": "gantry_y_pos_var"
+    },
+    "y_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for Y-axis",
+        "gui_var": "gantry_y_torque_var"
+    },
+    "y_enabled": {
+        "type": "int",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Power enable status for Y-axis motor",
+        "gui_var": "gantry_y_enabled_var"
+    },
+    "y_homed": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if Y-axis has been homed",
+        "gui_var": "gantry_y_homed_var"
+    },
+    "z_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of Z-axis",
+        "gui_var": "gantry_z_pos_var"
+    },
+    "z_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for Z-axis",
+        "gui_var": "gantry_z_torque_var"
+    },
+    "z_enabled": {
+        "type": "int",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Power enable status for Z-axis motor",
+        "gui_var": "gantry_z_enabled_var"
+    },
+    "z_homed": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if Z-axis has been homed",
+        "gui_var": "gantry_z_homed_var"
+    }
 }

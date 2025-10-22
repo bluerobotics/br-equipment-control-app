@@ -1,28 +1,214 @@
 {
-    "MAIN_STATE":       {"gui_var": "fillhead_main_state_var", "default": "STANDBY"},
-    "inj_t0":           {"gui_var": "fillhead_torque0_var", "default": 0.0},
-    "inj_t1":           {"gui_var": "fillhead_torque1_var", "default": 0.0},
-    "inj_h_mach":       {"gui_var": "fillhead_homed0_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "inj_h_cart":       {"gui_var": "fillhead_homed1_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "inj_mach_mm":      {"gui_var": "fillhead_machine_steps_var", "default": 0.0},
-    "inj_cart_mm":      {"gui_var": "fillhead_cartridge_steps_var", "default": 0.0},
-    "inj_cumulative_ml":{"gui_var": "fillhead_inject_cumulative_ml_var", "format": {"suffix": " ml", "precision": 2}, "default": 0.0},
-    "inj_active_ml":    {"gui_var": "fillhead_inject_active_ml_var", "format": {"suffix": " ml", "precision": 2}, "default": 0.0},
-    "inj_tgt_ml":       {"gui_var": "fillhead_injection_target_ml_var", "format": {"precision": 2}, "default": 0.0},
-    "enabled0":         {"gui_var": "fillhead_enabled_state1_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "enabled1":         {"gui_var": "fillhead_enabled_state2_var", "format": {"map": {"0": "Disabled", "1": "Enabled"}}, "default": 1},
-    "inj_valve_pos":    {"gui_var": "fillhead_inj_valve_pos_var", "default": 0.0},
-    "inj_valve_torque": {"gui_var": "fillhead_torque2_var", "default": 0.0},
-    "inj_valve_homed":  {"gui_var": "fillhead_inj_valve_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "vac_valve_pos":    {"gui_var": "fillhead_vac_valve_pos_var", "default": 0.0},
-    "vac_valve_torque": {"gui_var": "fillhead_torque3_var", "default": 0.0},
-    "vac_valve_homed":  {"gui_var": "fillhead_vac_valve_homed_var", "format": {"map": {"0": "Not Homed", "1": "Homed"}}, "default": 0},
-    "h_pv":             {"gui_var": "fillhead_temp_c_var", "format": {"suffix": " °C", "precision": 1}, "default": 25.0},
-    "h_sp":             {"gui_var": "fillhead_pid_setpoint_var", "format": {"precision": 1}, "default": 70.0},
-    "vac_pv":           {"gui_var": "fillhead_vacuum_psig_var", "format": {"suffix": " PSIG", "precision": 2}, "default": 0.5},
-    "inj_st":           {"gui_var": "fillhead_injector_state_var", "default": "Standby"},
-    "inj_v_st":         {"gui_var": "fillhead_inj_valve_state_var", "default": "Not Homed"},
-    "vac_v_st":         {"gui_var": "fillhead_vac_valve_state_var", "default": "Not Homed"},
-    "h_st_str":         {"gui_var": "fillhead_heater_state_var", "default": "Off"},
-    "vac_st_str":       {"gui_var": "fillhead_vacuum_state_var", "default": "Off"}
+    "fillhead_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Standby",
+            "1": "Busy",
+            "2": "Error",
+            "3": "Disabled",
+            "4": "Clearing Errors"
+        },
+        "help": "Overall fillhead system state",
+        "gui_var": "fillhead_main_state_var"
+    },
+    "injector_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Standby",
+            "1": "Homing",
+            "2": "Jogging",
+            "3": "Feeding",
+            "4": "Motor Fault"
+        },
+        "help": "Current operational state of the injector motors",
+        "gui_var": "fillhead_injector_state_var"
+    },
+    "inj_valve_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Closed",
+            "2": "Open",
+            "3": "Halted",
+            "4": "Moving",
+            "5": "Homing",
+            "6": "Jogging",
+            "7": "Resetting",
+            "8": "Error"
+        },
+        "help": "Current state of the injection pinch valve",
+        "gui_var": "fillhead_inj_valve_state_var"
+    },
+    "vac_valve_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Closed",
+            "2": "Open",
+            "3": "Halted",
+            "4": "Moving",
+            "5": "Homing",
+            "6": "Jogging",
+            "7": "Resetting",
+            "8": "Error"
+        },
+        "help": "Current state of the vacuum pinch valve",
+        "gui_var": "fillhead_vac_valve_state_var"
+    },
+    "heater_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Off",
+            "1": "Active"
+        },
+        "help": "Heater PID control status",
+        "gui_var": "fillhead_heater_state_var"
+    },
+    "vacuum_state": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Off",
+            "1": "Pulldown",
+            "2": "Settling",
+            "3": "Leak Testing",
+            "4": "On",
+            "5": "Error"
+        },
+        "help": "Current vacuum system operation state",
+        "gui_var": "fillhead_vacuum_state_var"
+    },
+    "injector_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for injector",
+        "gui_var": "fillhead_torque0_var"
+    },
+    "injector_homed": {
+        "type": "int",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if injector has been homed to machine zero",
+        "gui_var": "fillhead_homed0_var"
+    },
+    "injection_cumulative_ml": {
+        "unit": "ml",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Total volume dispensed since last cartridge home",
+        "gui_var": "fillhead_inject_cumulative_ml_var"
+    },
+    "injection_active_ml": {
+        "unit": "ml",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Volume dispensed in current injection operation",
+        "gui_var": "fillhead_inject_active_ml_var"
+    },
+    "injection_target_ml": {
+        "unit": "ml",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Target volume for current injection operation",
+        "gui_var": "injection_target_ml_var"
+    },
+    "motors_enabled": {
+        "type": "bool",
+        "default": 1,
+        "map": {
+            "0": "Disabled",
+            "1": "Enabled"
+        },
+        "help": "Global motor power enable status",
+        "gui_var": "fillhead_motors_enabled_var"
+    },
+    "inj_valve_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of injection valve actuator",
+        "gui_var": "fillhead_inj_valve_pos_var"
+    },
+    "inj_valve_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for injection valve",
+        "gui_var": "fillhead_torque2_var"
+    },
+    "inj_valve_homed": {
+        "type": "bool",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if injection valve has been homed",
+        "gui_var": "fillhead_inj_valve_homed_var"
+    },
+    "vac_valve_pos": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Current position of vacuum valve actuator",
+        "gui_var": "fillhead_vac_valve_pos_var"
+    },
+    "vac_valve_motor_torque": {
+        "unit": "%",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Current motor torque percentage for vacuum valve",
+        "gui_var": "fillhead_torque3_var"
+    },
+    "vac_valve_homed": {
+        "type": "bool",
+        "default": 0,
+        "map": {
+            "0": "Not Homed",
+            "1": "Homed"
+        },
+        "help": "Indicates if vacuum valve has been homed",
+        "gui_var": "fillhead_vac_valve_homed_var"
+    },
+    "temp_c": {
+        "unit": "\u00c2\u00b0C",
+        "type": "float",
+        "default": 25.0,
+        "precision": 1,
+        "help": "Current material temperature from thermocouple",
+        "gui_var": "fillhead_temp_c_var"
+    },
+    "heater_setpoint": {
+        "unit": "\u00c2\u00b0C",
+        "type": "float",
+        "default": 70.0,
+        "precision": 1,
+        "help": "Target temperature setpoint for PID controller",
+        "gui_var": "pid_setpoint_var"
+    },
+    "vacuum_psig": {
+        "unit": "PSIG",
+        "type": "float",
+        "default": 0.5,
+        "precision": 2,
+        "help": "Current vacuum pressure reading",
+        "gui_var": "fillhead_vacuum_psig_var"
+    }
 }

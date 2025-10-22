@@ -85,9 +85,10 @@ This file defines all the commands the device accepts in a script.
 - **Structure**: A JSON object. Each key in the object is a command name (e.g., `"MOVE_X"`).
 - **Properties for each command**:
     - `device`: The device's ID (e.g., `"test_device"`). Must match the folder name.
-    - `params`: A list of parameters the command takes. Each parameter is an object with a `name` and `type` (e.g., `{"name": "distance", "type": "float"}`).
-    - `help`: A short description of what the command does.
-    - `gui_action` (Optional): The name of a function to be called when a UI button is pressed. This links a button in the device's GUI panel to a script command.
+    - `target`: Either `"device"` (sent to firmware) or `"host"` (handled by application).
+    - `params`: A list of parameters the command takes. Each parameter is an object with `parameter`, `type`, `unit`, etc.
+    - `returns`: List of possible return values (e.g., `["done", "error"]`).
+    - `help` or `description`: A short description of what the command does.
 
 **Example `commands.json`:**
 ```json
@@ -202,7 +203,7 @@ This application is designed to be easily extendable with new hardware devices. 
 3.  **Define Commands (`commands.json`):**
     *   Create a `commands.json` file.
     *   This file defines the scriptable commands your device accepts. Each key is a command name.
-    *   For each command, you must specify the `device` name (which should match your folder name), a list of `params` it accepts, and a `help` string.
+    *   For each command, you must specify the `device` name, `target` (device/host), a list of `params`, `returns`, and a `help` string.
 
 4.  **Create the GUI (`gui.py`):**
     *   Create a `gui.py` file.

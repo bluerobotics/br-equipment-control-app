@@ -1,19 +1,34 @@
 {
-    "pressurizer.on": {
+    "home": {
         "device": "pressurizer",
+        "target": "device",
+        "description": "Homes the pressurizer to its zero position.",
         "params": [],
-        "help": "Enables the pressurizer."
+        "returns": ["done", "error"]
     },
-    "pressurizer.off": {
+    "disable": {
         "device": "pressurizer",
+        "target": "device",
+        "description": "Disables the pressurizer.",
         "params": [],
-        "help": "Disables the pressurizer."
+        "returns": ["done", "error"]
     },
-    "pressurizer.cycle": {
+    "enable": {
         "device": "pressurizer",
+        "target": "device",
+        "description": "Enables the pressurizer.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "move_to_pressure": {
+        "device": "pressurizer",
+        "target": "device",
+        "description": "Moves the pressurizer to a target pressure at a specified rate.",
         "params": [
-            {"name": "cycles", "type": "int", "optional": true, "keywords": ["cycles", "count", "c"]}
+            { "parameter": "pressure", "unit": "msw", "type": "float" },
+            { "parameter": "rate", "unit": "msw/s", "type": "float" }
         ],
-        "help": "Starts the pressurization cycle. Optionally sets the number of cycles."
+        "returns": ["done", "error"]
     }
 }
+

@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import comms
-from scripting_gui import create_scripting_interface, create_command_reference # Import both functions
+from scripting_gui import create_scripting_interface
 from status_panel import create_status_bar
 from terminal import create_terminal_panel
 import json
@@ -20,6 +20,8 @@ from _version import __version__
 
 # Import GUI components
 from top_menu import create_top_menu
+from command_reference import create_command_reference
+from device_actions import create_device_commands
 
 GUI_UPDATE_INTERVAL_MS = 100
 
@@ -112,6 +114,18 @@ class MainApplication:
         # Frame styling
         self.style.configure('TFrame', background=theme.BG_COLOR)
 
+        # Notebook (Tabs) styling
+        self.style.configure('TNotebook', background=theme.BG_COLOR, borderwidth=0)
+        self.style.configure('TNotebook.Tab', 
+                            background=theme.WIDGET_BG, 
+                            foreground=theme.FG_COLOR, 
+                            padding=[10, 5],
+                            borderwidth=0)
+        self.style.map('TNotebook.Tab',
+                      background=[('selected', theme.BG_COLOR), ('active', theme.SECONDARY_ACCENT)],
+                      foreground=[('selected', theme.PRIMARY_ACCENT), ('active', theme.FG_COLOR)],
+                      expand=[('selected', [1, 1, 1, 0])])
+
         # Label styling
         self.style.configure('TLabel', background=theme.BG_COLOR, foreground=theme.FG_COLOR, font=theme.FONT_NORMAL)
         self.style.configure('Header.TLabel', font=theme.FONT_BOLD)
@@ -202,7 +216,7 @@ class MainApplication:
 
         # Custom Progress Bar (for torque meters)
         self.style.configure('Card.Vertical.TProgressbar', background=theme.PRIMARY_ACCENT, troughcolor=theme.CARD_BG)
-
+ 
         # Treeview (used in command reference)
         self.style.configure("Treeview",
             background=theme.WIDGET_BG,
@@ -301,7 +315,7 @@ class MainApplication:
         status_var_name = f'status_var_{device_key}'
         status_var = self.shared_gui_refs.get(status_var_name)
         if status_var and isinstance(status_var, tk.StringVar):
-            status_var.set(f"🔌 {device_key.capitalize()} Disconnected")
+            status_var.set(f"{device_key.capitalize()}")
 
     def show_panel(self, device_key):
         """Makes a device's status panel visible."""
@@ -338,7 +352,7 @@ class MainApplication:
         splitter.add(center_container, weight=1)
         
         # Left-side container for the status bar
-        status_panel_width = 600 if platform.system() == "Windows" else 400
+        status_panel_width = 550 if platform.system() == "Windows" else 400
         left_bar_frame = ttk.Frame(center_container, width=status_panel_width, style='TFrame')
         left_bar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0), pady=10)
         left_bar_frame.pack_propagate(False)
@@ -408,7 +422,12 @@ class MainApplication:
             self.device_manager
         )
         self.command_reference_instance.pack(fill=tk.BOTH, expand=True)
-
+        self.command_reference_instance.refresh()
+        
+        # --- Shared GUI References ---
+        # This MUST be set AFTER the command_reference_instance is created.
+        self.shared_gui_refs['refresh_commands_ref'] = self.refresh_command_components
+        
         # "Searching for devices..." panel
         self.searching_frame = ttk.Frame(left_bar_frame, style='Card.TFrame')
         self.searching_label = ttk.Label(self.searching_frame, text="Searching for devices", font=theme.FONT_NORMAL, style='Subtle.TLabel')
@@ -436,14 +455,13 @@ class MainApplication:
         # Create Top Menu (and pass it the file commands from the scripting GUI)
         file_commands = self.scripting_gui_refs['file_commands']
         edit_commands = self.scripting_gui_refs['edit_commands']
-        device_commands = device_actions.create_device_commands(self.root, self.shared_gui_refs)
+        device_commands = create_device_commands(self.root, self.shared_gui_refs)
         self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, device_commands, self.autosave_var)
 
         # Pass the recent files menu reference to the scripting gui
         self.scripting_gui_refs['update_recent_menu_callback'](self.recent_files_menu)
 
         # --- Store references for dynamic updates ---
-        self.shared_gui_refs['refresh_commands_ref'] = self.refresh_command_components
         self.shared_gui_refs['add_device_panels_ref'] = self.add_new_device_panels
         
         # --- Register window close handler ---
@@ -461,7 +479,7 @@ class MainApplication:
         self.shared_gui_refs['command_funcs'] = self.command_funcs
         
         # 2. Refresh the command reference panel
-        if self.command_reference_instance:
+        if hasattr(self, 'command_reference_instance') and self.command_reference_instance:
             self.command_reference_instance.refresh()
             
         # 3. Refresh the syntax highlighter
@@ -578,7 +596,7 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Set the top-left window icon (uses .png)
-        png_path = os.path.join(script_dir, 'icon.png')
+        png_path = os.path.join(script_dir, 'assets', 'icon.png')
         if os.path.exists(png_path):
             img = tk.PhotoImage(file=png_path)
             root.tk.call('wm', 'iconphoto', root._w, img)
@@ -587,7 +605,7 @@ def main():
 
         # Set the taskbar icon (requires .ico on Windows)
         if platform.system() == "Windows":
-            ico_path = os.path.join(script_dir, 'icon.ico')
+            ico_path = os.path.join(script_dir, 'assets', 'icon.ico')
             if os.path.exists(ico_path):
                 # This is the most reliable way to set the taskbar icon
                 root.iconbitmap(ico_path)
@@ -596,7 +614,7 @@ def main():
                 myappid = u'tekbic.st8erboi.st8erboi-controller.1.0' 
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             else:
-                print("NOTE: To set the taskbar icon on Windows, 'icon.ico' must exist in the same folder as the script.")
+                print("NOTE: To set the taskbar icon on Windows, 'icon.ico' must exist in the assets folder.")
 
     except Exception as e:
         print(f"An error occurred while setting the icon: {e}")
