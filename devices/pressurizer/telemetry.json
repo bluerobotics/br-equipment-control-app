@@ -37,7 +37,7 @@
         "gui_var": "pressurizer_cycles_complete_var"
     },
     "tank1_temp_c": {
-        "unit": "\u00c2\u00b0C",
+        "unit": "C",
         "type": "float",
         "default": 25.0,
         "precision": 1,
@@ -45,7 +45,7 @@
         "gui_var": "pressurizer_tank1_temp_var"
     },
     "tank2_temp_c": {
-        "unit": "\u00c2\u00b0C",
+        "unit": "C",
         "type": "float",
         "default": 25.1,
         "precision": 1,

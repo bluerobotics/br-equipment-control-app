@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 import comms
 import time
+import code_generator
 
 # --- Global State ---
 simulator_process = None
@@ -101,5 +102,6 @@ def create_device_commands(parent, gui_refs):
     return {
         'run_simulator': lambda: run_simulator(parent),
         'scan_for_devices': lambda: scan_for_devices(gui_refs),
-        'show_known_devices': lambda: show_known_devices(parent, gui_refs)
+        'show_known_devices': lambda: show_known_devices(parent, gui_refs),
+        'generate_cpp_code': lambda: code_generator.show_code_generator(parent, gui_refs)
     }

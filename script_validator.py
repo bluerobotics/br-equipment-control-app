@@ -62,7 +62,8 @@ def _validate_line(line_content, line_num, commands):
 
         for j, arg in enumerate(args_to_validate):
             param_def = params_def[j]
-            param_name = param_def['name']
+            # Handle both old ('name') and new ('parameter') structures
+            param_name = param_def.get('name') or param_def.get('parameter', f'param{j}')
             try:
                 value = float(arg)
             except ValueError:

@@ -77,6 +77,8 @@ def create_top_menu(parent, file_commands, edit_commands, device_commands, autos
     devices_menu.add_separator(background=theme.WIDGET_BORDER)
     devices_menu.add_command(label="Scan for New Device Modules", command=device_commands['scan_for_devices'])
     devices_menu.add_command(label="Show Known Devices", command=device_commands['show_known_devices'])
+    devices_menu.add_separator(background=theme.WIDGET_BORDER)
+    devices_menu.add_command(label="Generate C++ Code...", command=device_commands['generate_cpp_code'])
     menubar.add_cascade(label="Devices", menu=devices_menu)
 
     # --- Help Menu ---

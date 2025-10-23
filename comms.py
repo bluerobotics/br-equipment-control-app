@@ -237,6 +237,7 @@ def is_status_message(msg, device_manager):
 def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update, safe_float):
     """
     Dynamically parses a telemetry string based on a provided schema.
+    Supports enum mapping, numeric formatting with precision and units.
     """
     try:
         # Extract the key-value payload from the message
@@ -258,16 +259,46 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
                 gui_var_name = details.get('gui_var')
 
                 if gui_var_name:
-                    formatted_value = value
+                    formatted_value = value.strip()
                     
-                    if 'format' in details:
+                    # First, check for enum mapping at top level
+                    if 'map' in details:
+                        # Map the enum value (int or string) to its display string
+                        if formatted_value in details['map']:
+                            formatted_value = details['map'][formatted_value]
+                    # Then handle numeric formatting with precision and units
+                    elif details.get('type') in ['float', 'int']:
+                        try:
+                            num_value = safe_float(formatted_value)
+                            
+                            # Apply multiplier if it exists
+                            if 'multiplier' in details:
+                                num_value *= details['multiplier']
+
+                            precision = details.get('precision')
+                            unit = details.get('unit', '')
+                            
+                            if precision is not None:
+                                formatted_value = f"{num_value:.{precision}f}"
+                            else:
+                                formatted_value = f"{num_value}"
+                            
+                            # Add unit if present
+                            if unit:
+                                formatted_value = f"{formatted_value} {unit}"
+                        except (ValueError, TypeError):
+                            # Keep original value if conversion fails
+                            pass
+                    
+                    # Handle legacy 'format' structure for backward compatibility
+                    elif 'format' in details:
                         rules = details['format']
-                        if 'map' in rules and value in rules['map']:
-                            formatted_value = rules['map'][value]
+                        if 'map' in rules and formatted_value in rules['map']:
+                            formatted_value = rules['map'][formatted_value]
                         else:
                             # Handle numeric formatting for precision and suffix
                             try:
-                                num_value = safe_float(value)
+                                num_value = safe_float(formatted_value)
                                 
                                 # Apply multiplier if it exists
                                 if 'multiplier' in rules:
@@ -281,7 +312,7 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
                                 else:
                                     formatted_value = f"{num_value}{suffix}"
                             except (ValueError, TypeError):
-                                formatted_value = value + rules.get('suffix', '')
+                                formatted_value = formatted_value + rules.get('suffix', '')
 
                     queue_ui_update(gui_refs, gui_var_name, formatted_value)
 

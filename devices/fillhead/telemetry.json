@@ -188,7 +188,7 @@
         "gui_var": "fillhead_vac_valve_homed_var"
     },
     "temp_c": {
-        "unit": "\u00c2\u00b0C",
+        "unit": "C",
         "type": "float",
         "default": 25.0,
         "precision": 1,
@@ -196,7 +196,7 @@
         "gui_var": "fillhead_temp_c_var"
     },
     "heater_setpoint": {
-        "unit": "\u00c2\u00b0C",
+        "unit": "C",
         "type": "float",
         "default": 70.0,
         "precision": 1,
