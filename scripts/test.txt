@@ -1,33 +1,4 @@
-wait 1 sec
-wait 1 sec
-wait 1 sec
-wait 1 sec
-wait 1 sec
-wait 1 sec
-wait 1 sec
-wait 1 sec
-
-
-
-fillhead.vac_valve_close 
-
-fillhead.vacuum_leak_test 
-
-
-gantry.move_abs_x
-
-fillhead.heater_on 80 C
-wait_for fillhead.temp_c > 70 C
-
-
-
-
-cycle 10 times
-                                        fillhead.vacuum_on 
-                                        fillhead.vac_valve_open 
-                                        fillhead.vac_valve_close 
-
-gantry.move_abs_x 400 mm 59 mm/s 29 mm/s^2 80%
-
+# Example Script
+# Type commands here or load a file.
 
 

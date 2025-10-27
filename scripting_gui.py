@@ -212,11 +212,16 @@ class CustomText(tk.Text):
             spacing3=2
         )
         
-        # Verify font is actually monospace
+        # Verify font is actually monospace and set tab width
         actual_font = tkfont.Font(font=self.cget("font"))
         print(f"[DEBUG FONT] Actual font family: {actual_font.actual('family')}")
         print(f"[DEBUG FONT] Font is fixed: {actual_font.metrics('fixed')}")
         print(f"[DEBUG FONT] Char widths - space: {actual_font.measure(' ')}, 'M': {actual_font.measure('M')}, 'i': {actual_font.measure('i')}")
+        
+        # Set tab width to 4 characters based on actual font width
+        tab_width = actual_font.measure(' ' * 4)
+        self.config(tabs=(tab_width,))
+        print(f"[DEBUG FONT] Tab width set to {tab_width} pixels (4 characters)")
 
         # Create a proxy for the underlying widget
         self._orig = self._w + "_orig"
@@ -292,7 +297,7 @@ class SyntaxHighlighter:
         self.text.bind('<<Modified>>', self.highlight)
     
     def _load_valid_string_params(self):
-        """Extract all valid enum/option values from all commands."""
+        """Extract all valid enum/option values and keyword parameters from all commands."""
         self.valid_string_params = set()
         if not self.device_manager:
             return
@@ -306,6 +311,12 @@ class SyntaxHighlighter:
                 if choices:
                     for choice in choices:
                         self.valid_string_params.add(choice.lower())
+                
+                # Also add keyword-type parameters
+                if param.get('type') == 'keyword':
+                    param_name = param.get('parameter', '')
+                    if param_name:
+                        self.valid_string_params.add(param_name.lower())
     
     def _load_all_variables(self):
         """Load all telemetry variables from all devices."""
@@ -468,7 +479,7 @@ class ScriptEditor(tk.Frame):
         self.text.bind("<Configure>", self._on_change)
         self.text.bind("<KeyRelease>", self._highlight_current_line)
         self.text.bind("<Button-1>", self._on_change)
-        self.text.bind("<Tab>", self._on_tab)
+        # Tab behavior is handled by the Text widget's configured tab width
 
         # --- Right-click Context Menu ---
         self.context_menu = ThemedContextMenu(self.text)
@@ -490,53 +501,6 @@ class ScriptEditor(tk.Frame):
         script_keywords.extend(list(SCRIPT_COMMANDS.keys()))
 
         self.highlighter = SyntaxHighlighter(self.text, device_keywords, list(set(script_keywords)), device_manager) # Use set to remove duplicates
-    
-    def _on_tab(self, event):
-        # Smart tab: jump to next absolute column boundary
-        # Get current line content to count actual characters
-        cursor_pos = self.text.index(tk.INSERT)
-        line_num, col = cursor_pos.split('.')
-        col = int(col)
-        
-        # Get the actual content of the current line up to cursor
-        line_content = self.text.get(f"{line_num}.0", cursor_pos)
-        # Expand tabs to spaces to get true column position
-        expanded_line = line_content.expandtabs(8)
-        true_col = len(expanded_line)
-        
-        print(f"[DEBUG TAB] Line content: {repr(line_content)}")
-        print(f"[DEBUG TAB] Expanded: {repr(expanded_line)}")
-        print(f"[DEBUG TAB] Col index: {col}, True char col: {true_col}")
-        
-        # Define tab stops at specific character columns for comment alignment
-        tab_stops = [40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120]
-        
-        # Find the next tab stop after current true column position
-        next_stop = None
-        for stop in tab_stops:
-            if stop > true_col:
-                next_stop = stop
-                break
-        
-        print(f"[DEBUG TAB] Next stop: {next_stop}")
-        
-        if next_stop:
-            # Insert spaces to reach that column
-            spaces_needed = next_stop - true_col
-            print(f"[DEBUG TAB] Inserting {spaces_needed} spaces to reach column {next_stop}")
-            self.text.insert(tk.INSERT, ' ' * spaces_needed)
-        else:
-            # If past all tab stops, just insert 8 spaces
-            print(f"[DEBUG TAB] Past all stops, inserting 8 spaces")
-            self.text.insert(tk.INSERT, '        ')
-        
-        # Verify final position
-        final_pos = self.text.index(tk.INSERT)
-        final_line, final_col = final_pos.split('.')
-        final_content = self.text.get(f"{final_line}.0", final_pos)
-        print(f"[DEBUG TAB] Final col index: {final_col}, Final content len: {len(final_content)}")
-        
-        return 'break' # Prevents the default tab behavior
 
     def show_context_menu(self, event):
         """Shows the right-click context menu."""
@@ -546,53 +510,6 @@ class ScriptEditor(tk.Frame):
         """A helper method to allow the command reference to insert text."""
         self.text.insert(tk.INSERT, f"{command_text} ")
         self.text.focus_set() # Move focus back to the editor
-
-    def _on_tab(self, event):
-        # Smart tab: jump to next absolute column boundary
-        # Get current line content to count actual characters
-        cursor_pos = self.text.index(tk.INSERT)
-        line_num, col = cursor_pos.split('.')
-        col = int(col)
-        
-        # Get the actual content of the current line up to cursor
-        line_content = self.text.get(f"{line_num}.0", cursor_pos)
-        # Expand tabs to spaces to get true column position
-        expanded_line = line_content.expandtabs(8)
-        true_col = len(expanded_line)
-        
-        print(f"[DEBUG TAB] Line content: {repr(line_content)}")
-        print(f"[DEBUG TAB] Expanded: {repr(expanded_line)}")
-        print(f"[DEBUG TAB] Col index: {col}, True char col: {true_col}")
-        
-        # Define tab stops at specific character columns for comment alignment
-        tab_stops = [40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120]
-        
-        # Find the next tab stop after current true column position
-        next_stop = None
-        for stop in tab_stops:
-            if stop > true_col:
-                next_stop = stop
-                break
-        
-        print(f"[DEBUG TAB] Next stop: {next_stop}")
-        
-        if next_stop:
-            # Insert spaces to reach that column
-            spaces_needed = next_stop - true_col
-            print(f"[DEBUG TAB] Inserting {spaces_needed} spaces to reach column {next_stop}")
-            self.text.insert(tk.INSERT, ' ' * spaces_needed)
-        else:
-            # If past all tab stops, just insert 8 spaces
-            print(f"[DEBUG TAB] Past all stops, inserting 8 spaces")
-            self.text.insert(tk.INSERT, '        ')
-        
-        # Verify final position
-        final_pos = self.text.index(tk.INSERT)
-        final_line, final_col = final_pos.split('.')
-        final_content = self.text.get(f"{final_line}.0", final_pos)
-        print(f"[DEBUG TAB] Final col index: {final_col}, Final content len: {len(final_content)}")
-        
-        return 'break' # Prevents the default tab behavior
 
     def _highlight_current_line(self, event=None):
         self.text.tag_remove("current_line", "1.0", "end")

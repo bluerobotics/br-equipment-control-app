@@ -14,9 +14,9 @@
             { "parameter": "position", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
             { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "return", "type": "keyword", "optional": true }
+            { "parameter": "force_action", "type": "string", "enum": ["return", "halt", "continue"], "optional": true, "default": "halt" }
         ],
-        "returns": ["done", "force_exceeded"]
+        "returns": ["done", "error"]
     },
     "move_inc": {
         "device": "pressboi",
@@ -26,9 +26,9 @@
             { "parameter": "distance", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
             { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "return", "type": "keyword", "optional": true }
+            { "parameter": "force_action", "type": "string", "enum": ["return", "halt", "continue"], "optional": true, "default": "halt" }
         ],
-        "returns": ["done", "force_exceeded"]
+        "returns": ["done", "error"]
     },
     "set_start_pos": {
         "device": "pressboi",
