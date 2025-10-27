@@ -10,7 +10,7 @@
             "4": "Clearing Errors"
         },
         "help": "Overall fillhead system state",
-        "gui_var": "fillhead_main_state_var"
+        "cpp_source": "static_cast<int32_t>(m_mainState)"
     },
     "injector_state": {
         "type": "int",
@@ -23,7 +23,7 @@
             "4": "Motor Fault"
         },
         "help": "Current operational state of the injector motors",
-        "gui_var": "fillhead_injector_state_var"
+        "cpp_source": "static_cast<int32_t>(m_injector.m_state)"
     },
     "inj_valve_state": {
         "type": "int",
@@ -40,7 +40,7 @@
             "8": "Error"
         },
         "help": "Current state of the injection pinch valve",
-        "gui_var": "fillhead_inj_valve_state_var"
+        "cpp_source": "static_cast<int32_t>(m_injectorValve.m_state)"
     },
     "vac_valve_state": {
         "type": "int",
@@ -57,7 +57,7 @@
             "8": "Error"
         },
         "help": "Current state of the vacuum pinch valve",
-        "gui_var": "fillhead_vac_valve_state_var"
+        "cpp_source": "static_cast<int32_t>(m_vacuumValve.m_state)"
     },
     "heater_state": {
         "type": "int",
@@ -67,7 +67,7 @@
             "1": "Active"
         },
         "help": "Heater PID control status",
-        "gui_var": "fillhead_heater_state_var"
+        "cpp_source": "static_cast<int32_t>(m_heater.m_heaterState)"
     },
     "vacuum_state": {
         "type": "int",
@@ -81,7 +81,7 @@
             "5": "Error"
         },
         "help": "Current vacuum system operation state",
-        "gui_var": "fillhead_vacuum_state_var"
+        "cpp_source": "static_cast<int32_t>(m_vacuum.m_state)"
     },
     "injector_torque": {
         "unit": "%",
@@ -89,7 +89,7 @@
         "default": 0.0,
         "precision": 1,
         "help": "Current motor torque percentage for injector",
-        "gui_var": "fillhead_torque0_var"
+        "cpp_source": "m_injector.m_smoothedTorqueValue0"
     },
     "injector_homed": {
         "type": "int",
@@ -99,7 +99,7 @@
             "1": "Homed"
         },
         "help": "Indicates if injector has been homed to machine zero",
-        "gui_var": "fillhead_homed0_var"
+        "cpp_source": "m_injector.m_homingMachineDone ? 1 : 0"
     },
     "injection_cumulative_ml": {
         "unit": "ml",
@@ -107,7 +107,7 @@
         "default": 0.0,
         "precision": 2,
         "help": "Total volume dispensed since last cartridge home",
-        "gui_var": "fillhead_inject_cumulative_ml_var"
+        "cpp_source": "m_injector.m_cumulative_dispensed_ml"
     },
     "injection_active_ml": {
         "unit": "ml",
@@ -115,7 +115,7 @@
         "default": 0.0,
         "precision": 2,
         "help": "Volume dispensed in current injection operation",
-        "gui_var": "fillhead_inject_active_ml_var"
+        "cpp_source": "m_injector.m_active_op_total_dispensed_ml"
     },
     "injection_target_ml": {
         "unit": "ml",
@@ -123,7 +123,7 @@
         "default": 0.0,
         "precision": 2,
         "help": "Target volume for current injection operation",
-        "gui_var": "injection_target_ml_var"
+        "cpp_source": "m_injector.m_active_op_target_ml"
     },
     "motors_enabled": {
         "type": "bool",
@@ -133,7 +133,7 @@
             "1": "Enabled"
         },
         "help": "Global motor power enable status",
-        "gui_var": "fillhead_motors_enabled_var"
+        "cpp_source": "m_injector.m_isEnabled"
     },
     "inj_valve_pos": {
         "unit": "mm",
@@ -141,7 +141,7 @@
         "default": 0.0,
         "precision": 2,
         "help": "Current position of injection valve actuator",
-        "gui_var": "fillhead_inj_valve_pos_var"
+        "cpp_source": "m_injectorValve.m_motor->PositionRefCommanded() * MOTOR_STEPS_TO_MM"
     },
     "inj_valve_torque": {
         "unit": "%",
@@ -149,7 +149,7 @@
         "default": 0.0,
         "precision": 1,
         "help": "Current motor torque percentage for injection valve",
-        "gui_var": "fillhead_torque2_var"
+        "cpp_source": "m_injectorValve.m_smoothedTorque"
     },
     "inj_valve_homed": {
         "type": "bool",
@@ -159,7 +159,7 @@
             "1": "Homed"
         },
         "help": "Indicates if injection valve has been homed",
-        "gui_var": "fillhead_inj_valve_homed_var"
+        "cpp_source": "m_injectorValve.m_isHomed"
     },
     "vac_valve_pos": {
         "unit": "mm",
@@ -167,7 +167,7 @@
         "default": 0.0,
         "precision": 2,
         "help": "Current position of vacuum valve actuator",
-        "gui_var": "fillhead_vac_valve_pos_var"
+        "cpp_source": "m_vacuumValve.m_motor->PositionRefCommanded() * MOTOR_STEPS_TO_MM"
     },
     "vac_valve_motor_torque": {
         "unit": "%",
@@ -175,7 +175,7 @@
         "default": 0.0,
         "precision": 1,
         "help": "Current motor torque percentage for vacuum valve",
-        "gui_var": "fillhead_torque3_var"
+        "cpp_source": "m_vacuumValve.m_smoothedTorque"
     },
     "vac_valve_homed": {
         "type": "bool",
@@ -185,7 +185,7 @@
             "1": "Homed"
         },
         "help": "Indicates if vacuum valve has been homed",
-        "gui_var": "fillhead_vac_valve_homed_var"
+        "cpp_source": "m_vacuumValve.m_isHomed"
     },
     "temp_c": {
         "unit": "C",
@@ -193,7 +193,7 @@
         "default": 25.0,
         "precision": 1,
         "help": "Current material temperature from thermocouple",
-        "gui_var": "fillhead_temp_c_var"
+        "cpp_source": "m_heater.m_smoothedTemperatureCelsius"
     },
     "heater_setpoint": {
         "unit": "C",
@@ -201,7 +201,7 @@
         "default": 70.0,
         "precision": 1,
         "help": "Target temperature setpoint for PID controller",
-        "gui_var": "pid_setpoint_var"
+        "cpp_source": "m_heater.m_pid_setpoint"
     },
     "vacuum_psig": {
         "unit": "PSIG",
@@ -209,6 +209,6 @@
         "default": 0.5,
         "precision": 2,
         "help": "Current vacuum pressure reading",
-        "gui_var": "fillhead_vacuum_psig_var"
+        "cpp_source": "m_vacuum.m_smoothedVacuumPsig"
     }
 }

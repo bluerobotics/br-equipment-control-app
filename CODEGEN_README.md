@@ -15,7 +15,6 @@ Commands sent TO the device (Host → Device)
 Messages sent FROM the device (Device → Host)
 - Status message prefixes (INFO, START, DONE, ERROR, DISCOVERY)
 - Telemetry prefix
-- Telemetry field identifiers
 
 ### 3. **`command_parser.h`** + **`command_parser.cpp`** - Command Parsing & Dispatching
 Proper header/implementation separation following C++ best practices
@@ -25,7 +24,22 @@ Proper header/implementation separation following C++ best practices
   - `getCommandParams()` - Extract parameter strings from commands
   - `dispatchCommand()` - Template dispatcher with TODO placeholders for your handlers
 
-This organization provides clean, ready-to-use command parsing with minimal boilerplate code.
+### 4. **`telemetry.h`** + **`telemetry.cpp`** - Centralized Telemetry System ⭐ NEW
+Complete telemetry management with single source of truth
+- **`.h`** - `TelemetryData` struct with all fields, function declarations
+- **`.cpp`** - Full implementations including:
+  - `telemetry_init()` - Initialize telemetry structure with defaults
+  - `telemetry_build_message()` - Construct complete telemetry string
+  - `telemetry_send()` - Build and transmit telemetry via serial
+
+**Key Benefits:**
+- All telemetry variables in one centralized structure
+- Type-safe fields (int32_t, float, bool)
+- Auto-generated message construction
+- No manual string formatting required
+- Single source of truth from `telemetry.json`
+
+This organization provides clean, ready-to-use code with minimal boilerplate.
 
 ## How to Generate Headers
 
@@ -109,20 +123,32 @@ void handle_heater_on(const char* params) {
 // Update the generated dispatcher to call your handlers
 ```
 
-### 3. Using Response Prefixes
+### 3. Using Telemetry System (Centralized & Auto-Generated!) ⭐
 
 ```cpp
+#include "telemetry.h"
 #include "responses.h"
 
-void publishTelemetry() {
-    // Build your telemetry string using the generated field keys
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%s%s:%d,%s:%.1f,%s:%.1f",
-             TELEM_PREFIX,
-             TELEM_KEY_HEATER_STATE, heaterState,
-             TELEM_KEY_TEMP_C, currentTemp,
-             TELEM_KEY_HEATER_SETPOINT, setpoint);
-    Serial.println(buffer);
+// Declare global telemetry structure
+TelemetryData g_telemetry;
+
+void setup() {
+    // Initialize with defaults from telemetry.json
+    telemetry_init(&g_telemetry);
+}
+
+void loop() {
+    // Update telemetry fields as your application runs
+    g_telemetry.heater_state = isHeaterOn ? 1 : 0;
+    g_telemetry.temp_c = readTemperature();
+    g_telemetry.heater_setpoint = targetTemp;
+    g_telemetry.injector_torque = motor.GetTorque();
+    g_telemetry.injector_homed = motor.HlfbState() == HLFB_HOMED;
+    
+    // Send complete telemetry message (auto-formatted!)
+    telemetry_send(&g_telemetry);
+    
+    delay(100);
 }
 
 void sendStatus(const char* message) {
@@ -130,6 +156,12 @@ void sendStatus(const char* message) {
     Serial.println(message);
 }
 ```
+
+**Benefits:**
+- No manual string formatting
+- All fields in one place
+- Type-safe access
+- Auto-generates proper format: `DEVICE_TELEM: field1:value1,field2:value2,...`
 
 ## Device-Specific Prefixes
 
@@ -165,4 +197,10 @@ This allows multiple devices to communicate on the same bus without conflicts.
 - **`devices/[device_name]/responses.h`** - Response message definitions
 - **`devices/[device_name]/command_parser.h`** - Function declarations
 - **`devices/[device_name]/command_parser.cpp`** - Implementation file
+- **`devices/[device_name]/telemetry.h`** - Telemetry structure and functions
+- **`devices/[device_name]/telemetry.cpp`** - Telemetry implementation
+
+## Additional Documentation
+
+See **`TELEMETRY_USAGE.md`** for a complete guide on using the telemetry system in your embedded firmware.
 

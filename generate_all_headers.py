@@ -10,7 +10,9 @@ from code_generator import (
     generate_command_header, 
     generate_responses_header,
     generate_command_parser_header,
-    generate_command_parser_cpp
+    generate_command_parser_cpp,
+    generate_telemetry_header,
+    generate_telemetry_cpp
 )
 
 def generate_headers_for_device(device_name):
@@ -40,12 +42,16 @@ def generate_headers_for_device(device_name):
         responses_h = generate_responses_header(telemetry, device_name)
         parser_h = generate_command_parser_header(commands, device_name)
         parser_cpp = generate_command_parser_cpp(commands, device_name)
+        telemetry_h = generate_telemetry_header(telemetry, device_name)
+        telemetry_cpp = generate_telemetry_cpp(telemetry, device_name)
         
         # Save all files
         commands_h_path = os.path.join(device_dir, 'commands.h')
         responses_h_path = os.path.join(device_dir, 'responses.h')
         parser_h_path = os.path.join(device_dir, 'command_parser.h')
         parser_cpp_path = os.path.join(device_dir, 'command_parser.cpp')
+        telemetry_h_path = os.path.join(device_dir, 'telemetry.h')
+        telemetry_cpp_path = os.path.join(device_dir, 'telemetry.cpp')
         
         with open(commands_h_path, 'w', encoding='utf-8') as f:
             f.write(commands_h)
@@ -59,7 +65,13 @@ def generate_headers_for_device(device_name):
         with open(parser_cpp_path, 'w', encoding='utf-8') as f:
             f.write(parser_cpp)
         
-        print(f"  [OK] Generated 4 files for {device_name}")
+        with open(telemetry_h_path, 'w', encoding='utf-8') as f:
+            f.write(telemetry_h)
+        
+        with open(telemetry_cpp_path, 'w', encoding='utf-8') as f:
+            f.write(telemetry_cpp)
+        
+        print(f"  [OK] Generated 6 files for {device_name}")
         return True
         
     except Exception as e:

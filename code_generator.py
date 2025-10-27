@@ -403,6 +403,204 @@ def generate_telemetry_formatter(telemetry: Dict[str, Any], device_name: str) ->
     return '\n'.join(lines)
 
 
+def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> str:
+    """Generate telemetry.h content from telemetry.json with struct and function declarations."""
+    
+    device_upper = device_name.upper()
+    device_title = device_name.capitalize()
+    
+    lines = []
+    lines.append("/**")
+    lines.append(" * @file telemetry.h")
+    lines.append(f" * @brief Telemetry structure and construction interface for the {device_title} controller.")
+    lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
+    lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(" * ")
+    lines.append(f" * This header defines the complete telemetry data structure for the {device_title}.")
+    lines.append(" * All telemetry fields are assembled in one centralized location.")
+    lines.append(" * To modify telemetry fields, edit telemetry.json and regenerate this file.")
+    lines.append(" */")
+    lines.append("#pragma once")
+    lines.append("")
+    lines.append('#include <stdint.h>')
+    lines.append('#include <stdbool.h>')
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Field Keys")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Telemetry Field Identifiers")
+    lines.append(" * @brief String keys used in telemetry messages.")
+    lines.append(f' * Format: "{device_upper}_TELEM: field1:value1,field2:value2,..."')
+    lines.append(" * @{")
+    lines.append(" */")
+    
+    for field, field_data in telemetry.items():
+        field_help = field_data.get('help', 'No description available.')
+        lines.append(f'#define TELEM_KEY_{field.upper():<30} "{field:<25}"  ///< {field_help}')
+    
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Data Structure")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @struct TelemetryData")
+    lines.append(f" * @brief Complete telemetry state for the {device_title} device.")
+    lines.append(" * @details This structure contains all telemetry values that are transmitted to the host.")
+    lines.append(" */")
+    lines.append("typedef struct {")
+    
+    # Generate struct fields based on telemetry types
+    for field, field_data in telemetry.items():
+        field_type = field_data.get('type', 'int')
+        default = field_data.get('default', 0)
+        field_help = field_data.get('help', '')
+        
+        # Map JSON types to C types
+        if field_type == 'int':
+            c_type = 'int32_t'
+        elif field_type == 'float':
+            c_type = 'float'
+        elif field_type == 'bool':
+            c_type = 'bool'
+        else:
+            c_type = 'int32_t'
+        
+        lines.append(f"    {c_type:<12} {field:<30}; ///< {field_help}")
+    
+    lines.append("} TelemetryData;")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Construction Functions")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Initialize telemetry data structure with default values.")
+    lines.append(" * @param data Pointer to TelemetryData structure to initialize")
+    lines.append(" */")
+    lines.append("void telemetry_init(TelemetryData* data);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Build complete telemetry message string from data structure.")
+    lines.append(" * @param data Pointer to TelemetryData structure containing current values")
+    lines.append(" * @param buffer Output buffer to write telemetry message")
+    lines.append(" * @param buffer_size Size of output buffer")
+    lines.append(" * @return Number of characters written (excluding null terminator)")
+    lines.append(" * ")
+    lines.append(f" * @details Constructs a message in the format: \"{device_upper}_TELEM: field1:value1,field2:value2,...\"")
+    lines.append(" */")
+    lines.append("int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buffer_size);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Send telemetry message via Serial.")
+    lines.append(" * @param data Pointer to TelemetryData structure containing current values")
+    lines.append(" * ")
+    lines.append(" * @details Builds and transmits the complete telemetry message.")
+    lines.append(" */")
+    lines.append("void telemetry_send(const TelemetryData* data);")
+    
+    return '\n'.join(lines)
+
+
+def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
+    """Generate telemetry.cpp implementation file."""
+    
+    device_upper = device_name.upper()
+    device_title = device_name.capitalize()
+    
+    lines = []
+    lines.append("/**")
+    lines.append(" * @file telemetry.cpp")
+    lines.append(f" * @brief Telemetry construction implementation for the {device_title} controller.")
+    lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
+    lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(" */")
+    lines.append("")
+    lines.append('#include "telemetry.h"')
+    lines.append('#include <stdio.h>')
+    lines.append('#include <string.h>')
+    lines.append('#include "ClearCore.h"')
+    lines.append("")
+    lines.append(f'#define TELEM_PREFIX "{device_upper}_TELEM: "')
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Initialization")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("void telemetry_init(TelemetryData* data) {")
+    lines.append("    if (data == NULL) return;")
+    lines.append("    ")
+    
+    # Initialize all fields with defaults
+    for field, field_data in telemetry.items():
+        default = field_data.get('default', 0)
+        field_type = field_data.get('type', 'int')
+        
+        if field_type == 'float':
+            lines.append(f"    data->{field} = {default}f;")
+        elif field_type == 'bool':
+            lines.append(f"    data->{field} = {'true' if default else 'false'};")
+        else:
+            lines.append(f"    data->{field} = {default};")
+    
+    lines.append("}")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Message Construction")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buffer_size) {")
+    lines.append("    if (data == NULL || buffer == NULL || buffer_size == 0) return 0;")
+    lines.append("    ")
+    lines.append("    int pos = 0;")
+    lines.append("    ")
+    lines.append("    // Write prefix")
+    lines.append("    pos += snprintf(buffer + pos, buffer_size - pos, \"%s\", TELEM_PREFIX);")
+    lines.append("    ")
+    
+    # Build telemetry fields
+    field_items = list(telemetry.items())
+    for i, (field, field_data) in enumerate(field_items):
+        field_type = field_data.get('type', 'int')
+        precision = field_data.get('precision', 2)
+        is_last = (i == len(field_items) - 1)
+        separator = "" if is_last else ","
+        
+        lines.append(f"    // {field}")
+        lines.append("    if (pos < buffer_size) {")
+        
+        if field_type == 'float':
+            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%.{precision}f{separator}\", TELEM_KEY_{field.upper()}, data->{field});")
+        elif field_type == 'bool':
+            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%d{separator}\", TELEM_KEY_{field.upper()}, data->{field} ? 1 : 0);")
+        else:  # int
+            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%d{separator}\", TELEM_KEY_{field.upper()}, data->{field});")
+        
+        lines.append("    }")
+        lines.append("    ")
+    
+    lines.append("    return pos;")
+    lines.append("}")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Telemetry Transmission")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("void telemetry_send(const TelemetryData* data) {")
+    lines.append("    char buffer[512];")
+    lines.append("    int len = telemetry_build_message(data, buffer, sizeof(buffer));")
+    lines.append("    ")
+    lines.append("    if (len > 0) {")
+    lines.append("        ConnectorUsb.SendLine(buffer);")
+    lines.append("    }")
+    lines.append("}")
+    
+    return '\n'.join(lines)
+
+
 def generate_responses_header(telemetry: Dict[str, Any], device_name: str) -> str:
     """Generate responses.h content from telemetry.json."""
     
@@ -419,6 +617,7 @@ def generate_responses_header(telemetry: Dict[str, Any], device_name: str) -> st
     lines.append(f" * This header file defines all messages sent FROM the {device_title} device TO the host.")
     lines.append(" * This includes status messages, telemetry data, and discovery responses.")
     lines.append(" * For command definitions (host → device), see commands.h")
+    lines.append(" * For telemetry structure, see telemetry.h")
     lines.append(" * To modify response fields, edit telemetry.json and regenerate this file.")
     lines.append(" */")
     lines.append("#pragma once")
@@ -448,31 +647,6 @@ def generate_responses_header(telemetry: Dict[str, Any], device_name: str) -> st
     lines.append("/** @} */")
     lines.append("")
     lines.append("//==================================================================================================")
-    lines.append("// Telemetry Field Keys")
-    lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Telemetry Field Identifiers")
-    lines.append(" * @brief String identifiers for telemetry data fields.")
-    lines.append(" * @details These defines specify the exact field names used in telemetry messages.")
-    lines.append(f' * Format: "{device_upper}_TELEM: field1:value1,field2:value2,..."')
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append("")
-    
-    # Group telemetry fields for better organization
-    for field, field_data in telemetry.items():
-        gui_var = field_data.get('gui_var', 'N/A')
-        default = field_data.get('default', 'N/A')
-        field_help = field_data.get('help', 'No description available.')
-        lines.append(f'#define TELEM_KEY_{field.upper():<30} "{field:<25}"  ///< {field_help}')
-    
-    lines.append("")
-    lines.append("/** @} */")
-    lines.append("")
-    
-    # Add a comment about usage
-    lines.append("//==================================================================================================")
     lines.append("// Usage Examples")
     lines.append("//==================================================================================================")
     lines.append("")
@@ -490,19 +664,13 @@ def generate_responses_header(telemetry: Dict[str, Any], device_name: str) -> st
     lines.append(" * ")
     lines.append(" * @section Telemetry Message Example")
     lines.append(" * @code")
-    lines.append(" * char buffer[256];")
-    lines.append(' * snprintf(buffer, sizeof(buffer), "%s%s:%d,%s:%.2f",')
-    lines.append(" *          TELEM_PREFIX,")
-    
-    # Add example with first two telemetry fields if available
-    telem_keys = list(telemetry.keys())
-    if len(telem_keys) >= 1:
-        lines.append(f" *          TELEM_KEY_{telem_keys[0].upper()}, value1,")
-    if len(telem_keys) >= 2:
-        lines.append(f" *          TELEM_KEY_{telem_keys[1].upper()}, value2);")
-    else:
-        lines.append(" *          TELEM_KEY_FIELD, value);")
-    lines.append(' * Serial.println(buffer);')
+    lines.append(" * // Use the telemetry.h interface for sending telemetry")
+    lines.append(" * #include \"telemetry.h\"")
+    lines.append(" * ")
+    lines.append(" * TelemetryData telem;")
+    lines.append(" * telemetry_init(&telem);")
+    lines.append(" * // ... update telem fields ...")
+    lines.append(" * telemetry_send(&telem);")
     lines.append(" * @endcode")
     lines.append(" */")
     
@@ -554,7 +722,7 @@ class CodeGeneratorDialog(tk.Toplevel):
         # Description
         desc_label = tk.Label(
             main_frame,
-            text="Generate C++ files from device JSON schemas.\nIncludes: commands.h, responses.h, command_parser.h, command_parser.cpp",
+            text="Generate C++ files from device JSON schemas.\nIncludes: commands.h, responses.h, command_parser.h, command_parser.cpp, telemetry.h, telemetry.cpp",
             bg=theme.BG_COLOR,
             fg=theme.COMMENT_COLOR,
             font=theme.FONT_NORMAL,
@@ -679,6 +847,32 @@ class CodeGeneratorDialog(tk.Toplevel):
         self.parser_cpp_text.pack(fill=tk.BOTH, expand=True)
         self.notebook.add(parser_cpp_frame, text="command_parser.cpp")
         
+        # Telemetry.h tab
+        telemetry_h_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.telemetry_h_text = scrolledtext.ScrolledText(
+            telemetry_h_frame,
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            insertbackground=theme.FG_COLOR,
+            font=('Courier', 9),
+            wrap=tk.NONE
+        )
+        self.telemetry_h_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(telemetry_h_frame, text="telemetry.h")
+        
+        # Telemetry.cpp tab
+        telemetry_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.telemetry_cpp_text = scrolledtext.ScrolledText(
+            telemetry_cpp_frame,
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            insertbackground=theme.FG_COLOR,
+            font=('Courier', 9),
+            wrap=tk.NONE
+        )
+        self.telemetry_cpp_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(telemetry_cpp_frame, text="telemetry.cpp")
+        
         # Buttons frame
         buttons_frame = tk.Frame(main_frame, bg=theme.BG_COLOR)
         buttons_frame.pack(fill=tk.X)
@@ -734,6 +928,8 @@ class CodeGeneratorDialog(tk.Toplevel):
         self.responses_text.insert('1.0', initial_msg)
         self.parser_text.insert('1.0', initial_msg)
         self.parser_cpp_text.insert('1.0', initial_msg)
+        self.telemetry_h_text.insert('1.0', initial_msg)
+        self.telemetry_cpp_text.insert('1.0', initial_msg)
     
     def generate_code(self):
         """Generate C++ headers from selected device's JSON files."""
@@ -768,6 +964,8 @@ class CodeGeneratorDialog(tk.Toplevel):
             responses_h = generate_responses_header(telemetry, device_name)
             parser_h = generate_command_parser_header(commands, device_name)
             parser_cpp = generate_command_parser_cpp(commands, device_name)
+            telemetry_h = generate_telemetry_header(telemetry, device_name)
+            telemetry_cpp = generate_telemetry_cpp(telemetry, device_name)
             
             # Display in text widgets
             self.commands_text.delete('1.0', tk.END)
@@ -782,11 +980,19 @@ class CodeGeneratorDialog(tk.Toplevel):
             self.parser_cpp_text.delete('1.0', tk.END)
             self.parser_cpp_text.insert('1.0', parser_cpp)
             
+            self.telemetry_h_text.delete('1.0', tk.END)
+            self.telemetry_h_text.insert('1.0', telemetry_h)
+            
+            self.telemetry_cpp_text.delete('1.0', tk.END)
+            self.telemetry_cpp_text.insert('1.0', telemetry_cpp)
+            
             # Store generated content for saving
             self.generated_commands = commands_h
             self.generated_responses = responses_h
             self.generated_parser = parser_h
             self.generated_parser_cpp = parser_cpp
+            self.generated_telemetry_h = telemetry_h
+            self.generated_telemetry_cpp = telemetry_cpp
             self.current_device = device_name
             
         except Exception as e:
@@ -802,8 +1008,12 @@ class CodeGeneratorDialog(tk.Toplevel):
             content = self.responses_text.get('1.0', tk.END)
         elif current_tab == 2:  # command_parser.h
             content = self.parser_text.get('1.0', tk.END)
-        else:  # command_parser.cpp
+        elif current_tab == 3:  # command_parser.cpp
             content = self.parser_cpp_text.get('1.0', tk.END)
+        elif current_tab == 4:  # telemetry.h
+            content = self.telemetry_h_text.get('1.0', tk.END)
+        else:  # telemetry.cpp
+            content = self.telemetry_cpp_text.get('1.0', tk.END)
         
         self.clipboard_clear()
         self.clipboard_append(content)
@@ -825,6 +1035,8 @@ class CodeGeneratorDialog(tk.Toplevel):
             responses_h_path = os.path.join(device_dir, 'responses.h')
             parser_h_path = os.path.join(device_dir, 'command_parser.h')
             parser_cpp_path = os.path.join(device_dir, 'command_parser.cpp')
+            telemetry_h_path = os.path.join(device_dir, 'telemetry.h')
+            telemetry_cpp_path = os.path.join(device_dir, 'telemetry.cpp')
             
             # Save all files
             with open(commands_h_path, 'w', encoding='utf-8') as f:
@@ -839,13 +1051,21 @@ class CodeGeneratorDialog(tk.Toplevel):
             with open(parser_cpp_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_parser_cpp)
             
+            with open(telemetry_h_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_telemetry_h)
+            
+            with open(telemetry_cpp_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_telemetry_cpp)
+            
             messagebox.showinfo(
                 "Success",
                 f"All files saved successfully!\n\n"
                 f"commands.h\n"
                 f"responses.h\n"
                 f"command_parser.h\n"
-                f"command_parser.cpp\n\n"
+                f"command_parser.cpp\n"
+                f"telemetry.h\n"
+                f"telemetry.cpp\n\n"
                 f"Location: {device_dir}"
             )
             
