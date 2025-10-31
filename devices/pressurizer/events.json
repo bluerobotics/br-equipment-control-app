@@ -1,0 +1,25 @@
+{
+    "script_run": {
+        "device": "pressurizer",
+        "description": "Firmware requesting script to start or resume execution. Sent when conditions are safe to continue.",
+        "type": "script_control",
+        "params": []
+    },
+    "script_hold": {
+        "device": "pressurizer",
+        "description": "Firmware requesting script to pause execution. Sent when a safety condition is triggered or operator requests pause.",
+        "type": "script_control",
+        "params": [
+            { "parameter": "reason", "type": "string", "optional": true, "description": "Human-readable reason for the hold" }
+        ]
+    },
+    "script_reset": {
+        "device": "pressurizer",
+        "description": "Firmware requesting script to abort and reset to beginning. Sent on critical errors or when operator presses reset button.",
+        "type": "script_control",
+        "params": [
+            { "parameter": "reason", "type": "string", "optional": true, "description": "Human-readable reason for the reset" }
+        ]
+    }
+}
+

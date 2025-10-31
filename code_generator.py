@@ -522,7 +522,7 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
     lines.append('#include "telemetry.h"')
     lines.append('#include <stdio.h>')
     lines.append('#include <string.h>')
-    lines.append('#include "ClearCore.h"')
+    lines.append('// #include "ClearCore.h"  // Include if using ClearCore hardware')
     lines.append("")
     lines.append(f'#define TELEM_PREFIX "{device_upper}_TELEM: "')
     lines.append("")
@@ -589,12 +589,250 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
     lines.append("// Telemetry Transmission")
     lines.append("//==================================================================================================")
     lines.append("")
+    lines.append("// NOTE: You need to provide a sendMessage() implementation based on your comms setup")
+    lines.append("// For example:")
+    lines.append("// extern CommsController comms;")
+    lines.append("// #define sendMessage(msg) comms.enqueueTx(msg, comms.m_guiIp, comms.m_guiPort)")
+    lines.append("")
     lines.append("void telemetry_send(const TelemetryData* data) {")
     lines.append("    char buffer[512];")
     lines.append("    int len = telemetry_build_message(data, buffer, sizeof(buffer));")
     lines.append("    ")
     lines.append("    if (len > 0) {")
-    lines.append("        ConnectorUsb.SendLine(buffer);")
+    lines.append("        sendMessage(buffer);")
+    lines.append("    }")
+    lines.append("}")
+    
+    return '\n'.join(lines)
+
+
+def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
+    """Generate events.h content from events.json."""
+    
+    device_upper = device_name.upper()
+    device_title = device_name.capitalize()
+    
+    lines = []
+    lines.append("/**")
+    lines.append(" * @file events.h")
+    lines.append(f" * @brief Defines all event types that can be sent from the {device_title} controller.")
+    lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
+    lines.append(f" * Generated from events.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(" * ")
+    lines.append(f" * This header file defines all events sent FROM the {device_title} device TO the host.")
+    lines.append(" * Events are asynchronous notifications that can trigger host-side actions.")
+    lines.append(" * For command definitions (host → device), see commands.h")
+    lines.append(" * For response definitions, see responses.h")
+    lines.append(" * To modify events, edit events.json and regenerate this file.")
+    lines.append(" */")
+    lines.append("#pragma once")
+    lines.append("")
+    lines.append('#include <stdint.h>')
+    lines.append('#include <stdbool.h>')
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Event Message Prefixes (Device → Host)")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Event Message Prefix")
+    lines.append(" * @brief Prefix used for all event messages from the device.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define EVENT_PREFIX                        "{device_upper}_EVENT: "         ///< Prefix for all event messages.')
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Event String Definitions")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Event String Identifiers")
+    lines.append(" * @brief String identifiers used in event messages.")
+    lines.append(f' * Format: "{device_upper}_EVENT: event_name [param1] [param2] ..."')
+    lines.append(" * @{")
+    lines.append(" */")
+    
+    for event_name, event_data in events.items():
+        event_help = event_data.get('description', 'No description available.')
+        lines.append(f'#define EVENT_STR_{event_name.upper():<35} "{event_name:<30}"  ///< {event_help}')
+    
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Event Enum")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @enum Event")
+    lines.append(f" * @brief Enumerates all possible events that can be sent by the {device_title}.")
+    lines.append(" * @details This enum provides a type-safe way to handle outgoing events.")
+    lines.append(" */")
+    lines.append("typedef enum {")
+    lines.append("    EVENT_UNKNOWN,                        ///< Represents an unrecognized or invalid event.")
+    lines.append("")
+    
+    # Add enum entries
+    event_items = list(events.items())
+    for i, (event_name, event_data) in enumerate(event_items):
+        is_last = (i == len(event_items) - 1)
+        comma = "" if is_last else ","
+        lines.append(f"    EVENT_{event_name.upper():<35} ///< @see EVENT_STR_{event_name.upper()}{comma}")
+    
+    lines.append("} Event;")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Event Sending Functions")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Send an event message with no parameters.")
+    lines.append(" * @param event The event enum to send")
+    lines.append(" */")
+    lines.append("void sendEvent(Event event);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Send an event message with a single integer parameter.")
+    lines.append(" * @param event The event enum to send")
+    lines.append(" * @param param The integer parameter")
+    lines.append(" */")
+    lines.append("void sendEventInt(Event event, int32_t param);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Send an event message with a single string parameter.")
+    lines.append(" * @param event The event enum to send")
+    lines.append(" * @param param The string parameter")
+    lines.append(" */")
+    lines.append("void sendEventString(Event event, const char* param);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Send an event message with multiple parameters.")
+    lines.append(" * @param event The event enum to send")
+    lines.append(" * @param param1 First parameter (integer)")
+    lines.append(" * @param param2 Second parameter (integer)")
+    lines.append(" */")
+    lines.append("void sendEventMulti(Event event, int32_t param1, int32_t param2);")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Usage Examples")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @section Event Sending Example")
+    lines.append(" * @code")
+    lines.append(" * // Send a simple event")
+    lines.append(" * sendEvent(EVENT_SCRIPT_RUN);")
+    lines.append(" * ")
+    lines.append(" * // Send an event with a reason")
+    lines.append(" * sendEventString(EVENT_SCRIPT_HOLD, \"Light curtain triggered\");")
+    lines.append(" * ")
+    lines.append(" * // Send an event with numeric data")
+    lines.append(" * sendEventInt(EVENT_SCRIPT_RESET, 1); // zone 1")
+    lines.append(" * @endcode")
+    lines.append(" */")
+    
+    return '\n'.join(lines)
+
+
+def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
+    """Generate events.cpp implementation file."""
+    
+    device_upper = device_name.upper()
+    device_title = device_name.capitalize()
+    
+    lines = []
+    lines.append("/**")
+    lines.append(" * @file events.cpp")
+    lines.append(f" * @brief Event sending implementation for the {device_title} controller.")
+    lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
+    lines.append(f" * Generated from events.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(" */")
+    lines.append("")
+    lines.append('#include "events.h"')
+    lines.append('#include <stdio.h>')
+    lines.append('#include <string.h>')
+    lines.append('// #include "ClearCore.h"  // Include if using ClearCore hardware')
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Event Sending Implementation")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("// NOTE: You need to provide a sendMessage() implementation based on your comms setup")
+    lines.append("// For example:")
+    lines.append("// extern CommsController comms;")
+    lines.append("// #define sendMessage(msg) comms.enqueueTx(msg, comms.m_guiIp, comms.m_guiPort)")
+    lines.append("")
+    lines.append("void sendEvent(Event event) {")
+    lines.append("    char buffer[256];")
+    lines.append("    switch (event) {")
+    
+    # Generate cases for each event
+    for event_name, event_data in events.items():
+        lines.append(f"        case EVENT_{event_name.upper()}:")
+        lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()});")
+        lines.append(f"            sendMessage(buffer);")
+        lines.append("            break;")
+        lines.append("")
+    
+    lines.append("        case EVENT_UNKNOWN:")
+    lines.append("        default:")
+    lines.append("            // Do nothing for unknown events")
+    lines.append("            break;")
+    lines.append("    }")
+    lines.append("}")
+    lines.append("")
+    lines.append("void sendEventInt(Event event, int32_t param) {")
+    lines.append("    char buffer[256];")
+    lines.append("    switch (event) {")
+    
+    # Generate cases for events that might have integer parameters
+    for event_name, event_data in events.items():
+        params = event_data.get('params', [])
+        has_int_param = any(p.get('type') == 'int' for p in params)
+        if has_int_param:
+            lines.append(f"        case EVENT_{event_name.upper()}:")
+            lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s %d\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
+            lines.append(f"            sendMessage(buffer);")
+            lines.append("            break;")
+            lines.append("")
+    
+    lines.append("        default:")
+    lines.append("            // Fall back to simple event for events without int params")
+    lines.append("            sendEvent(event);")
+    lines.append("            break;")
+    lines.append("    }")
+    lines.append("}")
+    lines.append("")
+    lines.append("void sendEventString(Event event, const char* param) {")
+    lines.append("    char buffer[256];")
+    lines.append("    switch (event) {")
+    
+    # Generate cases for events that might have string parameters
+    for event_name, event_data in events.items():
+        params = event_data.get('params', [])
+        has_string_param = any(p.get('type') == 'string' for p in params)
+        if has_string_param:
+            lines.append(f"        case EVENT_{event_name.upper()}:")
+            lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s %s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
+            lines.append(f"            sendMessage(buffer);")
+            lines.append("            break;")
+            lines.append("")
+    
+    lines.append("        default:")
+    lines.append("            // Fall back to simple event for events without string params")
+    lines.append("            sendEvent(event);")
+    lines.append("            break;")
+    lines.append("    }")
+    lines.append("}")
+    lines.append("")
+    lines.append("void sendEventMulti(Event event, int32_t param1, int32_t param2) {")
+    lines.append("    char buffer[256];")
+    lines.append("    switch (event) {")
+    lines.append("        // Add specific cases for events that need multiple parameters")
+    lines.append("        default:")
+    lines.append("            // Fall back to single int parameter")
+    lines.append("            sendEventInt(event, param1);")
+    lines.append("            break;")
     lines.append("    }")
     lines.append("}")
     
@@ -722,7 +960,7 @@ class CodeGeneratorDialog(tk.Toplevel):
         # Description
         desc_label = tk.Label(
             main_frame,
-            text="Generate C++ files from device JSON schemas.\nIncludes: commands.h, responses.h, command_parser.h, command_parser.cpp, telemetry.h, telemetry.cpp",
+            text="Generate C++ files from device JSON schemas.\nFiles saved to: devices/{device}/generated/\nIncludes: commands.h, responses.h, command_parser.h/cpp, telemetry.h/cpp, events.h/cpp",
             bg=theme.BG_COLOR,
             fg=theme.COMMENT_COLOR,
             font=theme.FONT_NORMAL,
@@ -873,6 +1111,32 @@ class CodeGeneratorDialog(tk.Toplevel):
         self.telemetry_cpp_text.pack(fill=tk.BOTH, expand=True)
         self.notebook.add(telemetry_cpp_frame, text="telemetry.cpp")
         
+        # Events.h tab
+        events_h_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.events_h_text = scrolledtext.ScrolledText(
+            events_h_frame,
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            insertbackground=theme.FG_COLOR,
+            font=('Courier', 9),
+            wrap=tk.NONE
+        )
+        self.events_h_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(events_h_frame, text="events.h")
+        
+        # Events.cpp tab
+        events_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.events_cpp_text = scrolledtext.ScrolledText(
+            events_cpp_frame,
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            insertbackground=theme.FG_COLOR,
+            font=('Courier', 9),
+            wrap=tk.NONE
+        )
+        self.events_cpp_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(events_cpp_frame, text="events.cpp")
+        
         # Buttons frame
         buttons_frame = tk.Frame(main_frame, bg=theme.BG_COLOR)
         buttons_frame.pack(fill=tk.X)
@@ -930,6 +1194,8 @@ class CodeGeneratorDialog(tk.Toplevel):
         self.parser_cpp_text.insert('1.0', initial_msg)
         self.telemetry_h_text.insert('1.0', initial_msg)
         self.telemetry_cpp_text.insert('1.0', initial_msg)
+        self.events_h_text.insert('1.0', initial_msg)
+        self.events_cpp_text.insert('1.0', initial_msg)
     
     def generate_code(self):
         """Generate C++ headers from selected device's JSON files."""
@@ -945,6 +1211,7 @@ class CodeGeneratorDialog(tk.Toplevel):
             
             commands_json_path = os.path.join(device_dir, 'commands.json')
             telemetry_json_path = os.path.join(device_dir, 'telemetry.json')
+            events_json_path = os.path.join(device_dir, 'events.json')
             
             # Check if files exist
             if not os.path.exists(commands_json_path):
@@ -959,6 +1226,11 @@ class CodeGeneratorDialog(tk.Toplevel):
             commands = load_json(commands_json_path)
             telemetry = load_json(telemetry_json_path)
             
+            # Load events.json if it exists (optional)
+            events = {}
+            if os.path.exists(events_json_path):
+                events = load_json(events_json_path)
+            
             # Generate all files
             commands_h = generate_command_header(commands, device_name)
             responses_h = generate_responses_header(telemetry, device_name)
@@ -966,6 +1238,8 @@ class CodeGeneratorDialog(tk.Toplevel):
             parser_cpp = generate_command_parser_cpp(commands, device_name)
             telemetry_h = generate_telemetry_header(telemetry, device_name)
             telemetry_cpp = generate_telemetry_cpp(telemetry, device_name)
+            events_h = generate_events_header(events, device_name)
+            events_cpp = generate_events_cpp(events, device_name)
             
             # Display in text widgets
             self.commands_text.delete('1.0', tk.END)
@@ -986,6 +1260,12 @@ class CodeGeneratorDialog(tk.Toplevel):
             self.telemetry_cpp_text.delete('1.0', tk.END)
             self.telemetry_cpp_text.insert('1.0', telemetry_cpp)
             
+            self.events_h_text.delete('1.0', tk.END)
+            self.events_h_text.insert('1.0', events_h)
+            
+            self.events_cpp_text.delete('1.0', tk.END)
+            self.events_cpp_text.insert('1.0', events_cpp)
+            
             # Store generated content for saving
             self.generated_commands = commands_h
             self.generated_responses = responses_h
@@ -993,6 +1273,8 @@ class CodeGeneratorDialog(tk.Toplevel):
             self.generated_parser_cpp = parser_cpp
             self.generated_telemetry_h = telemetry_h
             self.generated_telemetry_cpp = telemetry_cpp
+            self.generated_events_h = events_h
+            self.generated_events_cpp = events_cpp
             self.current_device = device_name
             
         except Exception as e:
@@ -1012,8 +1294,12 @@ class CodeGeneratorDialog(tk.Toplevel):
             content = self.parser_cpp_text.get('1.0', tk.END)
         elif current_tab == 4:  # telemetry.h
             content = self.telemetry_h_text.get('1.0', tk.END)
-        else:  # telemetry.cpp
+        elif current_tab == 5:  # telemetry.cpp
             content = self.telemetry_cpp_text.get('1.0', tk.END)
+        elif current_tab == 6:  # events.h
+            content = self.events_h_text.get('1.0', tk.END)
+        else:  # events.cpp
+            content = self.events_cpp_text.get('1.0', tk.END)
         
         self.clipboard_clear()
         self.clipboard_append(content)
@@ -1027,16 +1313,22 @@ class CodeGeneratorDialog(tk.Toplevel):
             return
         
         try:
-            # Determine save paths
+            # Determine save paths (save to generated/ subfolder)
             script_dir = os.path.dirname(os.path.abspath(__file__))
             device_dir = os.path.join(script_dir, 'devices', self.current_device)
+            gen_dir = os.path.join(device_dir, 'generated')
             
-            commands_h_path = os.path.join(device_dir, 'commands.h')
-            responses_h_path = os.path.join(device_dir, 'responses.h')
-            parser_h_path = os.path.join(device_dir, 'command_parser.h')
-            parser_cpp_path = os.path.join(device_dir, 'command_parser.cpp')
-            telemetry_h_path = os.path.join(device_dir, 'telemetry.h')
-            telemetry_cpp_path = os.path.join(device_dir, 'telemetry.cpp')
+            # Create generated/ folder if it doesn't exist
+            os.makedirs(gen_dir, exist_ok=True)
+            
+            commands_h_path = os.path.join(gen_dir, 'commands.h')
+            responses_h_path = os.path.join(gen_dir, 'responses.h')
+            parser_h_path = os.path.join(gen_dir, 'command_parser.h')
+            parser_cpp_path = os.path.join(gen_dir, 'command_parser.cpp')
+            telemetry_h_path = os.path.join(gen_dir, 'telemetry.h')
+            telemetry_cpp_path = os.path.join(gen_dir, 'telemetry.cpp')
+            events_h_path = os.path.join(gen_dir, 'events.h')
+            events_cpp_path = os.path.join(gen_dir, 'events.cpp')
             
             # Save all files
             with open(commands_h_path, 'w', encoding='utf-8') as f:
@@ -1057,16 +1349,24 @@ class CodeGeneratorDialog(tk.Toplevel):
             with open(telemetry_cpp_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_telemetry_cpp)
             
+            with open(events_h_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_events_h)
+            
+            with open(events_cpp_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_events_cpp)
+            
             messagebox.showinfo(
                 "Success",
-                f"All files saved successfully!\n\n"
-                f"commands.h\n"
-                f"responses.h\n"
-                f"command_parser.h\n"
-                f"command_parser.cpp\n"
-                f"telemetry.h\n"
-                f"telemetry.cpp\n\n"
-                f"Location: {device_dir}"
+                f"All files saved successfully to generated/ folder!\n\n"
+                f"generated/commands.h\n"
+                f"generated/responses.h\n"
+                f"generated/command_parser.h\n"
+                f"generated/command_parser.cpp\n"
+                f"generated/telemetry.h\n"
+                f"generated/telemetry.cpp\n"
+                f"generated/events.h\n"
+                f"generated/events.cpp\n\n"
+                f"Location: {gen_dir}"
             )
             
         except Exception as e:

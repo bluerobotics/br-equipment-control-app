@@ -60,12 +60,20 @@ class DeviceManager:
                             if 'gui_var' in details:
                                 self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
 
+                    # Load events from JSON
+                    events_data = {}
+                    events_path = os.path.join(device_path, 'events.json')
+                    if os.path.exists(events_path):
+                        with open(events_path, 'r') as f:
+                            events_data = json.load(f)
+
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
                         'script_handlers': script_handlers_module, # Store the module
                         'telemetry_data': telemetry_data, # Store the schema
                         'scripting_commands': scripting_commands, # Store loaded JSON data
+                        'events_data': events_data, # Store events data
                         'config': {}, # Keep the key for consistent structure, but it's now unused
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
@@ -76,10 +84,10 @@ class DeviceManager:
                         "connected": False, 
                         "last_discovery_attempt": 0
                     }
-                    self.log(f"Successfully loaded device: {device_name}")
+                    self.log(f"Successfully loaded device module: {device_name}")
 
                 except ImportError as e:
-                    self.log(f"Failed to load modules for '{device_name}': {e}")
+                    self.log(f"Failed to load device modules for '{device_name}': {e}")
                 except Exception as e:
                     self.log(f"An unexpected error occurred loading '{device_name}': {e}")
 
@@ -133,12 +141,19 @@ class DeviceManager:
                             if 'gui_var' in details:
                                 self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
 
+                    events_data = {}
+                    events_path = os.path.join(device_path, 'events.json')
+                    if os.path.exists(events_path):
+                        with open(events_path, 'r') as f:
+                            events_data = json.load(f)
+
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
                         'script_handlers': None, # No script_handlers for new devices yet
                         'telemetry_data': telemetry_data,
                         'scripting_commands': scripting_commands,
+                        'events_data': events_data,
                         'config': {},
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
@@ -157,6 +172,41 @@ class DeviceManager:
             self.log("No new device modules found.")
             
         return newly_loaded
+
+    def reload_device_modules(self):
+        """
+        Reloads the JSON configuration files (commands, telemetry, events) for all devices.
+        Useful after editing JSON files through the GUI.
+        """
+        devices_dir = os.path.join(os.path.dirname(__file__), 'devices')
+        if not os.path.isdir(devices_dir):
+            return
+
+        for device_name in self.devices.keys():
+            device_path = os.path.join(devices_dir, device_name)
+            
+            # Reload commands.json
+            json_path = os.path.join(device_path, 'commands.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    self.devices[device_name]['scripting_commands'] = json.load(f)
+            
+            # Reload telemetry.json
+            schema_path = os.path.join(device_path, 'telemetry.json')
+            if os.path.exists(schema_path):
+                with open(schema_path, 'r') as f:
+                    telemetry_data = json.load(f)
+                    self.devices[device_name]['telemetry_data'] = telemetry_data
+                    # Update GUI variables if needed
+                    for key, details in telemetry_data.items():
+                        if 'gui_var' in details and details['gui_var'] not in self.shared_gui_refs:
+                            self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
+            
+            # Reload events.json
+            events_path = os.path.join(device_path, 'events.json')
+            if os.path.exists(events_path):
+                with open(events_path, 'r') as f:
+                    self.devices[device_name]['events_data'] = json.load(f)
 
     def log(self, message):
         """Adds a log message to the discovery logs."""
@@ -294,3 +344,28 @@ class DeviceManager:
                     device_map[details['gui_var']] = schema_key
             all_vars[device_name] = device_map
         return all_vars
+
+    def get_all_events(self):
+        """
+        Aggregates event definitions from all discovered devices.
+        Returns a dictionary with event names as keys and their details as values.
+        """
+        all_events = {}
+        for device_name, modules in self.devices.items():
+            if modules.get('events_data'):
+                device_events = modules['events_data']
+                for event_name, event_details in device_events.items():
+                    # Add device prefix to event name
+                    full_event_key = f"{device_name}.{event_name}"
+                    # Add device information to event details
+                    event_details_with_device = event_details.copy()
+                    event_details_with_device['device'] = device_name
+                    all_events[full_event_key] = event_details_with_device
+        return all_events
+
+    def get_device_events(self, device_name):
+        """Returns the events for a specific device."""
+        device = self.devices.get(device_name)
+        if device:
+            return device.get('events_data', {})
+        return {}

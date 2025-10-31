@@ -1,6 +1,6 @@
 {
     "enable": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -10,7 +10,7 @@
         "help": "Command to enable all motors."
     },
     "disable": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -20,7 +20,7 @@
         "help": "Command to disable all motors."
     },
     "discover_device": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -29,7 +29,7 @@
         "help": "Generic command for any device to respond to."
     },
     "abort": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -39,7 +39,7 @@
         "help": "Command to halt all ongoing operations."
     },
     "clear_errors": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -49,7 +49,7 @@
         "help": "Command to clear any existing fault states."
     },
     "inject_stator": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -71,7 +71,7 @@
         "help": "Command to dispense a specific volume using the stator (5:1) configuration."
     },
     "inject_rotor": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -93,7 +93,7 @@
         "help": "Command to dispense a specific volume using the rotor (1:1) configuration."
     },
     "jog_move": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -109,7 +109,7 @@
         "help": "Command to jog the injector motors by a relative distance."
     },
     "machine_home": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -119,7 +119,7 @@
         "help": "Command to home the main machine axis."
     },
     "cartridge_home": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -129,7 +129,7 @@
         "help": "Command to home the injector against the cartridge."
     },
     "move_to_cartridge_home": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -139,7 +139,7 @@
         "help": "Command to move the injector to the cartridge home position."
     },
     "move_to_cartridge_retract": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -155,7 +155,7 @@
         "help": "Command to retract the injector a specified distance from cartridge home."
     },
     "pause_injection": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -165,7 +165,7 @@
         "help": "Command to pause an ongoing injection."
     },
     "resume_injection": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -175,7 +175,7 @@
         "help": "Command to resume a paused injection."
     },
     "cancel_injection": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -185,7 +185,7 @@
         "help": "Command to cancel an ongoing injection."
     },
     "vacuum_on": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -202,7 +202,7 @@
         "help": "Command to turn the vacuum pump on."
     },
     "vacuum_off": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -212,7 +212,7 @@
         "help": "Command to turn the vacuum pump off."
     },
     "vacuum_leak_test": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -235,7 +235,7 @@
         "help": "Command to initiate a vacuum leak test."
     },
     "heater_on": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -252,7 +252,7 @@
         "help": "Command to turn the heater on."
     },
     "heater_off": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -262,7 +262,7 @@
         "help": "Command to turn the heater off."
     },
     "injection_valve_home": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -272,7 +272,7 @@
         "help": "Command to home the injection valve."
     },
     "injection_valve_open": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -282,7 +282,7 @@
         "help": "Command to open the injection valve."
     },
     "injection_valve_close": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -292,7 +292,7 @@
         "help": "Command to close the injection valve."
     },
     "injection_valve_jog": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -308,7 +308,7 @@
         "help": "Command to jog the injection valve motor."
     },
     "vacuum_valve_home": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -318,7 +318,7 @@
         "help": "Command to home the vacuum valve."
     },
     "vacuum_valve_open": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -328,7 +328,7 @@
         "help": "Command to open the vacuum valve."
     },
     "vacuum_valve_close": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [],
         "returns": [
@@ -338,7 +338,7 @@
         "help": "Command to close the vacuum valve."
     },
     "vacuum_valve_jog": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "params": [
             {
@@ -354,7 +354,7 @@
         "help": "Command to jog the vacuum valve motor."
     },
     "test_command": {
-        "device": "fillhead",
+        "device": "test_device_2",
         "target": "device",
         "description": "A test command!",
         "params": [
