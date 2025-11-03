@@ -2,7 +2,7 @@
  * @file events.h
  * @brief Defines all event types that can be sent from the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from events.json on 2025-11-03 13:45:47
+ * Generated from events.json on 2025-11-03 13:59:24
  * 
  * This header file defines all events sent FROM the Fillhead device TO the host.
  * Events are asynchronous notifications that can trigger host-side actions.
@@ -25,9 +25,9 @@
  * Format: "FILLHEAD_EVENT: event_name [param1] [param2] ..."
  * @{
  */
-#define EVENT_STR_SCRIPT_RUN                          "script_run                    "  ///< Firmware requesting script to start or resume execution. Sent when conditions are safe to continue.
-#define EVENT_STR_SCRIPT_HOLD                         "script_hold                   "  ///< Firmware requesting script to pause execution. Sent when a safety condition is triggered or operator requests pause.
-#define EVENT_STR_SCRIPT_RESET                        "script_reset                  "  ///< Firmware requesting script to abort and reset to beginning. Sent on critical errors or when operator presses reset button.
+#define EVENT_STR_SCRIPT_RUN                          "script_run"  ///< Firmware requesting script to start or resume execution. Sent when conditions are safe to continue.
+#define EVENT_STR_SCRIPT_HOLD                         "script_hold"  ///< Firmware requesting script to pause execution. Sent when a safety condition is triggered or operator requests pause.
+#define EVENT_STR_SCRIPT_RESET                        "script_reset"  ///< Firmware requesting script to abort and reset to beginning. Sent on critical errors or when operator presses reset button.
 /** @} */
 
 //==================================================================================================

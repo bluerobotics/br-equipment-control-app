@@ -84,7 +84,8 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
             cmd_str = cmd_name + (" " if has_params else "")
             
             help_text = cmd_data.get('help', 'No description available.')
-            lines.append(f'#define CMD_STR_{cmd_name.upper():<35} "{cmd_str:<30}" ///< {help_text}')
+            # Don't pad the string with spaces - just use it as-is
+            lines.append(f'#define CMD_STR_{cmd_name.upper():<35} "{cmd_str}" ///< {help_text}')
         
         lines.append("/** @} */")
         lines.append("")
@@ -693,7 +694,8 @@ def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
     
     for event_name, event_data in events.items():
         event_help = event_data.get('description', 'No description available.')
-        lines.append(f'#define EVENT_STR_{event_name.upper():<35} "{event_name:<30}"  ///< {event_help}')
+        # Don't pad the string with spaces - just use it as-is
+        lines.append(f'#define EVENT_STR_{event_name.upper():<35} "{event_name}"  ///< {event_help}')
     
     lines.append("/** @} */")
     lines.append("")

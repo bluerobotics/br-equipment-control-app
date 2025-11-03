@@ -2,7 +2,7 @@
  * @file responses.h
  * @brief Defines all response message formats for the Pressboi controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-03 13:45:47
+ * Generated from telemetry.json on 2025-11-03 13:59:24
  * 
  * This header file defines all messages sent FROM the Pressboi device TO the host.
  * This includes status messages, telemetry data, and discovery responses.

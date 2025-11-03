@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-03 13:45:47
+ * Generated from commands.json on 2025-11-03 13:59:24
  * 
  * This header file defines all commands that can be sent TO the Gantry device.
  * For response message formats, see responses.h
@@ -18,24 +18,24 @@
  * @name General System Commands
  * @{
  */
-#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE               " ///< Generic command for any device to respond to.
-#define CMD_STR_ENABLE                              "enable                        " ///< No description available.
-#define CMD_STR_DISABLE                             "disable                       " ///< No description available.
+#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE" ///< Generic command for any device to respond to.
+#define CMD_STR_ENABLE                              "enable" ///< No description available.
+#define CMD_STR_DISABLE                             "disable" ///< No description available.
 /** @} */
 
 /**
  * @name Motion Commands
  * @{
  */
-#define CMD_STR_HOME_X                              "home_x                        " ///< No description available.
-#define CMD_STR_HOME_Y                              "home_y                        " ///< No description available.
-#define CMD_STR_HOME_Z                              "home_z                        " ///< No description available.
-#define CMD_STR_MOVE_ABS_X                          "move_abs_x                    " ///< No description available.
-#define CMD_STR_MOVE_ABS_Y                          "move_abs_y                    " ///< No description available.
-#define CMD_STR_MOVE_ABS_Z                          "move_abs_z                    " ///< No description available.
-#define CMD_STR_MOVE_INC_X                          "move_inc_x                    " ///< No description available.
-#define CMD_STR_MOVE_INC_Y                          "move_inc_y                    " ///< No description available.
-#define CMD_STR_MOVE_INC_Z                          "move_inc_z                    " ///< No description available.
+#define CMD_STR_HOME_X                              "home_x" ///< No description available.
+#define CMD_STR_HOME_Y                              "home_y" ///< No description available.
+#define CMD_STR_HOME_Z                              "home_z" ///< No description available.
+#define CMD_STR_MOVE_ABS_X                          "move_abs_x " ///< No description available.
+#define CMD_STR_MOVE_ABS_Y                          "move_abs_y " ///< No description available.
+#define CMD_STR_MOVE_ABS_Z                          "move_abs_z " ///< No description available.
+#define CMD_STR_MOVE_INC_X                          "move_inc_x " ///< No description available.
+#define CMD_STR_MOVE_INC_Y                          "move_inc_y " ///< No description available.
+#define CMD_STR_MOVE_INC_Z                          "move_inc_z " ///< No description available.
 /** @} */
 
 //==================================================================================================

@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Pressboi controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-03 13:45:47
+ * Generated from commands.json on 2025-11-03 13:59:24
  * 
  * This header file defines all commands that can be sent TO the Pressboi device.
  * For response message formats, see responses.h
@@ -18,23 +18,23 @@
  * @name General System Commands
  * @{
  */
-#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE               " ///< Generic command for any device to respond to.
-#define CMD_STR_SET_START_POS                       "set_start_pos                 " ///< No description available.
-#define CMD_STR_PAUSE                               "pause                         " ///< No description available.
-#define CMD_STR_RESUME                              "resume                        " ///< No description available.
-#define CMD_STR_CANCEL                              "cancel                        " ///< No description available.
-#define CMD_STR_ENABLE                              "enable                        " ///< No description available.
-#define CMD_STR_DISABLE                             "disable                       " ///< No description available.
+#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE" ///< Generic command for any device to respond to.
+#define CMD_STR_SET_START_POS                       "set_start_pos " ///< No description available.
+#define CMD_STR_PAUSE                               "pause" ///< No description available.
+#define CMD_STR_RESUME                              "resume" ///< No description available.
+#define CMD_STR_CANCEL                              "cancel" ///< No description available.
+#define CMD_STR_ENABLE                              "enable" ///< No description available.
+#define CMD_STR_DISABLE                             "disable" ///< No description available.
 /** @} */
 
 /**
  * @name Motion Commands
  * @{
  */
-#define CMD_STR_HOME                                "home                          " ///< No description available.
-#define CMD_STR_MOVE_ABS                            "move_abs                      " ///< No description available.
-#define CMD_STR_MOVE_INC                            "move_inc                      " ///< No description available.
-#define CMD_STR_MOVE_TO_START                       "move_to_start                 " ///< No description available.
+#define CMD_STR_HOME                                "home" ///< No description available.
+#define CMD_STR_MOVE_ABS                            "move_abs " ///< No description available.
+#define CMD_STR_MOVE_INC                            "move_inc " ///< No description available.
+#define CMD_STR_MOVE_TO_START                       "move_to_start" ///< No description available.
 /** @} */
 
 //==================================================================================================

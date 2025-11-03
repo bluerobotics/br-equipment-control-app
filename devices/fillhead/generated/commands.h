@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-03 13:45:47
+ * Generated from commands.json on 2025-11-03 13:59:24
  * 
  * This header file defines all commands that can be sent TO the Fillhead device.
  * For response message formats, see responses.h
@@ -18,60 +18,60 @@
  * @name General System Commands
  * @{
  */
-#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE               " ///< Generic command for any device to respond to.
-#define CMD_STR_ENABLE                              "enable                        " ///< Command to enable all motors.
-#define CMD_STR_DISABLE                             "disable                       " ///< Command to disable all motors.
-#define CMD_STR_DISCOVER_DEVICE                     "discover_device               " ///< Generic command for any device to respond to.
-#define CMD_STR_ABORT                               "abort                         " ///< Command to halt all ongoing operations.
-#define CMD_STR_CLEAR_ERRORS                        "clear_errors                  " ///< Command to clear any existing fault states.
-#define CMD_STR_TEST_COMMAND                        "test_command                  " ///< No description available.
+#define CMD_STR_DISCOVER_DEVICE                     "DISCOVER_DEVICE" ///< Generic command for any device to respond to.
+#define CMD_STR_ENABLE                              "enable" ///< Command to enable all motors.
+#define CMD_STR_DISABLE                             "disable" ///< Command to disable all motors.
+#define CMD_STR_DISCOVER_DEVICE                     "discover_device" ///< Generic command for any device to respond to.
+#define CMD_STR_ABORT                               "abort" ///< Command to halt all ongoing operations.
+#define CMD_STR_CLEAR_ERRORS                        "clear_errors" ///< Command to clear any existing fault states.
+#define CMD_STR_TEST_COMMAND                        "test_command " ///< No description available.
 /** @} */
 
 /**
  * @name Motion Commands
  * @{
  */
-#define CMD_STR_INJECT_STATOR                       "inject_stator                 " ///< Command to dispense a specific volume using the stator (5:1) configuration.
-#define CMD_STR_INJECT_ROTOR                        "inject_rotor                  " ///< Command to dispense a specific volume using the rotor (1:1) configuration.
-#define CMD_STR_JOG_MOVE                            "jog_move                      " ///< Command to jog the injector motors by a relative distance.
-#define CMD_STR_MACHINE_HOME                        "machine_home                  " ///< Command to home the main machine axis.
-#define CMD_STR_CARTRIDGE_HOME                      "cartridge_home                " ///< Command to home the injector against the cartridge.
-#define CMD_STR_MOVE_TO_CARTRIDGE_HOME              "move_to_cartridge_home        " ///< Command to move the injector to the cartridge home position.
-#define CMD_STR_MOVE_TO_CARTRIDGE_RETRACT           "move_to_cartridge_retract     " ///< Command to retract the injector a specified distance from cartridge home.
-#define CMD_STR_PAUSE_INJECTION                     "pause_injection               " ///< Command to pause an ongoing injection.
-#define CMD_STR_RESUME_INJECTION                    "resume_injection              " ///< Command to resume a paused injection.
-#define CMD_STR_CANCEL_INJECTION                    "cancel_injection              " ///< Command to cancel an ongoing injection.
+#define CMD_STR_INJECT_STATOR                       "inject_stator " ///< Command to dispense a specific volume using the stator (5:1) configuration.
+#define CMD_STR_INJECT_ROTOR                        "inject_rotor " ///< Command to dispense a specific volume using the rotor (1:1) configuration.
+#define CMD_STR_JOG_MOVE                            "jog_move " ///< Command to jog the injector motors by a relative distance.
+#define CMD_STR_MACHINE_HOME                        "machine_home" ///< Command to home the main machine axis.
+#define CMD_STR_CARTRIDGE_HOME                      "cartridge_home" ///< Command to home the injector against the cartridge.
+#define CMD_STR_MOVE_TO_CARTRIDGE_HOME              "move_to_cartridge_home" ///< Command to move the injector to the cartridge home position.
+#define CMD_STR_MOVE_TO_CARTRIDGE_RETRACT           "move_to_cartridge_retract " ///< Command to retract the injector a specified distance from cartridge home.
+#define CMD_STR_PAUSE_INJECTION                     "pause_injection" ///< Command to pause an ongoing injection.
+#define CMD_STR_RESUME_INJECTION                    "resume_injection" ///< Command to resume a paused injection.
+#define CMD_STR_CANCEL_INJECTION                    "cancel_injection" ///< Command to cancel an ongoing injection.
 /** @} */
 
 /**
  * @name Valve Commands
  * @{
  */
-#define CMD_STR_INJECTION_VALVE_HOME                "injection_valve_home          " ///< Command to home the injection valve.
-#define CMD_STR_INJECTION_VALVE_OPEN                "injection_valve_open          " ///< Command to open the injection valve.
-#define CMD_STR_INJECTION_VALVE_CLOSE               "injection_valve_close         " ///< Command to close the injection valve.
-#define CMD_STR_INJECTION_VALVE_JOG                 "injection_valve_jog           " ///< Command to jog the injection valve motor.
-#define CMD_STR_VACUUM_VALVE_HOME                   "vacuum_valve_home             " ///< Command to home the vacuum valve.
-#define CMD_STR_VACUUM_VALVE_OPEN                   "vacuum_valve_open             " ///< Command to open the vacuum valve.
-#define CMD_STR_VACUUM_VALVE_CLOSE                  "vacuum_valve_close            " ///< Command to close the vacuum valve.
-#define CMD_STR_VACUUM_VALVE_JOG                    "vacuum_valve_jog              " ///< Command to jog the vacuum valve motor.
+#define CMD_STR_INJECTION_VALVE_HOME                "injection_valve_home" ///< Command to home the injection valve.
+#define CMD_STR_INJECTION_VALVE_OPEN                "injection_valve_open" ///< Command to open the injection valve.
+#define CMD_STR_INJECTION_VALVE_CLOSE               "injection_valve_close" ///< Command to close the injection valve.
+#define CMD_STR_INJECTION_VALVE_JOG                 "injection_valve_jog " ///< Command to jog the injection valve motor.
+#define CMD_STR_VACUUM_VALVE_HOME                   "vacuum_valve_home" ///< Command to home the vacuum valve.
+#define CMD_STR_VACUUM_VALVE_OPEN                   "vacuum_valve_open" ///< Command to open the vacuum valve.
+#define CMD_STR_VACUUM_VALVE_CLOSE                  "vacuum_valve_close" ///< Command to close the vacuum valve.
+#define CMD_STR_VACUUM_VALVE_JOG                    "vacuum_valve_jog " ///< Command to jog the vacuum valve motor.
 /** @} */
 
 /**
  * @name Heater Commands
  * @{
  */
-#define CMD_STR_HEATER_ON                           "heater_on                     " ///< Command to turn the heater on.
-#define CMD_STR_HEATER_OFF                          "heater_off                    " ///< Command to turn the heater off.
+#define CMD_STR_HEATER_ON                           "heater_on " ///< Command to turn the heater on.
+#define CMD_STR_HEATER_OFF                          "heater_off" ///< Command to turn the heater off.
 /** @} */
 
 /**
  * @name Vacuum Commands
  * @{
  */
-#define CMD_STR_VACUUM_ON                           "vacuum_on                     " ///< Command to turn the vacuum pump on.
-#define CMD_STR_VACUUM_OFF                          "vacuum_off                    " ///< Command to turn the vacuum pump off.
-#define CMD_STR_VACUUM_LEAK_TEST                    "vacuum_leak_test              " ///< Command to initiate a vacuum leak test.
+#define CMD_STR_VACUUM_ON                           "vacuum_on " ///< Command to turn the vacuum pump on.
+#define CMD_STR_VACUUM_OFF                          "vacuum_off" ///< Command to turn the vacuum pump off.
+#define CMD_STR_VACUUM_LEAK_TEST                    "vacuum_leak_test " ///< Command to initiate a vacuum leak test.
 /** @} */
 
 //==================================================================================================
