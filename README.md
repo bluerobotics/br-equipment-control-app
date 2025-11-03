@@ -16,7 +16,7 @@ This application is a desktop program for controlling and scripting multiple pie
   <img src="assets/app.png" alt="App Screenshot" width="800">
 </p>
 
-The system is designed to be modular. You can add new devices to the application without changing the main codebase. This is done by creating a new folder for the device in the `/devices` directory and adding a set of specific configuration files. The application can even detect and load new device modules while it's running.
+The system is designed to be modular. New devices, commands, and variables are added through the Command Reference panel via right-click context menus. The application can detect and load new device modules at runtime without restarting.
 
 ---
 
@@ -181,11 +181,40 @@ Each device lives in its own folder under `/devices`. The folder name becomes th
 - **Events**: Asynchronous notifications the device emits (e.g., `homed`, `error`)
 - **GUI**: Custom status panel for displaying device state
 
-### 6.2. Working with Commands, Variables, and Events
+### 6.2. Adding a New Device
 
-**The standard workflow is through the app itself, not by editing JSON files directly.**
+**Standard Method: Use the Command Reference Panel**
 
-The Command Reference panel (right side of the app) displays all commands, variables, and events for each device in a hierarchical tree:
+1. Right-click in the Command Reference panel
+2. Select **"Add Device..."**
+3. Enter device name and initial configuration
+4. The app creates:
+   - `/devices/your_device/` folder
+   - Blank `commands.json`, `telemetry.json`, `events.json`
+   - Template `gui.py` 
+5. Add commands and variables:
+   - Right-click the new device → **"Add Command..."**
+   - Right-click the new device → **"Add Variable..."**
+   - Fill in the dialog forms - no JSON editing required
+6. Customize the `gui.py` to create your status panel layout
+7. Restart the app to load the new device
+
+**Alternative: Manual JSON Creation**
+
+You can create the device folder and JSON files manually by copying from an existing device. This is useful for bulk operations or when you have JSON definitions already prepared.
+
+**Generating C++ Firmware Code:**
+
+Once your device is defined, use **File → Generate C++ Code** to create firmware headers:
+- `commands.h`, `command_parser.h/cpp`: Command parsing and handlers
+- `telemetry.h/cpp`: Telemetry formatting and transmission
+- `events.h/cpp`: Event definitions
+
+This keeps the Python app and C++ firmware synchronized.
+
+### 6.3. Using the Command Reference
+
+The Command Reference panel (right side) shows all commands, variables, and events in a tree:
 
 ```
 ▼ gantry [connected]
@@ -204,23 +233,29 @@ The Command Reference panel (right side of the app) displays all commands, varia
     error
 ```
 
-**To use commands in scripts:**
-- Click any command to copy it to clipboard
+**Using commands in scripts:**
+- Click any command → copies to clipboard
 - Paste into script editor
-- The app shows parameter hints and validates syntax
+- Parameter hints and syntax validation are automatic
 
-**To log variables:**
-- Right-click a variable → "Queue for Logging"
-- Right-click the device → "Start Logging (N queued vars)..."
-- The app handles CSV creation and column headers automatically
+**Logging variables:**
+- Right-click variable → "Queue for Logging"
+- Right-click device → "Start Logging (N queued vars)..."
+- CSV file is created automatically
 
-**To view the JSON structure:**
-- Look at existing devices in `/devices` as examples
-- The JSON files define what appears in the Command Reference
+**Adding/editing commands and variables:**
+- Right-click device → "Add Command..." or "Add Variable..."
+- Fill in the dialog form (name, type, parameters, etc.)
+- Changes save to JSON and appear immediately in the Command Reference
+- Or edit the JSON files directly in `/devices/device_name/`
 
-### 6.3. Device Files
+**Deleting commands and variables:**
+- Right-click item → "Delete"
+- Confirms before removing from JSON
 
-Each device folder must contain:
+### 6.4. JSON File Reference
+
+Each device folder contains:
 
 #### `commands.json`
 Defines scriptable commands. Each command has:
@@ -382,7 +417,7 @@ Reference the handler in `commands.json`:
 }
 ```
 
-### 6.4. How Data Flows
+### 6.5. How Data Flows
 
 When a device sends telemetry (UDP packet format: `GANTRY_TELEM:x_pos=123.45;x_homed=1`):
 
@@ -395,67 +430,53 @@ When a device sends telemetry (UDP packet format: `GANTRY_TELEM:x_pos=123.45;x_h
 4. GUI labels bound to those variables update automatically
 5. If logging is active, `data_logger.py` writes the raw values to CSV
 
-This separation means:
-- Your `gui.py` doesn't need to parse telemetry
-- The Command Reference doesn't need device-specific code
-- Adding a new variable only requires updating `telemetry.json`
+Your `gui.py` just binds labels to tkinter variables - no telemetry parsing required.
 
-### 6.5. C++ Code Generation
+### 6.6. C++ Code Generation
 
-The app includes a code generator (**File → Generate C++ Code**) that creates embedded firmware code from your JSON definitions. This ensures the Python app and C++ firmware stay synchronized.
+Use **File → Generate C++ Code** to create firmware headers from your JSON definitions:
 
-From `commands.json`, it generates:
-- `commands.h`: Command parser with parameter extraction
-- Command handler stubs with correct function signatures
+From `commands.json` → `commands.h`, `command_parser.h/cpp`
+From `telemetry.json` → `telemetry.h/cpp`
+From `events.json` → `events.h/cpp`
 
-From `telemetry.json`, it generates:
-- `telemetry.h`: Telemetry formatting and transmission functions
-- State variable declarations
-
-This eliminates manual synchronization between the app and firmware.
+This keeps app and firmware synchronized.
 
 ---
 
 ## 7. Network Protocol
 
-Communication uses UDP on port 6272. Messages are ASCII strings.
+UDP on port 6272, ASCII strings.
 
-**Device Discovery:**
 ```
+# Discovery
 App → Broadcast: DISCOVER_DEVICE
 Device → App: DISCOVERY_RESPONSE: DEVICE_ID=gantry PORT=8889
-```
 
-**Commands:**
-```
+# Commands
 App → Device: MOVE_X:100:1000
 Device → App: GANTRY_STATUS:MOVE_X:100:1000:DONE
-```
 
-**Telemetry (sent at 10Hz):**
-```
-Device → App: GANTRY_TELEM:x_pos=123.45;y_pos=67.89;x_homed=1;main_state=standby
-```
+# Telemetry (10Hz)
+Device → App: GANTRY_TELEM:x_pos=123.45;y_pos=67.89;x_homed=1
 
-**Events:**
-```
+# Events
 Device → App: GANTRY_EVENT:HOMED
 ```
 
-All messages are prefixed with the device name in uppercase. The app extracts the device identifier and routes the message accordingly.
+Messages are prefixed with device name in uppercase.
 
 ---
 
 ## 8. Setup
 
-**Requirements:** Python 3.10+, no external dependencies
+Python 3.10+, no external dependencies
 
-**Run:**
     ```bash
     python main.py
     ```
 
-The app creates a `logs/` directory on first run.
+Creates `logs/` directory on first run.
 
 ---
 
