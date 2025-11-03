@@ -170,17 +170,74 @@ Scripts are validated before execution. Devices must be connected to run.
 
 ---
 
-## 6. Adding Devices
+## 6. Device Structure
 
-Create a folder in `/devices` with the device name. Add these files:
+### 6.1. Overview
 
-### 6.1. `commands.json`
-Command definitions.
+Each device lives in its own folder under `/devices`. The folder name becomes the device identifier (e.g., `gantry`, `fillhead`). A device consists of:
 
-**Example:**
+- **Commands**: Actions the device can perform (e.g., `move_x`, `home`, `set_temp`)
+- **Variables**: Telemetry data the device reports (e.g., `x_pos`, `temp_c`, `pressure`)
+- **Events**: Asynchronous notifications the device emits (e.g., `homed`, `error`)
+- **GUI**: Custom status panel for displaying device state
+
+### 6.2. Working with Commands, Variables, and Events
+
+**The standard workflow is through the app itself, not by editing JSON files directly.**
+
+The Command Reference panel (right side of the app) displays all commands, variables, and events for each device in a hierarchical tree:
+
+```
+▼ gantry [connected]
+  ▼ commands (15)
+    home_x
+    move_x (distance, speed)
+    enable_x
+    ...
+  ▼ variables (15)
+    x_pos (float) mm [queued]
+    x_homed (int) [enum]
+    main_state (string) [enum]
+    ...
+  ▼ events (2)
+    homed
+    error
+```
+
+**To use commands in scripts:**
+- Click any command to copy it to clipboard
+- Paste into script editor
+- The app shows parameter hints and validates syntax
+
+**To log variables:**
+- Right-click a variable → "Queue for Logging"
+- Right-click the device → "Start Logging (N queued vars)..."
+- The app handles CSV creation and column headers automatically
+
+**To view the JSON structure:**
+- Look at existing devices in `/devices` as examples
+- The JSON files define what appears in the Command Reference
+
+### 6.3. Device Files
+
+Each device folder must contain:
+
+#### `commands.json`
+Defines scriptable commands. Each command has:
+
+- `device`: Device identifier (must match folder name)
+- `target`: `"device"` (sent to hardware) or `"host"` (executed by app)
+- `params`: Array of parameter definitions
+  - `parameter`: Parameter name
+  - `type`: `"float"`, `"int"`, `"string"`, etc.
+  - `unit`: Optional unit text (e.g., `"mm"`, `"deg"`)
+- `returns`: Array of possible return values (e.g., `["done", "error"]`)
+- `description`: What the command does
+
+Example:
 ```json
 {
-  "MOVE_X": {
+  "move_x": {
     "device": "gantry",
     "target": "device",
     "params": [
@@ -188,97 +245,208 @@ Command definitions.
       { "parameter": "speed", "type": "int", "unit": "mm/s" }
     ],
     "returns": ["done", "error"],
-    "description": "Moves the X-axis by a relative distance at specified speed."
-  },
-  "HOME_X": {
-    "device": "gantry",
-    "target": "device",
-    "params": [],
-    "returns": ["done", "error"],
-    "description": "Homes the X-axis to the limit switch."
+    "description": "Moves X-axis by relative distance"
   }
 }
 ```
 
-### 6.2. `telemetry.json`
-Telemetry variable definitions.
+In scripts, this appears as: `gantry.move_x 100 1000`
 
-**Example:**
+#### `telemetry.json`
+Defines telemetry variables. Each variable has:
+
+- `type`: Data type (`"float"`, `"int"`, `"string"`)
+- `gui_var`: (Optional) Name of the tkinter variable for GUI binding
+- `default`: Initial value when disconnected
+- `unit`: (Optional) Unit text displayed in Command Reference
+- `precision`: (Optional) Decimal places for floats
+- `map`: (Optional) Dictionary mapping raw values to display strings
+
+Example:
 ```json
 {
   "x_pos": {
     "type": "float",
-    "gui_var": "gantry_x_pos_var", 
     "default": 0.0,
-    "format": {
-      "precision": 2,
-      "suffix": " mm"
-    }
+    "unit": "mm",
+    "precision": 2
   },
   "x_homed": {
     "type": "int",
-    "gui_var": "gantry_x_homed_var", 
     "default": 0,
-    "format": {
-      "map": { "0": "Not Homed", "1": "Homed" }
+    "map": {
+      "0": "Not Homed",
+      "1": "Homed"
     }
   },
   "main_state": {
     "type": "string",
-    "gui_var": "gantry_state_var",
     "default": "standby",
-    "format": {
-      "map": {
-        "standby": "Standby",
-        "busy": "Busy",
-        "error": "Error"
-      }
+    "map": {
+      "standby": "Standby",
+      "busy": "Busy",
+      "error": "Error"
     }
   }
 }
 ```
 
-Format options: `precision`, `suffix`, `map`, `multiplier`.
+Variables with `map` are shown as `[enum]` in the Command Reference.
 
-### 6.3. `events.json` (Optional)
-Event definitions (emitted by device asynchronously).
+#### `events.json` (Optional)
+Defines events that can be referenced in scripts with `wait_for`:
 
-### 6.4. `gui.py`
-UI panel creation.
+```json
+{
+  "homed": {
+    "device": "gantry",
+    "description": "Emitted when homing completes"
+  }
+}
+```
 
+Usage in scripts: `wait_for gantry.homed`
+
+#### `gui.py`
+Python module that creates the device's status panel. Must export:
+
+- `create_gui_components(parent, shared_gui_refs)`: Returns a tkinter Frame
+- `get_gui_variable_names()`: Returns list of required StringVar/DoubleVar names
+
+The function receives `shared_gui_refs`, a dictionary containing all tkinter variables defined in `telemetry.json`. Access them by the `gui_var` name.
+
+Minimal example:
 ```python
 import tkinter as tk
 from tkinter import ttk
+
+def get_gui_variable_names():
+    return ['gantry_x_pos_var', 'gantry_state_var']
 
 def create_gui_components(parent, shared_gui_refs):
     frame = ttk.Frame(parent)
     
     x_pos_var = shared_gui_refs.get('gantry_x_pos_var')
+    state_var = shared_gui_refs.get('gantry_state_var')
+    
     ttk.Label(frame, text="X Position:").grid(row=0, column=0)
     ttk.Label(frame, textvariable=x_pos_var).grid(row=0, column=1)
+    
+    ttk.Label(frame, text="State:").grid(row=1, column=0)
+    ttk.Label(frame, textvariable=state_var).grid(row=1, column=1)
     
     return frame
 ```
 
-### 6.5. `script_handlers.py` (Optional)
-Host-side command handlers.
+The variables automatically update when telemetry arrives. The `device_manager` parses incoming telemetry and sets the corresponding StringVar values based on the `telemetry.json` definitions.
+
+#### `script_handlers.py` (Optional)
+For commands with `"target": "host"`, define custom Python handlers:
 
 ```python
 def my_handler(script_runner, args, line_num):
-    # Execute logic here
-    script_runner.status_cb(f"Result: {args}", line_num)
-    return True  # True to continue, False to halt
+    """
+    Args:
+        script_runner: ScriptRunner instance with access to gui_refs
+        args: List of command arguments (already parsed)
+        line_num: Current line number for status messages
+    
+    Returns:
+        True to continue script execution, False to halt
+    """
+    # Access shared GUI refs
+    device_manager = script_runner.gui_refs.get('device_manager')
+    
+    # Execute custom logic
+    result = do_something(args)
+    
+    # Report status
+    script_runner.status_cb(f"Command result: {result}", line_num)
+    return True
 
 HANDLERS = {
     "my_command": my_handler
 }
 ```
 
-In `commands.json`, set `"target": "host"` and `"handler": "my_handler"`.
+Reference the handler in `commands.json`:
+```json
+{
+  "my_command": {
+    "device": "my_device",
+    "target": "host",
+    "handler": "my_handler",
+    "params": [...],
+    "description": "..."
+  }
+}
+```
+
+### 6.4. How Data Flows
+
+When a device sends telemetry (UDP packet format: `GANTRY_TELEM:x_pos=123.45;x_homed=1`):
+
+1. `comms.py` receives the packet and extracts device name (`gantry`)
+2. `device_manager.py` parses values using `telemetry.json` schema
+3. For each key in the packet:
+   - Looks up the variable definition in `telemetry.json`
+   - Applies formatting (`precision`, `map`, `suffix`, `multiplier`)
+   - Updates the corresponding tkinter variable (`gui_var`)
+4. GUI labels bound to those variables update automatically
+5. If logging is active, `data_logger.py` writes the raw values to CSV
+
+This separation means:
+- Your `gui.py` doesn't need to parse telemetry
+- The Command Reference doesn't need device-specific code
+- Adding a new variable only requires updating `telemetry.json`
+
+### 6.5. C++ Code Generation
+
+The app includes a code generator (**File → Generate C++ Code**) that creates embedded firmware code from your JSON definitions. This ensures the Python app and C++ firmware stay synchronized.
+
+From `commands.json`, it generates:
+- `commands.h`: Command parser with parameter extraction
+- Command handler stubs with correct function signatures
+
+From `telemetry.json`, it generates:
+- `telemetry.h`: Telemetry formatting and transmission functions
+- State variable declarations
+
+This eliminates manual synchronization between the app and firmware.
 
 ---
 
-## 7. Setup
+## 7. Network Protocol
+
+Communication uses UDP on port 6272. Messages are ASCII strings.
+
+**Device Discovery:**
+```
+App → Broadcast: DISCOVER_DEVICE
+Device → App: DISCOVERY_RESPONSE: DEVICE_ID=gantry PORT=8889
+```
+
+**Commands:**
+```
+App → Device: MOVE_X:100:1000
+Device → App: GANTRY_STATUS:MOVE_X:100:1000:DONE
+```
+
+**Telemetry (sent at 10Hz):**
+```
+Device → App: GANTRY_TELEM:x_pos=123.45;y_pos=67.89;x_homed=1;main_state=standby
+```
+
+**Events:**
+```
+Device → App: GANTRY_EVENT:HOMED
+```
+
+All messages are prefixed with the device name in uppercase. The app extracts the device identifier and routes the message accordingly.
+
+---
+
+## 8. Setup
 
 **Requirements:** Python 3.10+, no external dependencies
 
@@ -291,7 +459,7 @@ The app creates a `logs/` directory on first run.
 
 ---
 
-## 8. Keyboard Shortcuts
+## 9. Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -310,7 +478,7 @@ The app creates a `logs/` directory on first run.
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 **Devices not discovered:** Check network, verify UDP port 6272 is accessible, restart simulators
 
@@ -322,7 +490,7 @@ The app creates a `logs/` directory on first run.
 
 ---
 
-## 10. License & Contact
+## 11. License & Contact
 
 Developed by Blue Robotics for internal equipment control.
 
