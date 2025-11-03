@@ -50,6 +50,16 @@ def make_state_tracer(var, label_to_color):
         label_to_color.config(foreground=color)
     return tracer
 
+def make_unit_stripper(source_var, dest_var, unit_to_strip):
+    """Strips a unit suffix from a source variable and updates a destination variable."""
+    def tracer(*args):
+        value = source_var.get()
+        # Remove the unit suffix if present
+        if value.endswith(unit_to_strip):
+            value = value[:-len(unit_to_strip)].strip()
+        dest_var.set(value)
+    return tracer
+
 def create_torque_widget(parent, torque_dv, height):
     """Creates a vertical torque meter widget."""
     torque_frame = ttk.Frame(parent, height=height, width=30, style='TFrame')
@@ -138,13 +148,20 @@ def create_gui_components(parent, shared_gui_refs):
         axis_label.grid(row=0, column=0, sticky='ns', padx=(0, 5))
         
         # Create and trace the state label
-        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=("JetBrains Mono", 12, "bold"), style='Subtle.TLabel')
+        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=("JetBrains Mono", 10, "bold"), style='Subtle.TLabel')
         state_label.grid(row=0, column=1, sticky='w', padx=(0, 10))
         state_label.tracer = make_state_tracer(shared_gui_refs[axis_info['state_var']], state_label)
         shared_gui_refs[axis_info['state_var']].trace_add('write', state_label.tracer)
         state_label.tracer()
 
-        ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['pos_var']], font=font_large_readout, anchor='e', style='Subtle.TLabel').grid(row=0, column=2, sticky='ew', padx=(0, 10))
+        # Create a display variable that strips " mm" from the position
+        pos_display_var = tk.StringVar(value='0.00')
+        pos_source_var = shared_gui_refs[axis_info['pos_var']]
+        stripper = make_unit_stripper(pos_source_var, pos_display_var, ' mm')
+        pos_source_var.trace_add('write', stripper)
+        stripper()  # Initialize
+        
+        ttk.Label(axis_frame, textvariable=pos_display_var, font=font_large_readout, anchor='e', style='Subtle.TLabel').grid(row=0, column=2, sticky='ew', padx=(0, 10))
         torque_widget = create_torque_widget(axis_frame, shared_gui_refs[axis_info['torque_var']], bar_height)
         torque_widget.grid(row=0, column=3, rowspan=1, sticky='ns', padx=(10, 0))
         homed_var = shared_gui_refs[axis_info['homed_var']]

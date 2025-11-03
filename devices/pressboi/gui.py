@@ -72,6 +72,16 @@ def make_force_tracer(var, label_to_color):
             label_to_color.config(foreground=theme.FG_COLOR)
     return tracer
 
+def make_unit_stripper(source_var, dest_var, unit_to_strip):
+    """Strips a unit suffix from a source variable and updates a destination variable."""
+    def tracer(*args):
+        value = source_var.get()
+        # Remove the unit suffix if present
+        if value.endswith(unit_to_strip):
+            value = value[:-len(unit_to_strip)].strip()
+        dest_var.set(value)
+    return tracer
+
 def create_torque_widget(parent, torque_dv, height):
     """Creates a vertical torque meter widget."""
     torque_frame = ttk.Frame(parent, height=height, width=40, style='TFrame')
@@ -97,7 +107,7 @@ def create_device_frame(parent, title, state_var, conn_var):
     title_label.pack(side=tk.LEFT, padx=(0, 5))
     ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
     ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
-    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 12, "bold"), style='Subtle.TLabel')
+    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 14, "bold"), style='Subtle.TLabel')
     state_label.pack(side=tk.RIGHT)
     state_label.tracer = make_state_tracer(state_var, state_label)
     state_var.trace_add('write', state_label.tracer)
@@ -224,14 +234,26 @@ def create_gui_components(parent, shared_gui_refs):
     
     pos_label = ttk.Label(pos_row, text="Position:", font=font_medium, style='Subtle.TLabel')
     pos_label.pack(side=tk.LEFT, padx=(0, 10))
-    current_pos_label = ttk.Label(pos_row, textvariable=shared_gui_refs['pressboi_current_pos_var'], 
+    
+    # Create display variables that strip " mm" from positions
+    current_pos_display = tk.StringVar(value='0.00')
+    current_stripper = make_unit_stripper(shared_gui_refs['pressboi_current_pos_var'], current_pos_display, ' mm')
+    shared_gui_refs['pressboi_current_pos_var'].trace_add('write', current_stripper)
+    current_stripper()
+    
+    current_pos_label = ttk.Label(pos_row, textvariable=current_pos_display, 
                                    font=font_large, foreground=theme.SUCCESS_GREEN, style='Subtle.TLabel', anchor='e')
     current_pos_label.pack(side=tk.LEFT)
     
     arrow_label = ttk.Label(pos_row, text=" → ", font=font_medium, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel')
     arrow_label.pack(side=tk.LEFT)
     
-    target_pos_label = ttk.Label(pos_row, textvariable=shared_gui_refs['pressboi_target_pos_var'], 
+    target_pos_display = tk.StringVar(value='0.00')
+    target_stripper = make_unit_stripper(shared_gui_refs['pressboi_target_pos_var'], target_pos_display, ' mm')
+    shared_gui_refs['pressboi_target_pos_var'].trace_add('write', target_stripper)
+    target_stripper()
+    
+    target_pos_label = ttk.Label(pos_row, textvariable=target_pos_display, 
                                   font=font_large, foreground=theme.WARNING_YELLOW, style='Subtle.TLabel', anchor='e')
     target_pos_label.pack(side=tk.LEFT)
     
@@ -255,7 +277,14 @@ def create_gui_components(parent, shared_gui_refs):
     start_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(10, 2))
     
     ttk.Label(start_row, text="Routine Start Position:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
-    ttk.Label(start_row, textvariable=shared_gui_refs['pressboi_start_pos_var'], 
+    
+    # Create display variable that strips " mm" from start position
+    start_pos_display = tk.StringVar(value='0.00')
+    start_stripper = make_unit_stripper(shared_gui_refs['pressboi_start_pos_var'], start_pos_display, ' mm')
+    shared_gui_refs['pressboi_start_pos_var'].trace_add('write', start_stripper)
+    start_stripper()
+    
+    ttk.Label(start_row, textvariable=start_pos_display, 
               font=font_small, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
     
     # Homed and Enabled Status (inline, no "Homed:" label)
