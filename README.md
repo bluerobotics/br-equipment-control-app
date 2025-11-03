@@ -470,11 +470,23 @@ Messages are prefixed with device name in uppercase.
 
 ## 8. Setup
 
+### Option 1: Pre-built Executables (Recommended for End Users)
+
+Download the latest release for your platform from the [Releases page](https://github.com/bluerobotics/br-equipment-control-app/releases):
+
+- **Windows:** Download and extract the `.zip` file, then run `BR-Equipment-Control.exe`
+- **macOS:** Download the `.dmg` file, drag the app to Applications
+- **Linux:** Download and extract the `.tar.gz` file, then run `./BR-Equipment-Control`
+
+No Python installation required! See [DISTRIBUTION.md](DISTRIBUTION.md) for details.
+
+### Option 2: Run from Source (For Developers)
+
 Python 3.10+, no external dependencies
 
-    ```bash
-    python main.py
-    ```
+```bash
+python main.py
+```
 
 Creates `logs/` directory on first run.
 

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 import threading
 import comms
 from scripting_gui import create_scripting_interface
@@ -25,6 +25,90 @@ from command_reference import create_command_reference
 from device_actions import create_device_commands
 
 GUI_UPDATE_INTERVAL_MS = 100
+CONFIG_FILE = 'app_config.json'
+
+def get_devices_path():
+    """Get the devices folder path from config, or prompt user if not set."""
+    # Check if config file exists
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                devices_path = config.get('devices_path')
+                if devices_path and os.path.isdir(devices_path):
+                    return devices_path
+        except Exception as e:
+            print(f"Error reading config: {e}")
+    
+    # Config doesn't exist or path is invalid - prompt user
+    return prompt_for_devices_folder()
+
+def prompt_for_devices_folder():
+    """Show dialog to select devices folder."""
+    # Create a temporary root window for the dialog
+    temp_root = tk.Tk()
+    temp_root.withdraw()
+    
+    # Show info message
+    result = messagebox.askokcancel(
+        "First Run Setup",
+        "Welcome to BR Equipment Control App!\n\n"
+        "Please select the 'devices' folder location.\n\n"
+        "This allows you to:\n"
+        "• Point to your local git repo for development\n"
+        "• Keep device configs separate from the app\n"
+        "• Edit device JSON files directly\n\n"
+        "You can change this later in Settings.",
+        icon='info'
+    )
+    
+    if not result:
+        temp_root.destroy()
+        messagebox.showerror("Setup Required", "A devices folder is required to run the application.")
+        return None
+    
+    # Prompt for folder
+    devices_path = filedialog.askdirectory(
+        title="Select Devices Folder",
+        mustexist=True
+    )
+    
+    temp_root.destroy()
+    
+    if not devices_path:
+        messagebox.showerror("Setup Required", "A devices folder is required to run the application.")
+        return None
+    
+    # Verify it looks like a devices folder
+    if not os.path.basename(devices_path) == 'devices':
+        response = messagebox.askyesno(
+            "Confirm Folder",
+            f"The selected folder is named '{os.path.basename(devices_path)}'.\n\n"
+            "Are you sure this is the correct devices folder?\n"
+            "(It should contain device subfolders like 'fillhead', 'gantry', etc.)",
+            icon='warning'
+        )
+        if not response:
+            return prompt_for_devices_folder()  # Try again
+    
+    # Save to config
+    save_devices_path(devices_path)
+    return devices_path
+
+def save_devices_path(devices_path):
+    """Save devices path to config file."""
+    try:
+        config = {}
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+        
+        config['devices_path'] = devices_path
+        
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        print(f"Error saving config: {e}")
 
 class CollapsiblePanel(ttk.Frame):
     """A collapsible panel with a side trigger bar."""
@@ -255,8 +339,15 @@ class MainApplication:
         }
         
         # --- Device Management ---
+        # Get devices folder path (may prompt user on first run)
+        devices_path = get_devices_path()
+        if not devices_path:
+            # User cancelled - exit application
+            self.root.destroy()
+            return
+        
         # DeviceManager needs shared_gui_refs to exist, but it can be populated after.
-        self.device_manager = DeviceManager(self.shared_gui_refs)
+        self.device_manager = DeviceManager(self.shared_gui_refs, devices_path=devices_path)
         self.device_modules = self.device_manager.get_device_modules()
         self.discovery_logs = self.device_manager.get_discovery_logs()
         self.shared_gui_refs['device_manager'] = self.device_manager

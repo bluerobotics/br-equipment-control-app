@@ -1,5 +1,7 @@
 import os
 import importlib
+import importlib.util
+import sys
 import tkinter as tk
 import json
 import threading
@@ -7,14 +9,41 @@ import socket
 import time
 
 class DeviceManager:
-    def __init__(self, shared_gui_refs):
+    def __init__(self, shared_gui_refs, devices_path=None):
         self.devices = {}
         self.device_state = {} # New dictionary for connection state
         self.discovery_logs = []
         self.shared_gui_refs = shared_gui_refs
         self.simulator_threads = {}  # device_name -> {'thread': thread, 'stop_flag': Event, 'socket': socket}
         self.telemetry_callbacks = {}  # device_name -> list of callback functions
+        # Store custom devices path if provided, otherwise use default
+        self.devices_path = devices_path if devices_path else os.path.join(os.path.dirname(__file__), 'devices')
         self.discover_devices()
+
+    def _load_module_from_path(self, device_name, module_name, device_path):
+        """
+        Load a Python module from a specific file path.
+        Returns the module if successful, None otherwise.
+        """
+        module_file = os.path.join(device_path, f"{module_name}.py")
+        if not os.path.exists(module_file):
+            return None
+        
+        try:
+            # Create a unique module name to avoid conflicts
+            full_module_name = f"devices.{device_name}.{module_name}"
+            
+            # Load the module from file
+            spec = importlib.util.spec_from_file_location(full_module_name, module_file)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[full_module_name] = module
+                spec.loader.exec_module(module)
+                return module
+        except Exception as e:
+            self.log(f"Error loading {module_name} for {device_name}: {e}")
+        
+        return None
 
     def discover_devices(self):
         """
@@ -26,7 +55,7 @@ class DeviceManager:
         self.devices.clear()
         self.device_state.clear()
         
-        devices_dir = os.path.join(os.path.dirname(__file__), 'devices')
+        devices_dir = self.devices_path
         if not os.path.isdir(devices_dir):
             self.log(f"Devices directory not found at '{devices_dir}'")
             return
@@ -35,22 +64,17 @@ class DeviceManager:
             device_path = os.path.join(devices_dir, device_name)
             if os.path.isdir(device_path) and not device_name.startswith('__'):
                 try:
-                    gui_module = importlib.import_module(f'devices.{device_name}.gui')
+                    # Load modules from custom path
+                    gui_module = self._load_module_from_path(device_name, 'gui', device_path)
+                    if not gui_module:
+                        self.log(f"Skipping {device_name}: gui.py not found")
+                        continue
                     
                     # --- NEW: Optional Script Handlers ---
-                    script_handlers_module = None
-                    try:
-                        script_handlers_module = importlib.import_module(f'devices.{device_name}.script_handlers')
-                    except ImportError:
-                        pass # It's okay if a device doesn't have script handlers
+                    script_handlers_module = self._load_module_from_path(device_name, 'script_handlers', device_path)
 
                     # The parser module is now optional.
-                    parser_module = None
-                    try:
-                        parser_module = importlib.import_module(f'devices.{device_name}.parser')
-                    except ImportError:
-                        # This is now the standard behavior, so no log message is needed.
-                        pass
+                    parser_module = self._load_module_from_path(device_name, 'parser', device_path)
 
                     # Load scripting commands from JSON
                     scripting_commands = {}
@@ -114,7 +138,7 @@ class DeviceManager:
         """
         self.log("Scanning for new device modules...")
         newly_loaded = []
-        devices_dir = os.path.join(os.path.dirname(__file__), 'devices')
+        devices_dir = self.devices_path
         if not os.path.isdir(devices_dir):
             self.log(f"Devices directory not found at '{devices_dir}'")
             return newly_loaded
@@ -132,12 +156,11 @@ class DeviceManager:
                 
                 device_path = os.path.join(devices_dir, device_name)
                 try:
-                    gui_module = importlib.import_module(f'devices.{device_name}.gui')
-                    parser_module = None
-                    try:
-                        parser_module = importlib.import_module(f'devices.{device_name}.parser')
-                    except ImportError:
-                        pass
+                    gui_module = self._load_module_from_path(device_name, 'gui', device_path)
+                    if not gui_module:
+                        continue
+                    
+                    parser_module = self._load_module_from_path(device_name, 'parser', device_path)
 
                     scripting_commands = {}
                     json_path = os.path.join(device_path, 'commands.json')

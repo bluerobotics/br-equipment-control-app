@@ -1,2 +1,6 @@
 # This project currently uses only Python's standard libraries.
 # No external packages are required to run the application.
+
+# Development dependencies (for building executables)
+# Uncomment if you need to build locally:
+# pyinstaller>=6.0.0

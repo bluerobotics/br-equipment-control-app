@@ -1,0 +1,160 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build Windows executable
+        run: |
+          pyinstaller build.spec
+
+      - name: Create zip archive
+        run: |
+          cd dist
+          Compress-Archive -Path "BR-Equipment-Control" -DestinationPath "BR-Equipment-Control-Windows.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/BR-Equipment-Control-Windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build macOS app
+        run: |
+          pyinstaller build.spec
+
+      - name: Create DMG (optional, requires create-dmg)
+        run: |
+          brew install create-dmg
+          cd dist
+          create-dmg \
+            --volname "BR Equipment Control" \
+            --volicon "../assets/icon.png" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "BR Equipment Control.app" 200 190 \
+            --hide-extension "BR Equipment Control.app" \
+            --app-drop-link 600 185 \
+            "BR-Equipment-Control-macOS.dmg" \
+            "BR Equipment Control.app"
+        continue-on-error: true
+
+      - name: Create zip fallback if DMG fails
+        run: |
+          cd dist
+          if [ ! -f "BR-Equipment-Control-macOS.dmg" ]; then
+            zip -r "BR-Equipment-Control-macOS.zip" "BR Equipment Control.app"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/BR-Equipment-Control-macOS.dmg
+            dist/BR-Equipment-Control-macOS.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build Linux executable
+        run: |
+          pyinstaller build.spec
+
+      - name: Create tar.gz archive
+        run: |
+          cd dist
+          tar -czf BR-Equipment-Control-Linux.tar.gz BR-Equipment-Control/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/BR-Equipment-Control-Linux.tar.gz
+
+  create-release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/windows-build/BR-Equipment-Control-Windows.zip
+            artifacts/macos-build/BR-Equipment-Control-macOS.dmg
+            artifacts/macos-build/BR-Equipment-Control-macOS.zip
+            artifacts/linux-build/BR-Equipment-Control-Linux.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
