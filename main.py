@@ -158,10 +158,10 @@ class MainApplication:
 
         self.style.configure('Red.TButton', background=theme.ERROR_RED, foreground='black', font=theme.FONT_BOLD, borderwidth=1, bordercolor=theme.ERROR_RED)
         self.style.map('Red.TButton', 
-            background=[('pressed', theme.PRESSED_RED), ('active', theme.ACTIVE_RED)],
-            foreground=[('pressed', 'black'), ('active', 'black')],
+            background=[('disabled', theme.COMMENT_COLOR), ('pressed', theme.PRESSED_RED), ('active', theme.ACTIVE_RED)],
+            foreground=[('disabled', theme.BG_COLOR), ('pressed', 'black'), ('active', 'black')],
             relief=[('pressed', 'sunken'), ('active', 'raised')],
-            bordercolor=[('active', theme.FG_COLOR), ('!active', theme.ERROR_RED)]
+            bordercolor=[('disabled', theme.COMMENT_COLOR), ('active', theme.FG_COLOR), ('!active', theme.ERROR_RED)]
         )
         # New style for when the script is held
         self.style.configure('Holding.Red.TButton', background=theme.HOLDING_RED, foreground='white', font=theme.FONT_BOLD, borderwidth=1, bordercolor=theme.HOLDING_RED)

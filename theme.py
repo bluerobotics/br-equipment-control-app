@@ -30,7 +30,7 @@ BUSY_BLUE = "#56B6C2"         # A teal/cyan for "Busy/Moving" states
 # --- NEW: Hover/Active Colors for Buttons ---
 ACTIVE_GREEN = "#6E9454"   # Darker green for hover
 PRESSED_GREEN = "#78A359"
-ACTIVE_RED = "#A84B52"     # Darker red for hover
+ACTIVE_RED = "#F08090"     # Lighter red for hover (more visible)
 PRESSED_RED = "#C04C55"
 ACTIVE_BLUE = "#418BC7"    # Darker blue for hover
 PRESSED_BLUE = "#4198D1"   # Even darker for pressed
