@@ -152,7 +152,7 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
             # Check if this is the very last command across all categories
             is_last_overall = (cmd_name, cmd_data) == all_cmds_list[-1]
             comma = "" if is_last_overall else ","
-            lines.append(f"    CMD_{cmd_name.upper():<35} ///< @see CMD_STR_{cmd_name.upper()}{comma}")
+            lines.append(f"    CMD_{cmd_name.upper()}{comma:<36} ///< @see CMD_STR_{cmd_name.upper()}")
         lines.append("")
     
     # Remove trailing empty line and add closing brace

@@ -983,7 +983,7 @@ class ScriptRunner(threading.Thread):
                 # --- Construct Final Command for Firmware ---
                 final_args = []
                 for param_def in command_info.get('params', []):
-                    param_name = param_def['name']
+                    param_name = param_def.get('parameter', param_def.get('name', ''))
                     if param_name in resolved_params:
                         final_args.append(str(resolved_params[param_name]))
                     elif not param_def.get('optional'):
