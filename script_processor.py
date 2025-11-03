@@ -994,7 +994,9 @@ class ScriptRunner(threading.Thread):
 
                 if not self.is_running: return False
 
-                final_command_str = f"{command_word} {' '.join(final_args)}" if final_args else command_word
+                # Strip device prefix if present (e.g., "pressboi.disable" -> "disable")
+                cmd_to_send = command_word.split('.', 1)[1] if '.' in command_word else command_word
+                final_command_str = f"{cmd_to_send} {' '.join(final_args)}" if final_args else cmd_to_send
                 send_func = self.command_funcs.get(f"send_{device}")
                 if send_func:
                     send_func(final_command_str)
