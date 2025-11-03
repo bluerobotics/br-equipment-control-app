@@ -653,12 +653,11 @@ class MainApplication:
         messagebox.showinfo(
             "Restart Required",
             "Device folder path has been updated.\n\n"
-            "The application will now restart to apply changes."
+            "Please restart the application to apply changes."
         )
         
-        # Restart the application
+        # Exit the application (user will restart manually)
         self.root.quit()
-        os.execv(sys.executable, [sys.executable] + sys.argv)
     
     def validate_script(self):
         """
