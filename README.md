@@ -1,17 +1,19 @@
 <div align="center">
-    <img src="assets/icon.png" alt="Application Icon" width="150">
-</div>
+
+<img src="assets/icon.png" alt="Application Icon" width="150">
 
 # BR Equipment Control App
 
 **Multi-Device Manufacturing Equipment Control & Automation**
 
-[![license: MIT](https://img.shields.io/github/license/bluerobotics/br-equipment-control-app?style=flat-square)](LICENSE)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![release](https://img.shields.io/github/v/release/bluerobotics/br-equipment-control-app?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/releases/latest)
 [![build](https://img.shields.io/github/actions/workflow/status/bluerobotics/br-equipment-control-app/build.yml?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/actions)
 [![downloads](https://img.shields.io/github/downloads/bluerobotics/br-equipment-control-app/total?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/releases)
 
 [View Changelog](CHANGELOG.md) • [Download Latest Release](https://github.com/bluerobotics/br-equipment-control-app/releases/latest)
+
+</div>
 
 ---
 
