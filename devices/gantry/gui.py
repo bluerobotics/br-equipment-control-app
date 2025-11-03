@@ -138,7 +138,7 @@ def create_gui_components(parent, shared_gui_refs):
         axis_label.grid(row=0, column=0, sticky='ns', padx=(0, 5))
         
         # Create and trace the state label
-        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=("JetBrains Mono", 10, "bold"), style='Subtle.TLabel')
+        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=("JetBrains Mono", 12, "bold"), style='Subtle.TLabel')
         state_label.grid(row=0, column=1, sticky='w', padx=(0, 10))
         state_label.tracer = make_state_tracer(shared_gui_refs[axis_info['state_var']], state_label)
         shared_gui_refs[axis_info['state_var']].trace_add('write', state_label.tracer)

@@ -88,10 +88,9 @@ class CommandReference(ttk.Frame):
         super().__init__(parent, **kwargs)
         self.script_editor_widget = script_editor_widget
         self.device_manager = device_manager
-        self.command_lines = {}  # Map line numbers to command names
-        self.variable_lines = {}  # Map line numbers to variable names
-        self.event_lines = {}  # Map line numbers to event names
-        self.device_lines = {}  # Map line numbers to device names
+        
+        # Map line numbers to their data (legacy name kept for compatibility)
+        self.tree_items = {}  # Deprecated: use line_items instead
         
         self.configure(style='TFrame', padding=10)
 
@@ -100,96 +99,82 @@ class CommandReference(ttk.Frame):
         title_frame.pack(fill=tk.X, pady=(0, 8))
         
         title_label = ttk.Label(title_frame, 
-                               text="Reference", 
+                               text="devices", 
                                font=theme.FONT_LARGE_BOLD,
                                foreground=theme.PRIMARY_ACCENT,
                                style='TLabel')
         title_label.pack(side=tk.LEFT)
         
         help_label = ttk.Label(title_frame, 
-                              text="double-click to add  |  right-click for options",
+                              text="right-click for options",
                               font=theme.FONT_NORMAL, 
                               foreground=theme.COMMENT_COLOR,
                               style='TLabel')
         help_label.pack(side=tk.RIGHT, anchor='e')
-
-        # --- Notebook (Tabs) ---
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
         
-        # Commands Tab
-        commands_frame = ttk.Frame(self.notebook, style='TFrame')
-        self.notebook.add(commands_frame, text='Commands')
+        # --- Text Widget (replaces Tree View for syntax highlighting) ---
+        tree_frame = ttk.Frame(self, style='TFrame')
+        tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
-        self.commands_text = self._create_text_widget(commands_frame, 'commands')
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Add command button
-        commands_btn_frame = ttk.Frame(commands_frame, style='TFrame')
-        commands_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-        add_command_btn = tk.Button(commands_btn_frame,
-                                    text="+ Add Command...",
-                                    command=self.show_add_command_dialog,
-                                    bg=theme.SUCCESS_GREEN,
-                                    fg=theme.BG_COLOR,
-                                    font=theme.FONT_BOLD,
-                                    relief=tk.FLAT,
-                                    padx=10,
-                                    pady=5,
-                                    cursor='hand2')
-        add_command_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # Text widget with syntax highlighting support
+        self.text = tk.Text(tree_frame,
+                           bg=theme.WIDGET_BG,
+                           fg=theme.FG_COLOR,
+                           font=theme.FONT_NORMAL,
+                           selectbackground=theme.WIDGET_BG,  # Same as background to hide selection
+                           selectforeground=theme.FG_COLOR,  # Same as foreground to hide selection
+                           borderwidth=0,
+                           highlightthickness=0,
+                           cursor="arrow",
+                           wrap=tk.NONE,
+                           yscrollcommand=scrollbar.set,
+                           insertwidth=0,  # Hide the blinking cursor
+                           insertbackground=theme.WIDGET_BG)  # Hide cursor color
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.text.yview)
         
-        # Variables Tab
-        variables_frame = ttk.Frame(self.notebook, style='TFrame')
-        self.notebook.add(variables_frame, text='Variables')
+        # Make text read-only and prevent text selection
+        self.text.bind("<Key>", lambda e: "break")
+        self.text.bind("<Control-a>", lambda e: "break")  # Prevent select all
+        self.text.bind("<Button1-Motion>", lambda e: "break")  # Prevent drag selection
         
-        self.variables_text = self._create_text_widget(variables_frame, 'variables')
+        # Configure syntax highlighting tags
+        self.text.tag_configure('device', foreground=theme.DEVICE_COLOR, font=theme.FONT_BOLD)  # Purple for device name
+        self.text.tag_configure('device_part', foreground=theme.DEVICE_COLOR)
+        self.text.tag_configure('command_part', foreground=theme.COMMAND_COLOR)
+        self.text.tag_configure('variable_part', foreground='#C04848')
+        self.text.tag_configure('event_part', foreground=theme.SUCCESS_GREEN)
+        self.text.tag_configure('script_command', foreground=theme.SCRIPT_COMMAND_COLOR)
+        self.text.tag_configure('script_header', foreground=theme.SCRIPT_COMMAND_COLOR, font=theme.FONT_BOLD)
+        self.text.tag_configure('commands_header', foreground=theme.PRIMARY_ACCENT, font=theme.FONT_BOLD)
+        self.text.tag_configure('variables_header', foreground='#C04848', font=theme.FONT_BOLD)
+        self.text.tag_configure('events_header', foreground=theme.SUCCESS_GREEN, font=theme.FONT_BOLD)
+        self.text.tag_configure('folder_icon', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('variable_info', foreground=theme.COMMENT_COLOR)
+        self.text.tag_configure('parameter_name', foreground=theme.PARAMETER_COLOR)  # Orange/yellow for parameter names
+        self.text.tag_configure('enum_badge', foreground=theme.WARNING_YELLOW)
+        self.text.tag_configure('queued_badge', foreground='#61AFEF')  # Blue for queued variables
+        self.text.tag_configure('status_icon', foreground=theme.SUCCESS_GREEN)
+        self.text.tag_configure('connected_status', foreground=theme.SUCCESS_GREEN)  # Green for connected
+        self.text.tag_configure('simulated_status', foreground=theme.WARNING_YELLOW)  # Yellow for [simulated]
+        self.text.tag_configure('disconnected_status', foreground=theme.COMMENT_COLOR)  # Grey for disconnected
+        self.text.tag_configure('hover', background=theme.SECONDARY_ACCENT)
         
-        # Add variable button
-        variables_btn_frame = ttk.Frame(variables_frame, style='TFrame')
-        variables_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-        add_variable_btn = tk.Button(variables_btn_frame,
-                                     text="+ Add Variable...",
-                                     command=self.show_add_variable_dialog,
-                                     bg=theme.SUCCESS_GREEN,
-                                     fg=theme.BG_COLOR,
-                                     font=theme.FONT_BOLD,
-                                     relief=tk.FLAT,
-                                     padx=10,
-                                     pady=5,
-                                     cursor='hand2')
-        add_variable_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # Track which lines map to which items (line_num -> item_data)
+        self.line_items = {}  # line_num -> {'type': ..., 'data': ...}
         
-        # Events Tab
-        events_frame = ttk.Frame(self.notebook, style='TFrame')
-        self.notebook.add(events_frame, text='Events')
+        # Track collapsed folders - start with all folders collapsed by default
+        self.collapsed_folders = self._get_default_collapsed_folders()
         
-        self.events_text = self._create_text_widget(events_frame, 'events')
+        # Track hover line for highlighting
+        self.current_hover_line = None
         
-        # Add event button
-        events_btn_frame = ttk.Frame(events_frame, style='TFrame')
-        events_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-        add_event_btn = tk.Button(events_btn_frame,
-                                  text="+ Add Event...",
-                                  command=self.show_add_event_dialog,
-                                  bg=theme.SUCCESS_GREEN,
-                                  fg=theme.BG_COLOR,
-                                  font=theme.FONT_BOLD,
-                                  relief=tk.FLAT,
-                                  padx=10,
-                                  pady=5,
-                                  cursor='hand2')
-        add_event_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Devices Tab
-        devices_frame = ttk.Frame(self.notebook, style='TFrame')
-        self.notebook.add(devices_frame, text='Devices')
-        
-        self.devices_text = self._create_text_widget(devices_frame, 'devices')
-        
-        # Add device button
-        devices_btn_frame = ttk.Frame(devices_frame, style='TFrame')
-        devices_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-        add_device_btn = tk.Button(devices_btn_frame,
+        # Add device button at bottom
+        add_device_btn = tk.Button(self,
                                    text="+ Add Device...",
                                    command=self.show_add_device_dialog,
                                    bg=theme.SUCCESS_GREEN,
@@ -199,78 +184,23 @@ class CommandReference(ttk.Frame):
                                    padx=10,
                                    pady=5,
                                    cursor='hand2')
-        add_device_btn.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Set the active text widget reference
-        self.text = self.commands_text
-        
-        # Track current tab
-        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+        add_device_btn.pack(fill=tk.X, pady=(5, 0))
 
         self.refresh() # Initial population
 
-        # Context menu for commands (dynamically built based on command type)
-        self.commands_context_menu = tk.Menu(self, tearoff=0, 
+        # Context menus (dynamically built)
+        self.context_menu = tk.Menu(self, tearoff=0, 
                                bg=theme.WIDGET_BG, 
                                fg=theme.FG_COLOR,
                                activebackground=theme.PRIMARY_ACCENT,
                                activeforeground=theme.FG_COLOR)
-        
-        self.variables_context_menu = tk.Menu(self, tearoff=0, 
-                               bg=theme.WIDGET_BG, 
-                               fg=theme.FG_COLOR,
-                               activebackground=theme.PRIMARY_ACCENT,
-                               activeforeground=theme.FG_COLOR)
-        self.variables_context_menu.add_command(label="Copy Variable", command=self.copy_variable)
-        self.variables_context_menu.add_command(label="Add to Script", command=self.add_variable_to_script)
-        self.variables_context_menu.add_separator()
-        self.variables_context_menu.add_command(label="Edit Variable...", command=self.edit_variable)
-        self.variables_context_menu.add_command(label="More Info...", command=self.show_variable_info)
-        self.variables_context_menu.add_separator()
-        self.variables_context_menu.add_command(label="Delete Variable", command=self.delete_variable,
-                                               foreground=theme.ERROR_RED)
-        
-        self.events_context_menu = tk.Menu(self, tearoff=0, 
-                               bg=theme.WIDGET_BG, 
-                               fg=theme.FG_COLOR,
-                               activebackground=theme.PRIMARY_ACCENT,
-                               activeforeground=theme.FG_COLOR)
-        self.events_context_menu.add_command(label="Copy Event", command=self.copy_event)
-        self.events_context_menu.add_command(label="Add to Script", command=self.add_event_to_script)
-        self.events_context_menu.add_separator()
-        self.events_context_menu.add_command(label="Edit Event...", command=self.edit_event)
-        self.events_context_menu.add_command(label="More Info...", command=self.show_event_info)
-        self.events_context_menu.add_separator()
-        self.events_context_menu.add_command(label="Delete Event", command=self.delete_event,
-                                            foreground=theme.ERROR_RED)
-        
-        self.devices_context_menu = tk.Menu(self, tearoff=0, 
-                               bg=theme.WIDGET_BG, 
-                               fg=theme.FG_COLOR,
-                               activebackground=theme.PRIMARY_ACCENT,
-                               activeforeground=theme.FG_COLOR)
-        self.devices_context_menu.add_command(label="Edit Device...", command=self.edit_device)
-        self.devices_context_menu.add_command(label="More Info...", command=self.show_device_info)
-        self.devices_context_menu.add_separator()
-        self.devices_context_menu.add_command(label="Delete Device", command=self.delete_device,
-                                             foreground=theme.ERROR_RED)
 
-        self.commands_text.bind("<Button-3>", self.show_commands_context_menu)
-        self.commands_text.bind("<Double-1>", lambda e: self.add_to_script())
-        
-        self.variables_text.bind("<Button-3>", self.show_variables_context_menu)
-        self.variables_text.bind("<Double-1>", lambda e: self.add_variable_to_script())
-        
-        self.events_text.bind("<Button-3>", self.show_events_context_menu)
-        self.events_text.bind("<Double-1>", lambda e: self.add_event_to_script())
-        
-        self.devices_text.bind("<Button-3>", self.show_devices_context_menu)
-
-        # Initialize tooltips
-        self.commands_tooltip = Tooltip(self.commands_text)
-        self.variables_tooltip = Tooltip(self.variables_text)
-        self.events_tooltip = Tooltip(self.events_text)
-        self.devices_tooltip = Tooltip(self.devices_text)
+        # Bind text events
+        self.text.bind("<Double-1>", self.on_text_double_click)
+        self.text.bind("<Button-3>", self.on_text_right_click)
+        self.text.bind("<Button-1>", self.on_text_single_click)
+        self.text.bind("<Motion>", self.on_text_motion)
+        self.text.bind("<Leave>", self.on_text_leave)
     
     def _create_text_widget(self, parent, widget_type):
         """Create and configure a text widget for commands, variables, or events."""
@@ -361,11 +291,541 @@ class CommandReference(ttk.Frame):
             return param_name, ""
     
     def refresh(self):
-        """Clears and repopulates all text widgets with commands, variables, events, and devices."""
-        self.refresh_commands()
-        self.refresh_variables()
-        self.refresh_events()
-        self.refresh_devices()
+        """Clears and repopulates the text widget with all devices and their items."""
+        # Clear text
+        self.text.delete(1.0, tk.END)
+        self.tree_items.clear()
+        self.line_items.clear()
+        
+        line_num = 1
+        
+        # Add script commands section
+        script_cmds = self.device_manager.get_all_scripting_commands()
+        script_only = {name: details for name, details in script_cmds.items() 
+                      if '.' not in name}  # Only non-device commands
+        
+        if script_only:
+            folder_key = ('', 'script_folder')
+            is_collapsed = folder_key in self.collapsed_folders
+            icon = "► " if is_collapsed else "▼ "
+            
+            self.text.insert(f"{line_num}.0", icon, "folder_icon")
+            self.text.insert(f"{line_num}.end", f"script commands ({len(script_only)})\n", "script_header")
+            self.line_items[line_num] = {'type': 'script_folder', 'line_start': line_num, 'device': '', 'name': ''}
+            line_num += 1
+            
+            if not is_collapsed:
+                for cmd_name, cmd_details in sorted(script_only.items()):
+                    # Command name
+                    self.text.insert(f"{line_num}.0", "    ", "folder_icon")
+                    self.text.insert(f"{line_num}.end", f"{cmd_name}", "script_command")
+                    
+                    # Add parameter info with syntax highlighting
+                    params = cmd_details.get('params', [])
+                    if params:
+                        for i, param in enumerate(params):
+                            param_name = param.get('parameter', '')
+                            unit = param.get('unit', '')
+                            optional = param.get('optional', False)
+                            variadic = param.get('variadic', False)
+                            
+                            # Add space before parameter
+                            self.text.insert(f"{line_num}.end", " ", "folder_icon")
+                            
+                            # Add brackets for optional parameters
+                            if optional:
+                                self.text.insert(f"{line_num}.end", "[", "variable_info")
+                            
+                            # Add parameter name in orange/yellow
+                            self.text.insert(f"{line_num}.end", param_name, "parameter_name")
+                            
+                            # Add ... for variadic parameters
+                            if variadic:
+                                self.text.insert(f"{line_num}.end", "...", "parameter_name")
+                            
+                            # Add unit in grey if present
+                            if unit:
+                                self.text.insert(f"{line_num}.end", f"({unit})", "variable_info")
+                            
+                            # Close brackets for optional parameters
+                            if optional:
+                                self.text.insert(f"{line_num}.end", "]", "variable_info")
+                    
+                    self.text.insert(f"{line_num}.end", "\n")
+                    self.line_items[line_num] = {
+                        'type': 'script_command',
+                        'name': cmd_name,
+                        'data': cmd_details
+                    }
+                    line_num += 1
+            
+            # Add blank line after script commands section
+            self.text.insert(f"{line_num}.0", "\n")
+            line_num += 1
+        
+        # Get all devices
+        device_names = sorted(self.device_manager.get_all_device_names())
+        
+        with devices_lock:
+            device_states = self.device_manager.get_all_device_states()
+            
+            for device_name in device_names:
+                device_data = self.device_manager.devices.get(device_name, {})
+                device_state = device_states.get(device_name, {})
+                is_connected = device_state.get('connected', False)
+                # Check if device is simulated
+                is_simulated = device_state.get('simulated', False)
+                
+                # Create device node with collapse icon
+                device_folder_key = (device_name, 'device')
+                device_collapsed = device_folder_key in self.collapsed_folders
+                device_icon = "► " if device_collapsed else "▼ "
+                
+                # Build device line with connection status
+                self.text.insert(f"{line_num}.0", device_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"{device_name}", "device")
+                
+                # Add connection status with IP address
+                device_ip = device_state.get('ip', '')
+                if is_connected or is_simulated:
+                    if device_ip:
+                        self.text.insert(f"{line_num}.end", f" connected @ {device_ip}", "connected_status")
+                    else:
+                        self.text.insert(f"{line_num}.end", " connected", "connected_status")
+                    if is_simulated:
+                        self.text.insert(f"{line_num}.end", " [simulated]", "simulated_status")
+                else:
+                    self.text.insert(f"{line_num}.end", " disconnected", "disconnected_status")
+                
+                self.text.insert(f"{line_num}.end", "\n")
+                self.line_items[line_num] = {'type': 'device', 'name': device_name, 'device': device_name}
+                line_num += 1
+                
+                # Skip children if device is collapsed
+                if device_collapsed:
+                    continue
+                
+                # Commands folder
+                commands = device_data.get('scripting_commands', {})
+                cmds_folder_key = (device_name, 'commands_folder')
+                cmds_collapsed = cmds_folder_key in self.collapsed_folders
+                cmds_icon = "  ► " if cmds_collapsed else "  ▼ "
+                
+                self.text.insert(f"{line_num}.0", cmds_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"commands ({len(commands)})\n", "commands_header")
+                self.line_items[line_num] = {'type': 'commands_folder', 'device': device_name, 'line_start': line_num}
+                line_num += 1
+                
+                # Add individual commands if not collapsed
+                if not cmds_collapsed:
+                    for cmd_name, cmd_details in sorted(commands.items()):
+                        self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                        self.text.insert(f"{line_num}.end", f"{device_name}", "device_part")
+                        self.text.insert(f"{line_num}.end", ".", "folder_icon")
+                        self.text.insert(f"{line_num}.end", f"{cmd_name}", "command_part")
+                        
+                        # Add parameter info with syntax highlighting
+                        params = cmd_details.get('params', [])
+                        if params:
+                            for i, param in enumerate(params):
+                                param_name = param.get('parameter', '')
+                                unit = param.get('unit', '')
+                                
+                                # Add space before parameter
+                                self.text.insert(f"{line_num}.end", " ", "folder_icon")
+                                
+                                # Add parameter name in orange/yellow
+                                self.text.insert(f"{line_num}.end", param_name, "parameter_name")
+                                
+                                # Add unit in grey if present
+                                if unit:
+                                    self.text.insert(f"{line_num}.end", f"({unit})", "variable_info")
+                        
+                        self.text.insert(f"{line_num}.end", "\n")
+                        full_name = f"{device_name}.{cmd_name}"
+                        self.line_items[line_num] = {
+                            'type': 'command',
+                            'name': full_name,
+                            'data': cmd_details
+                        }
+                        line_num += 1
+                
+                # Variables folder
+                variables = device_data.get('telemetry_data', {})
+                vars_folder_key = (device_name, 'variables_folder')
+                vars_collapsed = vars_folder_key in self.collapsed_folders
+                vars_icon = "  ► " if vars_collapsed else "  ▼ "
+                
+                self.text.insert(f"{line_num}.0", vars_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"variables ({len(variables)})\n", "variables_header")
+                self.line_items[line_num] = {'type': 'variables_folder', 'device': device_name, 'line_start': line_num}
+                line_num += 1
+                
+                # Add individual variables if not collapsed
+                if not vars_collapsed:
+                    # Get data logger to check if variables are being logged
+                    data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+                    
+                    for var_name, var_details in sorted(variables.items()):
+                        self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                        self.text.insert(f"{line_num}.end", f"{device_name}", "device_part")
+                        self.text.insert(f"{line_num}.end", ".", "folder_icon")
+                        
+                        var_type = var_details.get('type', '')
+                        unit = var_details.get('unit', '')
+                        type_text = f" ({var_type})" if var_type else ""
+                        unit_text = f" {unit}" if unit else ""
+                        enum_badge = " [enum]" if var_details.get('map') else ""
+                        
+                        self.text.insert(f"{line_num}.end", f"{var_name}", "variable_part")
+                        if type_text or unit_text:
+                            self.text.insert(f"{line_num}.end", type_text + unit_text, "variable_info")
+                        if enum_badge:
+                            self.text.insert(f"{line_num}.end", enum_badge, "enum_badge")
+                        
+                        # Add [queued] indicator if this variable is queued for logging
+                        if data_logger and data_logger.is_variable_queued(device_name, var_name):
+                            self.text.insert(f"{line_num}.end", " [queued]", "queued_badge")
+                        
+                        # Add [logging] indicator if this variable is being logged
+                        if data_logger and data_logger.is_variable_being_logged(device_name, var_name):
+                            self.text.insert(f"{line_num}.end", " [logging]", "enum_badge")
+                        
+                        self.text.insert(f"{line_num}.end", "\n")
+                        
+                        full_var_name = f"{device_name}.{var_name}"
+                        self.line_items[line_num] = {
+                            'type': 'variable',
+                            'device': device_name,
+                            'name': var_name,
+                            'data': var_details
+                        }
+                        line_num += 1
+                
+                # Events folder
+                events = device_data.get('events_data', {})
+                events_folder_key = (device_name, 'events_folder')
+                events_collapsed = events_folder_key in self.collapsed_folders
+                events_icon = "  ► " if events_collapsed else "  ▼ "
+                
+                self.text.insert(f"{line_num}.0", events_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"events ({len(events)})\n", "events_header")
+                self.line_items[line_num] = {'type': 'events_folder', 'device': device_name, 'line_start': line_num}
+                line_num += 1
+                
+                # Add individual events if not collapsed
+                if not events_collapsed:
+                    for event_name, event_details in sorted(events.items()):
+                        # Ensure event has device prefix
+                        if '.' not in event_name:
+                            full_event_name = f"{device_name}.{event_name}"
+                        else:
+                            full_event_name = event_name
+                        
+                        self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                        if '.' in full_event_name:
+                            parts = full_event_name.split('.', 1)
+                            self.text.insert(f"{line_num}.end", parts[0], "device_part")
+                            self.text.insert(f"{line_num}.end", ".", "folder_icon")
+                            self.text.insert(f"{line_num}.end", f"{parts[1]}", "event_part")
+                        else:
+                            self.text.insert(f"{line_num}.end", f"{full_event_name}", "event_part")
+                        
+                        # Add parameter info with syntax highlighting
+                        params = event_details.get('params', [])
+                        if params:
+                            for i, param in enumerate(params):
+                                param_name = param.get('parameter', '')
+                                unit = param.get('unit', '')
+                                
+                                # Add space before parameter
+                                self.text.insert(f"{line_num}.end", " ", "folder_icon")
+                                
+                                # Add parameter name in orange/yellow
+                                self.text.insert(f"{line_num}.end", param_name, "parameter_name")
+                                
+                                # Add unit in grey if present
+                                if unit:
+                                    self.text.insert(f"{line_num}.end", f"({unit})", "variable_info")
+                        
+                        self.text.insert(f"{line_num}.end", "\n")
+                        
+                        self.line_items[line_num] = {
+                            'type': 'event',
+                            'name': full_event_name,
+                            'data': event_details
+                        }
+                        line_num += 1
+    
+    def _get_default_collapsed_folders(self):
+        """Get the default set of collapsed folders (all folders except Script Commands)."""
+        collapsed = set()
+        device_names = self.device_manager.get_all_device_names()
+        
+        # Collapse all device folders
+        for device_name in device_names:
+            collapsed.add((device_name, 'device'))
+            collapsed.add((device_name, 'commands_folder'))
+            collapsed.add((device_name, 'variables_folder'))
+            collapsed.add((device_name, 'events_folder'))
+        
+        # Keep script commands expanded by default
+        # collapsed.add(('', 'script_folder'))
+        
+        return collapsed
+    
+    def _get_line_at_position(self, event):
+        """Get the line number at the click position."""
+        index = self.text.index(f"@{event.x},{event.y}")
+        line_num = int(index.split('.')[0])
+        return line_num
+    
+    def on_text_motion(self, event):
+        """Handle mouse motion over text for hover highlighting."""
+        line_num = self._get_line_at_position(event)
+        item_data = self.line_items.get(line_num, {})
+        
+        # Only highlight if it's an actual item (not empty or folder header in some cases)
+        is_item = item_data.get('type') in ['command', 'variable', 'event', 'device', 
+                                             'commands_folder', 'variables_folder', 
+                                             'events_folder', 'script_folder', 'script_command']
+        
+        if is_item and line_num != self.current_hover_line:
+            # Remove previous hover
+            if self.current_hover_line:
+                self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+            
+            # Add new hover
+            self.text.tag_add('hover', f"{line_num}.0", f"{line_num}.end")
+            self.current_hover_line = line_num
+        elif not is_item and self.current_hover_line:
+            # Clear hover if over non-item
+            self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+            self.current_hover_line = None
+    
+    def on_text_leave(self, event):
+        """Handle mouse leaving the text widget."""
+        if self.current_hover_line:
+            self.text.tag_remove('hover', f"{self.current_hover_line}.0", f"{self.current_hover_line}.end")
+            self.current_hover_line = None
+    
+    def on_text_single_click(self, event):
+        """Handle single click on text (for folder toggle)."""
+        line_num = self._get_line_at_position(event)
+        item_data = self.line_items.get(line_num, {})
+        item_type = item_data.get('type')
+        
+        # Clear any text selection
+        self.text.tag_remove(tk.SEL, "1.0", tk.END)
+        
+        # Toggle folder collapse/expand
+        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'script_folder', 'device']:
+            # Use device name + type as stable key (not line number which changes)
+            folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
+            if folder_key in self.collapsed_folders:
+                self.collapsed_folders.remove(folder_key)
+            else:
+                self.collapsed_folders.add(folder_key)
+            self.refresh()
+        
+        return "break"  # Prevent text selection and cursor placement
+    
+    def on_text_double_click(self, event):
+        """Handle double-click on text items."""
+        line_num = self._get_line_at_position(event)
+        item_data = self.line_items.get(line_num, {})
+        item_type = item_data.get('type')
+        
+        # Clear any text selection
+        self.text.tag_remove(tk.SEL, "1.0", tk.END)
+        
+        # Commands: add to script
+        if item_type == 'command':
+            command_name = item_data.get('name')
+            if command_name:
+                self.script_editor_widget.insert(tk.INSERT, f"{command_name} ")
+        
+        # Script commands: add to script
+        elif item_type == 'script_command':
+            command_name = item_data.get('name')
+            if command_name:
+                self.script_editor_widget.insert(tk.INSERT, f"{command_name} ")
+        
+        # Variables: add to script
+        elif item_type == 'variable':
+            device_name = item_data.get('device')
+            var_name = item_data.get('name')
+            if device_name and var_name:
+                self.script_editor_widget.insert(tk.INSERT, f"{device_name}.{var_name} ")
+        
+        # Events: add to script
+        elif item_type == 'event':
+            event_name = item_data.get('name')
+            if event_name:
+                self.script_editor_widget.insert(tk.INSERT, f"WAIT_FOR {event_name}\n")
+        
+        # Folders: toggle open/close
+        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'script_folder', 'device']:
+            # Use device name + type as stable key (not line number which changes)
+            folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
+            if folder_key in self.collapsed_folders:
+                self.collapsed_folders.remove(folder_key)
+            else:
+                self.collapsed_folders.add(folder_key)
+            self.refresh()
+        
+        return "break"  # Prevent text selection
+    
+    def on_text_right_click(self, event):
+        """Handle right-click on text items."""
+        # Get line at click position
+        line_num = self._get_line_at_position(event)
+        item_data = self.line_items.get(line_num, {})
+        item_type = item_data.get('type')
+        
+        # Set cursor to clicked line for selection methods to work
+        self.text.mark_set(tk.INSERT, f"{line_num}.0")
+        
+        # Don't show visible selection highlight
+        self.text.tag_remove(tk.SEL, 1.0, tk.END)
+        
+        # Build context menu dynamically based on item type
+        self.context_menu.delete(0, tk.END)
+        
+        if item_type == 'device':
+            # Get device simulation state
+            device_name = item_data.get('name', '')
+            is_simulated = device_name in self.device_manager.simulator_threads
+            
+            # Get logging info
+            data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+            queued_vars = data_logger.get_queued_variables(device_name) if data_logger else []
+            has_active_logs = False
+            if data_logger:
+                for filepath, log_info in data_logger.get_active_logs().items():
+                    if device_name in log_info['devices']:
+                        has_active_logs = True
+                        break
+            
+            # Add simulate/stop simulate option
+            if is_simulated:
+                self.context_menu.add_command(label="Stop Simulate", command=lambda: self.stop_simulate_device(device_name))
+            else:
+                self.context_menu.add_command(label="Start Simulate", command=lambda: self.start_simulate_device(device_name))
+            
+            self.context_menu.add_separator()
+            
+            # Add logging options
+            if queued_vars:
+                self.context_menu.add_command(
+                    label=f"Start Logging ({len(queued_vars)} queued vars)...",
+                    command=lambda: self.start_logging_queued_device(device_name)
+                )
+            
+            if has_active_logs:
+                self.context_menu.add_command(
+                    label="Stop All Logging for Device",
+                    command=lambda: self.stop_logging_device(device_name)
+                )
+            
+            if queued_vars or has_active_logs:
+                self.context_menu.add_separator()
+            
+            self.context_menu.add_command(label="Edit Device...", command=self.edit_device)
+            self.context_menu.add_command(label="More Info...", command=self.show_device_info)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Delete Device", command=self.delete_device,
+                                         foreground=theme.ERROR_RED)
+        
+        elif item_type == 'command':
+            command_name = item_data.get('name', '')
+            script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE',
+                             'wait', 'math', 'wait_for', 'comment', 'cycle']
+            is_script_command = command_name in script_commands
+            
+            self.context_menu.add_command(label="Copy Command", command=self.copy_command)
+            self.context_menu.add_command(label="Add to Script", command=self.add_to_script)
+            self.context_menu.add_separator()
+            
+            if not is_script_command:
+                self.context_menu.add_command(label="Edit Command...", command=self.edit_command)
+            
+            self.context_menu.add_command(label="More Info...", command=self.show_more_info)
+            
+            if not is_script_command:
+                self.context_menu.add_separator()
+                self.context_menu.add_command(label="Delete Command", command=self.delete_command,
+                                             foreground=theme.ERROR_RED)
+        
+        elif item_type == 'variable':
+            device_name = item_data.get('device', '')
+            var_name = item_data.get('name', '')
+            
+            # Check if variable is currently being logged or queued
+            data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+            is_logging = data_logger.is_variable_being_logged(device_name, var_name) if data_logger else False
+            is_queued = data_logger.is_variable_queued(device_name, var_name) if data_logger else False
+            
+            self.context_menu.add_command(label="Copy Variable", command=self.copy_variable)
+            self.context_menu.add_command(label="Add to Script", command=self.add_variable_to_script)
+            self.context_menu.add_separator()
+            
+            # Add queue/unqueue option
+            if is_queued:
+                self.context_menu.add_command(
+                    label="Unqueue from Logging",
+                    command=lambda: self.unqueue_variable(device_name, var_name)
+                )
+            else:
+                self.context_menu.add_command(
+                    label="Queue for Logging",
+                    command=lambda: self.queue_variable(device_name, var_name)
+                )
+            
+            # Add logging status if actively logging
+            if is_logging:
+                log_files = data_logger.get_logs_for_variable(device_name, var_name) if data_logger else []
+                log_files_str = ", ".join(log_files) if log_files else "multiple files"
+                self.context_menu.add_command(
+                    label=f"Currently Logging ({log_files_str})",
+                    state='disabled'
+                )
+            
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Edit Variable...", command=self.edit_variable)
+            self.context_menu.add_command(label="More Info...", command=self.show_variable_info)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Delete Variable", command=self.delete_variable,
+                                         foreground=theme.ERROR_RED)
+        
+        elif item_type == 'event':
+            self.context_menu.add_command(label="Copy Event", command=self.copy_event)
+            self.context_menu.add_command(label="Add to Script", command=self.add_event_to_script)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Edit Event...", command=self.edit_event)
+            self.context_menu.add_command(label="More Info...", command=self.show_event_info)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Delete Event", command=self.delete_event,
+                                         foreground=theme.ERROR_RED)
+        
+        elif item_type == 'commands_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Add Command...", 
+                                         command=lambda: self.show_add_command_dialog_for_device(device_name))
+        
+        elif item_type == 'variables_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Add Variable...", 
+                                         command=lambda: self.show_add_variable_dialog_for_device(device_name))
+        
+        elif item_type == 'events_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Add Event...", 
+                                         command=lambda: self.show_add_event_dialog_for_device(device_name))
+        
+        # Show menu
+        if self.context_menu.index('end') is not None:  # If menu has items
+            self.context_menu.post(event.x_root, event.y_root)
     
     def refresh_commands(self):
         """Clears and repopulates the commands text widget."""
@@ -740,9 +1200,6 @@ class CommandReference(ttk.Frame):
                 telemetry_count = len(device_data.get('telemetry_data', {}))
                 events_count = len(device_data.get('events_data', {}))
                 
-                print(f"[DEBUG] Device {device_name}: {commands_count} cmds, {telemetry_count} vars, {events_count} events")
-                print(f"[DEBUG] Device data keys: {list(device_data.keys())}")
-                
                 # Device name in blue
                 device_start = f"{line_num}.0"
                 self.devices_text.insert(tk.END, device_name)
@@ -772,14 +1229,36 @@ class CommandReference(ttk.Frame):
         
         self.devices_text.config(state=tk.DISABLED)
 
-    def get_selected_command(self):
-        """Get command at current cursor position."""
+    def _get_selected_line_num(self):
+        """Get the currently selected line number from text widget."""
         try:
-            cursor_pos = self.text.index(tk.INSERT)
-            line_num = int(cursor_pos.split('.')[0])
-            return self.command_lines.get(line_num)
-        except:
+            # Try to get the selection first
+            try:
+                sel_start = self.text.index(tk.SEL_FIRST)
+                line_num = int(sel_start.split('.')[0])
+                return line_num
+            except tk.TclError:
+                # If no selection, try cursor position
+                try:
+                    sel_start = self.text.index(tk.INSERT)
+                    line_num = int(sel_start.split('.')[0])
+                    return line_num
+                except:
+                    return None
+        except (ValueError, AttributeError):
             return None
+    
+    def get_selected_command(self):
+        """Get command from selected text line."""
+        line_num = self._get_selected_line_num()
+        if not line_num:
+            return None
+        
+        item_data = self.line_items.get(line_num, {})
+        
+        if item_data.get('type') == 'command':
+            return item_data.get('name')
+        return None
 
     def copy_command(self):
         command = self.get_selected_command()
@@ -793,13 +1272,19 @@ class CommandReference(ttk.Frame):
             self.script_editor_widget.insert(tk.INSERT, f"{command} ")
 
     def get_selected_variable(self):
-        """Get variable at current cursor position in variables tab."""
-        try:
-            cursor_pos = self.variables_text.index(tk.INSERT)
-            line_num = int(cursor_pos.split('.')[0])
-            return self.variable_lines.get(line_num)
-        except:
+        """Get variable from selected text line."""
+        line_num = self._get_selected_line_num()
+        if not line_num:
             return None
+        
+        item_data = self.line_items.get(line_num, {})
+        
+        if item_data.get('type') == 'variable':
+            device_name = item_data.get('device')
+            var_name = item_data.get('name')
+            var_data = item_data.get('data')
+            return (device_name, var_name, var_data)
+        return None
     
     def copy_variable(self):
         """Copy full device.variable name to clipboard."""
@@ -818,6 +1303,108 @@ class CommandReference(ttk.Frame):
             full_var_name = f"{device_name}.{param_name}"
             self.script_editor_widget.insert(tk.INSERT, f"{full_var_name} ")
     
+    def queue_variable(self, device_name, var_name):
+        """Queue a variable for logging."""
+        data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+        if data_logger:
+            data_logger.queue_variable(device_name, var_name)
+            self.refresh()  # Refresh to show queued indicator
+    
+    def unqueue_variable(self, device_name, var_name):
+        """Remove a variable from the logging queue."""
+        data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+        if data_logger:
+            data_logger.unqueue_variable(device_name, var_name)
+            self.refresh()  # Refresh to remove queued indicator
+    
+    def start_logging_queued_device(self, device_name):
+        """Start logging all queued variables for a device."""
+        from tkinter import simpledialog, messagebox
+        
+        print(f"[TRACE] start_logging_queued_device called for {device_name}")
+        
+        # Check if device is connected
+        device_state = self.device_manager.get_device_state(device_name)
+        print(f"[TRACE] Device state: {device_state}")
+        if not device_state or not device_state.get('connected'):
+            print(f"[TRACE] Device not connected, showing error")
+            messagebox.showerror(
+                "Device Not Connected",
+                f"Cannot start logging for {device_name}.\n\nThe device is not connected.\n\nPlease connect the device or start its simulator first."
+            )
+            return
+        
+        print(f"[TRACE] Getting data logger")
+        # Get data logger
+        data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+        if not data_logger:
+            messagebox.showerror("Error", "Data logger not available")
+            return
+        
+        print(f"[TRACE] Getting queued variables")
+        # Check if there are queued variables
+        queued = data_logger.get_queued_variables(device_name)
+        print(f"[TRACE] Queued: {queued}")
+        if not queued:
+            messagebox.showinfo("Info", f"No variables queued for {device_name}")
+            return
+        
+        print(f"[TRACE] Prompting for filename")
+        # Prompt for filename
+        filename = simpledialog.askstring(
+            "Start Logging",
+            f"Enter filename for logging {len(queued)} variable(s) from {device_name}:\n(Leave empty for auto-generated name)",
+            initialvalue=""
+        )
+        print(f"[TRACE] User entered filename: {filename}")
+        
+        if filename is None:  # User cancelled
+            print(f"[TRACE] User cancelled")
+            return
+        
+        # If empty, set to None for auto-generation
+        if not filename.strip():
+            filename = None
+        
+        print(f"[TRACE] Calling start_logging_queued")
+        # Start logging
+        try:
+            success, message, actual_filename = data_logger.start_logging_queued(device_name, filename)
+            print(f"[TRACE] start_logging_queued returned: success={success}, message={message}")
+            
+            if success:
+                messagebox.showinfo("Logging Started", message)
+                print(f"[TRACE] Scheduling refresh")
+                # Schedule refresh on main thread after dialog closes
+                self.text.after(100, self.refresh)
+                print(f"[TRACE] Refresh scheduled")
+            else:
+                messagebox.showerror("Error", message)
+        except Exception as e:
+            print(f"[TRACE] Exception caught: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to start logging: {e}")
+    
+    def stop_logging_device(self, device_name):
+        """Stop all logging for a device."""
+        from tkinter import messagebox
+        
+        # Get data logger
+        data_logger = self.device_manager.shared_gui_refs.get('data_logger')
+        if not data_logger:
+            messagebox.showerror("Error", "Data logger not available")
+            return
+        
+        # Stop logging
+        success, message = data_logger.stop_logging_device(device_name)
+        
+        if success:
+            messagebox.showinfo("Logging Stopped", message)
+            self.refresh()  # Refresh to remove logging indicator
+        else:
+            messagebox.showerror("Error", message)
+    
     def show_commands_context_menu(self, event):
         # Set cursor to click position
         self.commands_text.mark_set(tk.INSERT, f"@{event.x},{event.y}")
@@ -830,7 +1417,6 @@ class CommandReference(ttk.Frame):
             script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE', 
                              'wait', 'math', 'wait_for', 'comment', 'cycle']
             is_script_command = command in script_commands
-            print(f"[DEBUG] Context menu for command: {command}, is_script_command: {is_script_command}")
             
             # Add common options
             self.commands_context_menu.add_command(label="Copy Command", command=self.copy_command)
@@ -1237,13 +1823,16 @@ class CommandReference(ttk.Frame):
     # ===== EVENT METHODS =====
     
     def get_selected_event(self):
-        """Get event at current cursor position in events tab."""
-        try:
-            cursor_pos = self.events_text.index(tk.INSERT)
-            line_num = int(cursor_pos.split('.')[0])
-            return self.event_lines.get(line_num)
-        except Exception:
+        """Get event from selected text line."""
+        line_num = self._get_selected_line_num()
+        if not line_num:
             return None
+        
+        item_data = self.line_items.get(line_num, {})
+        
+        if item_data.get('type') == 'event':
+            return item_data.get('name')
+        return None
 
     def copy_event(self):
         """Copy selected event to clipboard."""
@@ -1619,7 +2208,7 @@ class CommandReference(ttk.Frame):
     
     def show_add_command_dialog(self):
         """Show dialog to add a new command."""
-        AddCommandDialog(self, self.device_manager, on_save=lambda: self.refresh_commands())
+        AddCommandDialog(self, self.device_manager, on_save=lambda: self.refresh())
     
     def edit_command(self):
         """Show dialog to edit the selected command."""
@@ -1640,29 +2229,57 @@ class CommandReference(ttk.Frame):
         cmd_details = self.scripting_commands.get(command)
         if cmd_details:
             AddCommandDialog(self, self.device_manager, 
-                           on_save=lambda: self.refresh_commands(),
+                           on_save=lambda: self.refresh(),
                            edit_mode=True,
                            command_name=command,
                            command_data=cmd_details)
     
     def show_add_variable_dialog(self):
         """Show dialog to add a new variable."""
-        AddVariableDialog(self, self.device_manager, on_save=lambda: self.refresh_variables())
+        AddVariableDialog(self, self.device_manager, on_save=lambda: self.refresh())
     
     def show_add_event_dialog(self):
         """Show dialog to add a new event."""
-        AddEventDialog(self, self.device_manager, on_save=lambda: self.refresh_events())
+        AddEventDialog(self, self.device_manager, on_save=lambda: self.refresh())
     
     # ===== DEVICE METHODS =====
     
     def get_selected_device(self):
-        """Get device at current cursor position in devices tab."""
-        try:
-            cursor_pos = self.devices_text.index(tk.INSERT)
-            line_num = int(cursor_pos.split('.')[0])
-            return self.device_lines.get(line_num)
-        except Exception:
+        """Get device from selected text line."""
+        line_num = self._get_selected_line_num()
+        if not line_num:
             return None
+        
+        item_data = self.line_items.get(line_num, {})
+        
+        if item_data.get('type') == 'device':
+            return item_data.get('name')
+        return None
+    
+    def start_simulate_device(self, device_name):
+        """Start the simulator for a specific device."""
+        self.device_manager.start_simulator(device_name)
+        # Refresh after a delay to let discovery complete
+        self.after(1000, self.refresh)
+    
+    def stop_simulate_device(self, device_name):
+        """Stop the simulator for a specific device."""
+        self.device_manager.stop_simulator(device_name)
+        # Refresh after a delay to let disconnection be detected
+        self.after(3500, self.refresh)
+    
+    def show_add_command_dialog_for_device(self, device_name):
+        """Show add command dialog pre-selected to a specific device."""
+        # TODO: Update AddCommandDialog to accept a default device parameter
+        self.show_add_command_dialog()
+    
+    def show_add_variable_dialog_for_device(self, device_name):
+        """Show add variable dialog pre-selected to a specific device."""
+        self.show_add_variable_dialog()
+    
+    def show_add_event_dialog_for_device(self, device_name):
+        """Show add event dialog pre-selected to a specific device."""
+        self.show_add_event_dialog()
     
     def show_devices_context_menu(self, event):
         # Set cursor to click position
@@ -1774,11 +2391,12 @@ class CommandReference(ttk.Frame):
             
             if os.path.exists(device_path):
                 shutil.rmtree(device_path)
-                messagebox.showinfo("Success", f"Device '{device_name}' deleted successfully!")
                 
                 # Rediscover devices to pick up the deletion
                 self.device_manager.discover_devices()
-                self.refresh()
+                
+                # Refresh UI after a short delay to ensure file system operations complete
+                self.after(100, self.refresh)
             else:
                 messagebox.showerror("Error", f"Device folder not found: {device_path}")
         
@@ -1842,7 +2460,7 @@ class CommandReference(ttk.Frame):
                 
                 # Reload device data and refresh
                 self.device_manager.reload_device_modules()
-                self.refresh_commands()
+                self.refresh()
             else:
                 messagebox.showerror("Error", f"Command '{cmd_name}' not found in JSON.")
                 
@@ -1860,7 +2478,7 @@ class CommandReference(ttk.Frame):
         
         # Open edit dialog
         AddVariableDialog(self, self.device_manager, 
-                         on_save=lambda: self.refresh_variables(),
+                         on_save=lambda: self.refresh(),
                          edit_mode=True,
                          variable_name=full_var_name,
                          variable_data=param_details,
@@ -1910,7 +2528,7 @@ class CommandReference(ttk.Frame):
                 
                 # Reload device data and refresh
                 self.device_manager.reload_device_modules()
-                self.refresh_variables()
+                self.refresh()
             else:
                 messagebox.showerror("Error", f"Variable '{param_name}' not found in JSON.")
                 
@@ -1936,7 +2554,7 @@ class CommandReference(ttk.Frame):
         
         # Open edit dialog
         AddEventDialog(self, self.device_manager, 
-                      on_save=lambda: self.refresh_events(),
+                      on_save=lambda: self.refresh(),
                       edit_mode=True,
                       event_name=event_name,
                       event_data=event_details,
@@ -1991,7 +2609,7 @@ class CommandReference(ttk.Frame):
                 
                 # Reload device data and refresh
                 self.device_manager.reload_device_modules()
-                self.refresh_events()
+                self.refresh()
             else:
                 messagebox.showerror("Error", f"Event '{evt_name}' not found in JSON.")
                 
@@ -3485,9 +4103,6 @@ def create_device_panel(parent, device_manager):
 '''
                 with open(gui_path, 'w') as f:
                     f.write(gui_template)
-            
-            action = "updated" if self.edit_mode else "created"
-            messagebox.showinfo("Success", f"Device '{device_name}' {action} successfully!")
             
             # Always rediscover devices to pick up new/renamed devices
             self.device_manager.discover_devices()

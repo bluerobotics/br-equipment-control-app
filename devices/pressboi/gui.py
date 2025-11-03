@@ -97,7 +97,7 @@ def create_device_frame(parent, title, state_var, conn_var):
     title_label.pack(side=tk.LEFT, padx=(0, 5))
     ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
     ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
-    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 14, "bold"), style='Subtle.TLabel')
+    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 12, "bold"), style='Subtle.TLabel')
     state_label.pack(side=tk.RIGHT)
     state_label.tracer = make_state_tracer(state_var, state_label)
     state_var.trace_add('write', state_label.tracer)

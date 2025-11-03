@@ -109,7 +109,9 @@ def send_to_device(device_key, msg, gui_refs):
                 log_to_terminal(f"Error sending to {device_key}: {e}", gui_refs)
 
     elif "DISCOVER" not in msg:
-        log_to_terminal(f"Cannot send to {device_key}: IP unknown.", gui_refs)
+        # Only log if it's not an ABORT or CLEAR_ERRORS command (which are sent to all devices)
+        if msg not in ["ABORT", "CLEAR_ERRORS"]:
+            log_to_terminal(f"Cannot send to {device_key}: IP unknown.", gui_refs)
 
 
 def monitor_connections(gui_refs, device_manager):
@@ -200,7 +202,7 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
 
     if is_new_connection:
         status_text = f"{device_key.capitalize()} ({source_ip})"
-        log_to_terminal(status_text, gui_refs)
+        log_to_terminal(f"{device_key.capitalize()} connected ({source_ip})", gui_refs)
         
         status_var = gui_refs.get(f'status_var_{device_key}')
         if gui_queue and status_var:
@@ -238,28 +240,41 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
     """
     Dynamically parses a telemetry string based on a provided schema.
     Supports enum mapping, numeric formatting with precision and units.
+    Returns a dictionary of parsed telemetry values (key -> raw_value).
     """
+    parsed_data = {}
     try:
         # Extract the key-value payload from the message
         prefix = f"{device_name.upper()}_TELEM:"
         
         # Case-insensitive check and split
         if prefix.lower() not in msg.lower():
-            return
+            return parsed_data
         
         payload_start = msg.lower().find(prefix.lower()) + len(prefix)
         payload = msg[payload_start:].strip()
-        parts = dict(item.split(':', 1) for item in payload.split(',') if ':' in item)
+        
+        # Support both formats: key:value,key:value and key=value;key=value
+        if ';' in payload and '=' in payload:
+            # New format: key=value;key=value
+            parts = dict(item.split('=', 1) for item in payload.split(';') if '=' in item)
+        else:
+            # Legacy format: key:value,key:value
+            parts = dict(item.split(':', 1) for item in payload.split(',') if ':' in item)
 
         # Process each key-value pair from the message
         for key, value in parts.items():
             key_match = key.strip()
             if key_match in schema:
                 details = schema[key_match]
-                gui_var_name = details.get('gui_var')
+                # Auto-generate gui_var if not provided: device_key_var
+                gui_var_name = details.get('gui_var', f"{device_name}_{key_match}_var")
 
                 if gui_var_name:
                     formatted_value = value.strip()
+                    
+                    # Store raw value for callbacks
+                    parsed_data[key_match] = formatted_value
                     
                     # First, check for enum mapping at top level
                     if 'map' in details:
@@ -320,6 +335,8 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
         log_func = gui_refs.get('log_func')
         if log_func:
             log_func(f"{device_name.capitalize()} telem parse error: {e}, msg: {msg}")
+    
+    return parsed_data
 
 
 # --- Main Receive Loop ---
@@ -376,12 +393,18 @@ def recv_loop(gui_refs, device_manager):
                         parser_module = device_info.get('parser')
                         telemetry_data = device_info.get('telemetry_data', {})
                         
+                        parsed_data = {}
                         if parser_module and hasattr(parser_module, 'parse_telemetry'):
                             # The schema is now passed to the parser
                             parser_module.parse_telemetry(msg, telemetry_data, gui_refs, queue_ui_update, safe_float)
+                            # Note: Custom parsers don't return parsed_data, so callbacks won't be notified
                         else:
                             # Fallback to dynamic parsing if no specific parser
-                            parse_dynamic_telemetry(msg, device_key, telemetry_data, gui_refs, queue_ui_update, safe_float)
+                            parsed_data = parse_dynamic_telemetry(msg, device_key, telemetry_data, gui_refs, queue_ui_update, safe_float)
+                        
+                        # Notify telemetry callbacks (e.g., for data logging)
+                        if parsed_data:
+                            device_manager.notify_telemetry_callbacks(device_key, parsed_data)
                     else:
                         log_to_terminal(f"[UNHANDLED @{source_ip}]: {msg}", gui_refs)
                 except Exception as e:

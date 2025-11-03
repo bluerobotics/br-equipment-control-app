@@ -3,6 +3,7 @@ import threading
 import queue
 import tkinter as tk  # For TclError and StringVar
 import re
+import shlex
 
 # --- Built-in Script Commands ---
 # These are commands handled directly by the ScriptRunner, not sent to devices.
@@ -37,6 +38,39 @@ SCRIPT_COMMANDS = {
         }],
         "handler": "_handle_cycle_start",
         "device": "script"
+    },
+    "start_logging": {
+        "description": "Starts logging queued variables from specified devices to a CSV file. Use <date> and <time> tags for timestamps (e.g., start_logging '<date>-<time> data.csv' fillhead gantry).",
+        "params": [
+            {"parameter": "filename", "type": "string"},
+            {"parameter": "devices", "type": "string", "variadic": True}
+        ],
+        "handler": "_handle_start_logging",
+        "device": "script"
+    },
+    "stop_logging": {
+        "description": "Stops logging. Specify filename to stop specific log, or leave empty to stop all.",
+        "params": [
+            {"parameter": "filename", "type": "string", "optional": True}
+        ],
+        "handler": "_handle_stop_logging",
+        "device": "script"
+    },
+    "queue_for_logging": {
+        "description": "Queues variables for logging (e.g., queue_for_logging fillhead.temp_c gantry.x_pos).",
+        "params": [
+            {"parameter": "variables", "type": "string", "variadic": True}
+        ],
+        "handler": "_handle_queue_for_logging",
+        "device": "script"
+    },
+    "unqueue_for_logging": {
+        "description": "Removes variables from the logging queue (e.g., unqueue_for_logging fillhead.temp_c).",
+        "params": [
+            {"parameter": "variables", "type": "string", "variadic": True}
+        ],
+        "handler": "_handle_unqueue_for_logging",
+        "device": "script"
     }
 }
 
@@ -62,12 +96,142 @@ class ScriptRunner(threading.Thread):
         self.runtime_defaults = {}
         # To map expanded lines back to original source lines
         try:
-            expanded_content, self.line_map = self._expand_loops(script_content, line_offset)
+            # First collapse logging blocks, then expand loops
+            collapsed_content, collapse_line_map = self._collapse_logging_blocks(script_content, line_offset)
+            expanded_content, expand_line_map = self._expand_loops(collapsed_content, 0)  # Use 0 offset since collapse_line_map already has it
+            
+            # Combine the two maps: expanded line -> collapsed line -> original line
+            self.line_map = {}
+            for exp_idx, collapsed_line_num in expand_line_map.items():
+                # collapsed_line_num is 1-based in the collapsed content
+                # collapse_line_map maps 0-based collapsed indices to original line numbers
+                collapsed_idx = collapsed_line_num - 1
+                original_line = collapse_line_map.get(collapsed_idx, collapsed_line_num + line_offset)
+                self.line_map[exp_idx] = original_line
+            
             self.script_lines = expanded_content
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.script_lines = [f"Error processing script: {e}"]
             self.line_map = {0: 1 + line_offset}
 
+    def _get_indent_level(self, line):
+        """Get indentation level, handling both spaces and tabs."""
+        # Convert tabs to 4 spaces for consistent indentation handling
+        expanded = line.expandtabs(4)
+        return len(expanded) - len(expanded.lstrip(' '))
+    
+    def _collapse_logging_blocks(self, content, line_offset=0):
+        """
+        Collapses indented blocks for logging commands into single-line commands.
+        Returns (collapsed_content, line_map) where line_map maps collapsed line index to original line number.
+        
+        For example:
+            queue_for_logging
+                fillhead.temp_c
+                fillhead.heater_setpoint
+        
+        Becomes:
+            queue_for_logging fillhead.temp_c fillhead.heater_setpoint
+        """
+        lines = content.splitlines()
+        result_lines = []
+        line_map = {}  # Maps collapsed line index (0-based) to original line number (1-based with offset)
+        i = 0
+        
+        # Commands that support indented blocks
+        block_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+        
+        while i < len(lines):
+            line = lines[i]
+            line_stripped = line.strip()
+            
+            # Keep comments and empty lines as-is
+            if not line_stripped or line_stripped.startswith('#'):
+                line_map[len(result_lines)] = i + 1 + line_offset  # Map collapsed index to original line number
+                result_lines.append(line)
+                i += 1
+                continue
+            
+            # Check if this is a block command
+            try:
+                parts = shlex.split(line_stripped)
+            except ValueError:
+                parts = line_stripped.split()
+            
+            command_word = parts[0].lower() if parts else ''
+            
+            if command_word in block_commands:
+                # Get base indentation of the command line (handle tabs and spaces)
+                base_indent = self._get_indent_level(line)
+                
+                # Look ahead to see if next non-empty, non-comment line is indented
+                j = i + 1
+                has_block = False
+                
+                while j < len(lines):
+                    peek_line = lines[j]
+                    peek_stripped = peek_line.strip()
+                    
+                    # Skip empty lines and comments
+                    if not peek_stripped or peek_stripped.startswith('#'):
+                        j += 1
+                        continue
+                    
+                    # Check if this line is indented (handle tabs and spaces)
+                    peek_indent = self._get_indent_level(peek_line)
+                    if peek_indent > base_indent:
+                        has_block = True
+                    break
+                
+                if has_block:
+                    # Collect all indented lines
+                    collected_args = []
+                    
+                    # Add any args from the command line itself (e.g., filename in start_logging)
+                    if len(parts) > 1:
+                        collected_args.extend(parts[1:])
+                    
+                    # Collect indented block
+                    j = i + 1
+                    
+                    while j < len(lines):
+                        block_line = lines[j]
+                        block_stripped = block_line.strip()
+                        
+                        # Skip empty lines and comments
+                        if not block_stripped or block_stripped.startswith('#'):
+                            j += 1
+                            continue
+                        
+                        # Handle tabs and spaces for indentation
+                        block_line_indent = self._get_indent_level(block_line)
+                        
+                        # Stop if we hit a non-indented line
+                        if block_line_indent <= base_indent:
+                            break
+                        
+                        # Add this line's content to args
+                        collected_args.append(block_stripped)
+                        j += 1
+                    
+                    # Create collapsed line
+                    collapsed_line = f"{' ' * base_indent}{command_word} {' '.join(collected_args)}"
+                    line_map[len(result_lines)] = i + 1 + line_offset  # Map to the command line (start of block)
+                    result_lines.append(collapsed_line)
+                    
+                    # Skip the processed block
+                    i = j
+                    continue
+            
+            # Not a block command or no indented block - keep line as-is
+            line_map[len(result_lines)] = i + 1 + line_offset  # Map collapsed index to original line number
+            result_lines.append(line)
+            i += 1
+        
+        return '\n'.join(result_lines), line_map
+    
     def _expand_loops(self, content, start_offset):
         lines_with_nums = [(line, i + 1 + start_offset) for i, line in enumerate(content.splitlines())]
 
@@ -144,10 +308,64 @@ class ScriptRunner(threading.Thread):
         """Signals the script execution thread to stop."""
         self._stop_event.set()
         self.is_running = False
+    
+    def _get_required_devices(self):
+        """
+        Scans the script to identify which devices are referenced.
+        Returns a set of device names that need to be connected.
+        """
+        required_devices = set()
+        
+        # Get list of all known devices from device_manager
+        device_manager = self.gui_refs.get('device_manager')
+        known_devices = set()
+        if device_manager:
+            known_devices = set(device_manager.device_state.keys())
+        
+        for line in self.script_lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            # Use shlex to properly parse the line
+            try:
+                parts = shlex.split(line)
+            except ValueError:
+                parts = line.split()
+            
+            if not parts:
+                continue
+            
+            command_word = parts[0].lower()
+            
+            # Check all parts for device.variable or device.event patterns
+            for part in parts:
+                if '.' in part:
+                    # This might be a device.variable or device.event reference
+                    device_name = part.split('.')[0].lower()
+                    # Only add if it's a known device
+                    if device_name in known_devices:
+                        required_devices.add(device_name)
+            
+            # Check if command is device-specific
+            command_info = self.scripting_commands.get(command_word)
+            if not command_info:
+                # Try case-insensitive lookup
+                for cmd_key in self.scripting_commands:
+                    if cmd_key.lower() == command_word.lower():
+                        command_info = self.scripting_commands[cmd_key]
+                        break
+            
+            if command_info:
+                device = command_info.get('device')
+                # If device is not 'script' or 'both', it's a device-specific command
+                if device and device not in ['script', 'both']:
+                    required_devices.add(device)
+        
+        return required_devices
 
     def run(self):
         """The main execution loop for the script thread."""
-        print("[DEBUG] ScriptRunner.run() started.")
         self.is_running = True
         
         # Clear any stale messages from the queue before starting
@@ -159,16 +377,48 @@ class ScriptRunner(threading.Thread):
             except queue.Empty:
                 break
         if cleared_count > 0:
-            print(f"[DEBUG] Cleared {cleared_count} stale messages from queue.")
+            pass  # Cleared stale messages
 
         # Clear the injection target display at the beginning of the script
         if self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
+        
+        # Pre-flight check: verify required devices are connected
+        required_devices = self._get_required_devices()
+        if required_devices:
+            device_manager = self.gui_refs.get('device_manager')
+            if device_manager:
+                disconnected = []
+                for device_name in required_devices:
+                    device_state = device_manager.get_device_state(device_name)
+                    if not device_state or not device_state.get('connected'):
+                        disconnected.append(device_name)
+                
+                if disconnected:
+                    error_msg = f"Cannot run script: The following devices are not connected: {', '.join(disconnected)}"
+                    self.status_cb(error_msg, -1)
+                    
+                    # Show error dialog to user
+                    import tkinter.messagebox as messagebox
+                    root = self.gui_refs.get('root')
+                    if root:
+                        root.after(0, lambda: messagebox.showerror(
+                            "Devices Not Connected",
+                            f"Cannot run script.\n\nThe following devices are not connected:\n\n{', '.join(disconnected)}\n\nPlease connect the devices or start their simulators before running the script."
+                        ))
+                    
+                    self.is_running = False
+                    if self.completion_cb:
+                        try:
+                            self.completion_cb()
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                    return
 
         for i, line in enumerate(self.script_lines):
             if self._stop_event.is_set():
                 self.status_cb("Script stopped by user.", -1)
-                print("[DEBUG] ScriptRunner stop event detected.")
                 break
 
             original_line_num = self.line_map.get(i, i + self.line_offset + 1)
@@ -179,29 +429,78 @@ class ScriptRunner(threading.Thread):
                 continue
 
             try:
-                print(f"[DEBUG] Processing line {original_line_num}: '{line}'")
                 # Pass the correct, current line number to the processing method
                 if not self._process_line(line, original_line_num):
-                    print(f"[DEBUG] _process_line returned False for line {original_line_num}. Halting.")
                     # Stop execution if _process_line returns False
                     break
+                else:
+                    pass  # Line executed successfully, continue
             except Exception as e:
                 error_msg = f"Runtime Error on line {original_line_num}: {e}"
                 self.status_cb(error_msg, original_line_num)
-                print(f"[DEBUG] Exception during _process_line: {e}")
+                import traceback
+                traceback.print_exc()
                 # Halt execution on error
                 break
         
         self.is_running = False
-        print("[DEBUG] ScriptRunner.run() finished.")
         # Always call the completion callback when the loop finishes for any reason.
         if self.completion_cb:
-            print("[DEBUG] Calling completion_cb.")
             self.completion_cb()
 
         # Clear the injection target display at the end of the script
         if self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
+    
+    def _parse_positional_args(self, parts, command_info):
+        """
+        Parses command arguments from parts list.
+        Returns (resolved_params_dict, error_message).
+        """
+        try:
+            param_words = parts[1:]  # Skip command word
+            params_def = command_info.get('params', [])
+            resolved_params = {}
+            
+            # Handle variadic parameters
+            has_variadic = any(p.get('variadic', False) for p in params_def)
+            
+            if has_variadic:
+                # For variadic commands, collect all remaining args
+                param_index = 0
+                for param_def in params_def:
+                    param_name = param_def.get('parameter', param_def.get('name', f'param{param_index}'))
+                    
+                    if param_def.get('variadic', False):
+                        # Collect all remaining words as a space-separated string
+                        if param_index < len(param_words):
+                            resolved_params[param_name] = ' '.join(param_words[param_index:])
+                        else:
+                            resolved_params[param_name] = ''
+                        break
+                    else:
+                        # Regular parameter
+                        if param_index < len(param_words):
+                            resolved_params[param_name] = param_words[param_index]
+                        elif not param_def.get('optional', False):
+                            return {}, f"Missing required parameter '{param_name}'"
+                        param_index += 1
+            else:
+                # Non-variadic: use the old resolution logic
+                resolved_params = self._resolve_params(param_words, command_info)
+            
+            return resolved_params, None
+            
+        except Exception as e:
+            return {}, str(e)
+    
+    def _is_numeric(self, value):
+        """Check if a value is numeric."""
+        try:
+            float(value)
+            return True
+        except (ValueError, TypeError):
+            return False
     
     def _resolve_params(self, param_words, command_info):
         """
@@ -257,15 +556,24 @@ class ScriptRunner(threading.Thread):
             duration_str = resolved_params.get('time', '0')
             duration_s = float(duration_str.split()[0]) # Handle cases like "1 sec"
             
-            self.status_cb(f"Waiting for {duration_s} seconds...", line_num)
-            
             start_time = time.time()
+            last_update = 0
+            
             while time.time() - start_time < duration_s:
                 if self._stop_event.is_set():
                     self.status_cb("Wait cancelled.", line_num)
                     return "stop"
-                time.sleep(0.05) # Sleep in small intervals to remain responsive
                 
+                # Update countdown display every 0.1 seconds
+                elapsed = time.time() - start_time
+                remaining = duration_s - elapsed
+                if elapsed - last_update >= 0.1 or remaining <= 0:
+                    self.status_cb(f"Waiting... {remaining:.1f}s remaining", line_num)
+                    last_update = elapsed
+                
+                time.sleep(0.05) # Sleep in small intervals to remain responsive
+            
+            self.status_cb(f"Wait complete ({duration_s}s)", line_num)
             return "continue"
         except (ValueError, IndexError) as e:
             self.status_cb(f"Error in wait command: Invalid time value '{resolved_params.get('time', '')}'. {e}", line_num)
@@ -374,6 +682,201 @@ class ScriptRunner(threading.Thread):
         except Exception as e:
             self.status_cb(f"Error in wait_for command: {e}", line_num)
             return "error"
+    
+    def _handle_start_logging(self, command_info, resolved_params, line_num):
+        """Handler for the 'start_logging' command - starts logging queued variables from devices to a CSV file."""
+        try:
+            # Get the data logger from shared_gui_refs
+            data_logger = self.gui_refs.get('data_logger')
+            if not data_logger:
+                self.status_cb(f"Error: Data logger not available", line_num)
+                return "error"
+            
+            filename = resolved_params.get('filename')
+            devices_str = resolved_params.get('devices', '')
+            
+            
+            # Parse device names
+            if isinstance(devices_str, str):
+                device_names = devices_str.split()
+            elif isinstance(devices_str, list):
+                device_names = devices_str
+            else:
+                device_names = []
+            
+            
+            if not filename:
+                self.status_cb(f"Error: Filename is required for start_logging", line_num)
+                return "error"
+            
+            if not device_names:
+                self.status_cb(f"Error: No devices specified for logging", line_num)
+                return "error"
+            
+            # Collect all queued variables from specified devices
+            all_variables = []
+            for device_name in device_names:
+                queued_vars = data_logger.get_queued_variables(device_name)
+                if queued_vars:
+                    # Add full variable names (device.variable)
+                    all_variables.extend([f"{device_name}.{var}" for var in queued_vars])
+            
+            
+            if not all_variables:
+                self.status_cb(f"Error: No queued variables found for specified devices: {', '.join(device_names)}", line_num)
+                return "error"
+            
+            # Start logging all collected variables
+            success, message, actual_filename = data_logger.start_logging(filename, all_variables)
+            
+            if success:
+                self.status_cb(f"Started logging {len(all_variables)} variable(s): {message}", line_num)
+                return "continue"
+            else:
+                self.status_cb(f"Error starting logging: {message}", line_num)
+                return "error"
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_cb(f"Error in start_logging command: {e}", line_num)
+            return "error"
+    
+    def _handle_stop_logging(self, command_info, resolved_params, line_num):
+        """Handler for the 'stop_logging' command - stops logging to specified file or all files."""
+        try:
+            # Get the data logger from shared_gui_refs
+            data_logger = self.gui_refs.get('data_logger')
+            if not data_logger:
+                self.status_cb(f"Error: Data logger not available", line_num)
+                return "error"
+            
+            filename = resolved_params.get('filename')
+            
+            # Stop logging
+            success, message = data_logger.stop_logging(filename)
+            
+            if success:
+                self.status_cb(f"Stopped logging: {message}", line_num)
+                return "continue"
+            else:
+                self.status_cb(f"Error stopping logging: {message}", line_num)
+                return "error"
+                
+        except Exception as e:
+            self.status_cb(f"Error in stop_logging command: {e}", line_num)
+            return "error"
+    
+    def _handle_queue_for_logging(self, command_info, resolved_params, line_num):
+        """Handler for the 'queue_for_logging' command - queues variables for logging."""
+        try:
+            # Get the data logger from shared_gui_refs
+            data_logger = self.gui_refs.get('data_logger')
+            if not data_logger:
+                self.status_cb(f"Error: Data logger not available", line_num)
+                return "error"
+            
+            variables_str = resolved_params.get('variables', '')
+            
+            # Parse variables
+            if isinstance(variables_str, str):
+                variables = variables_str.split()
+            elif isinstance(variables_str, list):
+                variables = variables_str
+            else:
+                variables = []
+            
+            
+            if not variables:
+                self.status_cb(f"Error: No variables specified for queueing", line_num)
+                return "error"
+            
+            # Queue each variable
+            queued_count = 0
+            for var in variables:
+                if '.' not in var:
+                    self.status_cb(f"Error: Invalid variable format '{var}'. Use device.variable", line_num)
+                    continue
+                
+                device_name, var_name = var.split('.', 1)
+                data_logger.queue_variable(device_name, var_name)
+                queued_count += 1
+            
+            if queued_count > 0:
+                self.status_cb(f"Queued {queued_count} variable(s) for logging", line_num)
+                
+                # Refresh command reference to show [queued] badges (schedule on main thread)
+                refresh_func = self.gui_refs.get('refresh_commands_ref')
+                if refresh_func:
+                    # Use after_idle to schedule the refresh on the main thread
+                    root = self.gui_refs.get('root')
+                    if root:
+                        root.after_idle(refresh_func)
+                
+                return "continue"
+            else:
+                self.status_cb(f"Error: No valid variables queued", line_num)
+                return "error"
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_cb(f"Error in queue_for_logging command: {e}", line_num)
+            return "error"
+    
+    def _handle_unqueue_for_logging(self, command_info, resolved_params, line_num):
+        """Handler for the 'unqueue_for_logging' command - removes variables from logging queue."""
+        try:
+            # Get the data logger from shared_gui_refs
+            data_logger = self.gui_refs.get('data_logger')
+            if not data_logger:
+                self.status_cb(f"Error: Data logger not available", line_num)
+                return "error"
+            
+            variables_str = resolved_params.get('variables', '')
+            
+            # Parse variables
+            if isinstance(variables_str, str):
+                variables = variables_str.split()
+            elif isinstance(variables_str, list):
+                variables = variables_str
+            else:
+                variables = []
+            
+            if not variables:
+                self.status_cb(f"Error: No variables specified for unqueueing", line_num)
+                return "error"
+            
+            # Unqueue each variable
+            unqueued_count = 0
+            for var in variables:
+                if '.' not in var:
+                    self.status_cb(f"Error: Invalid variable format '{var}'. Use device.variable", line_num)
+                    continue
+                
+                device_name, var_name = var.split('.', 1)
+                data_logger.unqueue_variable(device_name, var_name)
+                unqueued_count += 1
+            
+            if unqueued_count > 0:
+                self.status_cb(f"Unqueued {unqueued_count} variable(s)", line_num)
+                
+                # Refresh command reference to hide [queued] badges (schedule on main thread)
+                refresh_func = self.gui_refs.get('refresh_commands_ref')
+                if refresh_func:
+                    # Use after_idle to schedule the refresh on the main thread
+                    root = self.gui_refs.get('root')
+                    if root:
+                        root.after_idle(refresh_func)
+                
+                return "continue"
+            else:
+                self.status_cb(f"Error: No valid variables unqueued", line_num)
+                return "error"
+                
+        except Exception as e:
+            self.status_cb(f"Error in unqueue_for_logging command: {e}", line_num)
+            return "error"
 
     def _process_line(self, line, line_num):
         sub_commands = line.split(',')
@@ -384,7 +887,14 @@ class ScriptRunner(threading.Thread):
             sub_cmd_str = sub_cmd_str.strip()
             if not sub_cmd_str: continue
 
-            parts = sub_cmd_str.split()
+            # Use shlex to properly handle quoted strings
+            try:
+                parts = shlex.split(sub_cmd_str)
+            except ValueError:
+                # If shlex fails (e.g., unclosed quotes), fall back to simple split
+                parts = sub_cmd_str.split()
+            
+            if not parts: continue
             command_word = parts[0]
             
             # Try exact match first, then case-insensitive
@@ -418,8 +928,9 @@ class ScriptRunner(threading.Thread):
                 # For now, we will adapt by creating a positional list.
                 pos_args = []
                 for param_def in command_info.get('params', []):
-                    if param_def['name'] in resolved_params:
-                        pos_args.append(resolved_params[param_def['name']])
+                    param_name = param_def.get('parameter', param_def.get('name', ''))
+                    if param_name and param_name in resolved_params:
+                        pos_args.append(resolved_params[param_name])
                 
                 if not handler(self, pos_args, line_num): return False
             
@@ -433,6 +944,26 @@ class ScriptRunner(threading.Thread):
                         return False
                 elif cmd_lower == "wait_for":
                     result = self._handle_wait_for(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "start_logging":
+                    result = self._handle_start_logging(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "stop_logging":
+                    result = self._handle_stop_logging(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "queue_for_logging":
+                    result = self._handle_queue_for_logging(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "unqueue_for_logging":
+                    result = self._handle_unqueue_for_logging(command_info, resolved_params, line_num)
                     if result == "error" or result == "stop":
                         self.is_running = False
                         return False
@@ -466,14 +997,14 @@ class ScriptRunner(threading.Thread):
                 final_command_str = f"{command_word} {' '.join(final_args)}" if final_args else command_word
                 send_func = self.command_funcs.get(f"send_{device}")
                 if send_func:
-                    print(f"[DEBUG] Sending command to {device}: '{final_command_str}'")
                     send_func(final_command_str)
                     if command_info.get("wait_for_done", True): # Assume wait unless specified otherwise
                         commands_to_wait_for.append(command_word)
 
             time.sleep(0.05)
 
-        if not self.is_running: return False
+        if not self.is_running: 
+            return False
         if commands_to_wait_for:
             if not self._wait_for_done_messages(commands_to_wait_for, line_num):
                 self.is_running = False

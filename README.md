@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-This application is a desktop program for controlling and scripting multiple pieces of hardware, referred to as "devices". Its main purpose is to provide a single, centralized user interface for running automated scripts that can command several different devices in sequence.
+This application is a desktop program for controlling and scripting multiple pieces of hardware, referred to as "devices". Its main purpose is to provide a single, centralized user interface for running automated scripts that can command several different devices in sequence, with built-in data logging capabilities.
 
 <p align="center">
   <img src="assets/app.png" alt="App Screenshot" width="800">
@@ -20,200 +20,310 @@ The system is designed to be modular. You can add new devices to the application
 
 ---
 
-## 2. Core Features
+## 2. Features
 
-- **Runtime Device Loading**: You can add new device folders to the `/devices` directory while the application is running. Using the "Scan for New Device Modules" menu option will load the new device, its commands, and its UI without needing a restart.
-- **Text-Based Scripting**: Scripts are simple text files. The application includes a script editor with syntax highlighting for device-specific commands.
-- **Script Validation**: Before a script is run, the application validates its syntax against the known commands for all loaded devices. This helps catch typos and errors before they cause problems during execution.
-- **Dynamic UI Panels**: Each device has its own status panel in the UI. The content of this panel is defined by the device's own configuration and is created automatically when the device is loaded.
-- **Device Simulator**: A separate simulator script is included for development and testing. It can simulate multiple devices on the local network, allowing for script testing without physical hardware.
+- Text-based scripting with syntax highlighting and validation
+- Step-through execution mode for debugging
+- CSV data logging with millisecond timestamps
+- Queue variables for logging via UI or script commands
+- Built-in device simulator for testing without hardware
+- Runtime device module loading without application restart
+- C++ code generation for embedded command parsers
+- Auto-recovery of unsaved scripts
 
 ---
 
 ## 3. System Architecture
 
-The application's design separates the core logic from device-specific implementations, so the main application doesn't need to know the details of any particular device.
+The application separates core logic from device-specific implementations.
 
-### 3.1. Threading Model Explained
+### 3.1. Threading Model
 
-The application runs on several threads to separate tasks and keep the UI responsive:
+1.  **Main Thread**: Tkinter UI event loop. Background threads queue UI updates for processing on this thread.
 
-1.  **Main UI Thread**: This is the primary thread that runs the Tkinter event loop. It handles all window drawing, user input, and button clicks. Any change to the UI (like updating a label's text) must happen on this thread. To achieve this, background threads place UI update tasks onto a central `queue.Queue`, which the main thread processes periodically.
-2.  **Communication Threads**: These are background "daemon" threads that handle all network traffic.
-    - **`recv_loop`**: This thread's only job is to listen for incoming UDP packets. When a packet arrives, it identifies the message type (telemetry, status, discovery response) and the source device. It then passes the message to the appropriate handler.
-    - **`discovery_loop`**: This thread sends a broadcast UDP message (`DISCOVER_DEVICE`) over the network every few seconds. Devices on the network are expected to reply to this message, which is how the application finds their IP addresses.
-    - **`monitor_connections`**: This thread acts as a watchdog. It periodically checks the timestamp of the last message received from each device. If a device has been silent for too long, this thread marks it as "Disconnected" and updates the UI accordingly.
-3.  **Script Execution Thread**: When you click the "Run" button, the `ScriptRunner` class starts a new background thread to execute the script. This allows the UI to remain fully interactive while the script is running, which is especially important for long `WAIT` commands.
+2.  **Communication Threads**:
+    - `recv_loop`: Receives and routes UDP packets
+    - `discovery_loop`: Broadcasts device discovery messages
+    - `monitor_connections`: Marks devices as disconnected on timeout
 
-### 3.2. How the Core Modules Work Together
+3.  **Script Thread**: Executes scripts in the background
 
-#### `main.py` - Core Application
-This is the starting point of the application. The `MainApplication` class is responsible for:
-- Creating the main window and setting up the overall layout.
-- Creating an instance of the `DeviceManager`.
-- Telling the `DeviceManager` to perform its initial scan of the `/devices` directory.
-- Creating the main UI components like the menu bar, the scripting panel, and the terminal.
-- Starting the background threads defined in `comms.py`.
-- Providing functions that can be called later to add new UI panels (`add_new_device_panels`) and refresh the command lists (`refresh_command_components`) when a new device is loaded at runtime.
+4.  **Simulator Threads**: One per simulated device
 
-#### `device_manager.py` - Device Manager
-This module's `DeviceManager` class is the central authority on all things related to devices.
+### 3.2. Core Modules
 
-- **On Startup**: It scans the `/devices` folder and loads all the configuration files and `gui.py` modules it finds. It builds an internal dictionary of all known devices and their properties.
-- **At Runtime**: When the user clicks "Scan for New Device Modules", its `scan_and_load_new_devices()` method is called. This method re-scans the `/devices` folder, identifies any new subdirectories, and loads them in the same way it did at startup.
-- **Source of Truth**: It holds the complete, up-to-date list of all loaded devices, their command definitions, their telemetry schemas, their UI modules, and their current connection status (IP address, etc.). Other parts of the application query the `DeviceManager` to get this information.
+#### `main.py`
+Application entry point. Creates the main window, initializes `DeviceManager` and `DataLogger`, scans `/devices` directory, and starts communication threads.
 
-#### `comms.py` - Network Handler
-This module handles all sending and receiving of UDP packets over the network. The protocol is lightweight and designed for use on a local Ethernet network.
+#### `device_manager.py`
+Loads device modules from `/devices` directory. Maintains registry of commands, telemetry schemas, and connection status. Manages telemetry callbacks for data logger.
 
-- It does not contain any hardcoded device names. When a message like `GANTRY_TELEM:...` arrives, the `recv_loop` function extracts the `gantry` part of the message. It then asks the `DeviceManager`, "Do you know about a device named 'gantry'?" If the `DeviceManager` says yes, `comms.py` proceeds to handle the message. If no, the message is marked as "[UNHANDLED]".
-- This design means that when a new device is loaded by the `DeviceManager`, the `comms.py` module will start recognizing its messages automatically, without needing to be restarted or reconfigured.
+#### `data_logger.py`
+Handles CSV logging. Tracks queued variables, manages log files, and writes telemetry data with timestamps.
 
-#### `scripting_gui.py` & `script_processor.py` - Scripting Engine
-- The UI for the scripting engine is created in `scripting_gui.py`. When it is created, it asks the `DeviceManager` for a list of all commands from all known devices. It uses this list to configure the syntax highlighter and the command reference panel. It also includes `refresh` methods so these components can be updated when new devices are loaded.
-- `script_processor.py` contains the `ScriptRunner` class, which is responsible for executing the script text. It runs in a background thread and sends commands to devices one by one, waiting for a `DONE:` reply before moving to the next line to provide synchronous execution of commands.
+#### `comms.py`
+UDP network communication. Sends/receives device messages, performs device discovery, monitors connection timeouts.
+
+#### `script_processor.py`
+Executes scripts in a background thread. Parses commands, validates device connectivity, handles built-in commands (`wait`, `cycle`, logging commands).
+
+#### `scripting_gui.py`
+Script editor UI with syntax highlighting, line numbers, find/replace, and execution controls.
+
+#### `command_reference.py`
+Interactive panel showing available commands and variables with context menus for logging operations.
+
+#### `script_validator.py`
+Pre-execution validation of script syntax and device availability.
 
 ---
 
-## 4. How to Add a New Device
+## 4. Data Logging
 
-To add a new device, you create a folder inside the `/devices` directory. The name of the folder becomes the device's unique ID (e.g., `test_device`). Inside this folder, you must create the following files:
+### 4.1. Using the UI
 
-### 4.1. `commands.json`
-This file defines all the commands the device accepts in a script.
+1. Right-click variables in the Command Reference and select "Queue for Logging"
+2. Right-click the device and select "Start Logging..."
+3. Stop logging via device context menu or global abort
 
-- **Structure**: A JSON object. Each key in the object is a command name (e.g., `"MOVE_X"`).
-- **Properties for each command**:
-    - `device`: The device's ID (e.g., `"test_device"`). Must match the folder name.
-    - `target`: Either `"device"` (sent to firmware) or `"host"` (handled by application).
-    - `params`: A list of parameters the command takes. Each parameter is an object with `parameter`, `type`, `unit`, etc.
-    - `returns`: List of possible return values (e.g., `["done", "error"]`).
-    - `help` or `description`: A short description of what the command does.
+Variables show `[queued]` (blue) and `[logging]` (yellow) indicators.
 
-**Example `commands.json`:**
+### 4.2. Using Scripts
+
+```
+# Queue variables for logging
+queue_for_logging
+    fillhead.temp_c
+    fillhead.heater_setpoint
+    fillhead.vacuum_psig
+
+queue_for_logging
+    gantry.x_pos
+    gantry.y_pos
+    gantry.z_pos
+
+# Start logging queued variables from both devices to one file
+start_logging "<date>-<time> test_data.csv" fillhead gantry
+
+# Run your test
+wait 60
+
+# Stop all logging
+stop_logging
+```
+
+### 4.3. CSV Format
+
+Files are saved to `logs/` with columns: `date`, `time_ms`, `elapsed_s`, followed by logged variables.
+
+Each device writes values to its columns when it sends telemetry. Other columns remain blank for that row.
+
+Use `<date>` and `<time>` in filenames for automatic timestamps:
+```
+start_logging "<date>-<time> data.csv" fillhead
+```
+
+Collisions are resolved by appending `_1`, `_2`, etc.
+
+---
+
+## 5. Scripting
+
+### 5.1. Built-In Commands
+
+| Command | Example |
+|---------|---------|
+| `wait` | `wait 5` |
+| `wait_for` | `wait_for gantry.x_pos > 100` |
+| `cycle` | `cycle 10` |
+| `queue_for_logging` | `queue_for_logging fillhead.temp_c` |
+| `unqueue_for_logging` | `unqueue_for_logging fillhead.temp_c` |
+| `start_logging` | `start_logging "data.csv" fillhead gantry` |
+| `stop_logging` | `stop_logging` |
+
+### 5.2. Syntax
+
+```
+# Comments start with #
+
+# Device commands
+gantry.home_x
+gantry.move_x 100 1000
+fillhead.set_temp 25.5
+
+# Loops with indented blocks
+cycle 5
+    gantry.move_x 10
+    wait 1
+
+# Logging with indented blocks
+queue_for_logging
+    fillhead.temp_c
+    fillhead.heater_setpoint
+
+start_logging "test.csv" fillhead
+wait 10
+stop_logging
+```
+
+Scripts are validated before execution. Devices must be connected to run.
+
+---
+
+## 6. Adding Devices
+
+Create a folder in `/devices` with the device name. Add these files:
+
+### 6.1. `commands.json`
+Command definitions.
+
+**Example:**
 ```json
 {
   "MOVE_X": {
     "device": "gantry",
+    "target": "device",
     "params": [
-      { "name": "distance", "type": "float" },
-      { "name": "speed", "type": "int" }
+      { "parameter": "distance", "type": "float", "unit": "mm" },
+      { "parameter": "speed", "type": "int", "unit": "mm/s" }
     ],
-    "help": "Moves the gantry X-axis by a relative distance at a specified speed."
+    "returns": ["done", "error"],
+    "description": "Moves the X-axis by a relative distance at specified speed."
   },
   "HOME_X": {
     "device": "gantry",
+    "target": "device",
     "params": [],
-    "help": "Homes the gantry X-axis."
-  },
-  "ENABLE_X": {
-    "device": "gantry",
-    "gui_action": "enable_x",
-    "params": [],
-    "help": "Enables the gantry X-axis motor."
+    "returns": ["done", "error"],
+    "description": "Homes the X-axis to the limit switch."
   }
 }
 ```
 
-### 4.2. `telemetry.json`
-This file tells the application how to interpret telemetry data sent by the device.
+### 6.2. `telemetry.json`
+Telemetry variable definitions.
 
-- **Structure**: A JSON object. Each key is the name of a variable in the telemetry message (e.g., `"pressure_psi"`).
-- **Properties for each variable**:
-    - `gui_var`: The name of the `tk.StringVar` or `tk.DoubleVar` that this value will update in the UI. You will use this same name in your `gui.py` file.
-    - `default`: The value the UI variable should have when the application starts and what it should be reset to if the device disconnects. This is important for a clean user experience.
-    - `format` (Optional): An object that defines how to format the raw value before displaying it.
-        - `map`: Converts a raw value to a string (e.g., `{"0": "Off", "1": "On"}`).
-        - `suffix`: Text to add after the value (e.g., `" mm"`).
-        - `precision`: For numbers, the number of decimal places to show.
-        - `multiplier`: A number to multiply the incoming value by.
-
-**Example `telemetry.json`:**
+**Example:**
 ```json
 {
-  "gantry_state": {
-    "gui_var": "gantry_main_state_var", 
-    "default": "STANDBY"
-  },
-  "x_p": {
+  "x_pos": {
+    "type": "float",
     "gui_var": "gantry_x_pos_var", 
     "default": 0.0,
-    "format": { "precision": 2, "suffix": " mm" }
+    "format": {
+      "precision": 2,
+      "suffix": " mm"
+    }
   },
-  "x_h": {
+  "x_homed": {
+    "type": "int",
     "gui_var": "gantry_x_homed_var", 
     "default": 0,
-    "format": { "map": { "0": "Not Homed", "1": "Homed" } }
+    "format": {
+      "map": { "0": "Not Homed", "1": "Homed" }
+    }
+  },
+  "main_state": {
+    "type": "string",
+    "gui_var": "gantry_state_var",
+    "default": "standby",
+    "format": {
+      "map": {
+        "standby": "Standby",
+        "busy": "Busy",
+        "error": "Error"
+      }
+    }
   }
 }
 ```
 
-### 4.3. `gui.py`
-This Python file contains the code to build the device's UI panel.
+Format options: `precision`, `suffix`, `map`, `multiplier`.
 
-- It must contain a function with the exact signature: `create_gui_components(parent, shared_gui_refs)`.
-- `parent`: This is the Tkinter frame inside the main application where your UI panel will be placed.
-- `shared_gui_refs`: This is a dictionary that your function will use to get access to the `tk.StringVar`s you defined in `telem_schema.json`.
-- Your function should create a `tk.Frame` that contains all the labels, buttons, etc., for your device, and then return that frame.
+### 6.3. `events.json` (Optional)
+Event definitions (emitted by device asynchronously).
 
-**Example `gui.py`:**
+### 6.4. `gui.py`
+UI panel creation.
+
 ```python
 import tkinter as tk
 from tkinter import ttk
 
 def create_gui_components(parent, shared_gui_refs):
-    # Create the main container frame for this device
-    device_panel = ttk.Frame(parent, padding=5)
-
-    # Get the specific StringVar for the pressure reading
-    pressure_var = shared_gui_refs.get("my_device_pressure_var")
-
-    # Create and arrange the widgets
-    ttk.Label(device_panel, text="Pressure:").pack(side=tk.LEFT)
-    ttk.Label(device_panel, textvariable=pressure_var).pack(side=tk.LEFT)
-
-    return device_panel
+    frame = ttk.Frame(parent)
+    
+    x_pos_var = shared_gui_refs.get('gantry_x_pos_var')
+    ttk.Label(frame, text="X Position:").grid(row=0, column=0)
+    ttk.Label(frame, textvariable=x_pos_var).grid(row=0, column=1)
+    
+    return frame
 ```
+
+### 6.5. `script_handlers.py` (Optional)
+Host-side command handlers.
+
+```python
+def my_handler(script_runner, args, line_num):
+    # Execute logic here
+    script_runner.status_cb(f"Result: {args}", line_num)
+    return True  # True to continue, False to halt
+
+HANDLERS = {
+    "my_command": my_handler
+}
+```
+
+In `commands.json`, set `"target": "host"` and `"handler": "my_handler"`.
 
 ---
 
-## 5. Project Setup
+## 7. Setup
 
-1.  **Python Version**: Python 3.10 or newer is recommended.
-2.  **Dependencies**: This project does not have any external dependencies and uses only Python's built-in libraries. A `requirements.txt` file is included to make it easier to add and manage dependencies in the future.
-3.  **To Run**:
+**Requirements:** Python 3.10+, no external dependencies
+
+**Run:**
     ```bash
     python main.py
     ```
 
-For detailed instructions on installation, usage, and scripting, please see the full [documentation](https://your-documentation-link-here.com).
+The app creates a `logs/` directory on first run.
 
-## For Developers: Extending the Application
+---
 
-This application is designed to be easily extendable with new hardware devices. To add a new device, follow these steps:
+## 8. Keyboard Shortcuts
 
-1.  **Create a Device Directory:**
-    *   Inside the `devices/` directory, create a new folder with the name of your device (e.g., `devices/my_new_device/`). This name will be used as the device's unique identifier.
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` | New Script |
+| `Ctrl+O` | Open Script |
+| `Ctrl+S` | Save Script |
+| `Ctrl+Shift+S` | Save As |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` | Redo |
+| `Ctrl+X` | Cut |
+| `Ctrl+C` | Copy |
+| `Ctrl+V` | Paste |
+| `Ctrl+F` | Find |
+| `Ctrl+H` | Replace |
+| `Ctrl+Shift+V` | Validate Script |
 
-2.  **Define Telemetry (`telemetry.json`):**
-    *   Create a `telemetry.json` file in your device's directory.
-    *   This file defines the data your device sends back. Each key in the JSON object corresponds to a piece of telemetry data.
-    *   For each key, you can specify a `gui_var` that the data will be bound to in the application's UI, and a `default` value.
+---
 
-3.  **Define Commands (`commands.json`):**
-    *   Create a `commands.json` file.
-    *   This file defines the scriptable commands your device accepts. Each key is a command name.
-    *   For each command, you must specify the `device` name, `target` (device/host), a list of `params`, `returns`, and a `help` string.
+## 9. Troubleshooting
 
-4.  **Create the GUI (`gui.py`):**
-    *   Create a `gui.py` file.
-    *   This module is responsible for creating the device's status panel in the main application window.
-    *   It must contain a `create_gui_components(parent, shared_gui_refs)` function that builds and returns the main Tkinter frame for your device's UI.
+**Devices not discovered:** Check network, verify UDP port 6272 is accessible, restart simulators
 
-5.  **(Optional) Add Device-Specific Script Handlers (`script_handlers.py`):**
-    *   If your device requires complex, high-level script commands that are executed by the application itself (not the firmware), you can create a `script_handlers.py` file.
-    *   In your `commands.json`, add `"handler": "script"` to any command that should be handled this way.
-    *   In `script_handlers.py`, create a dictionary named `HANDLERS` that maps command names to the Python functions that execute their logic.
-    *   Each handler function should have the signature: `my_handler(script_runner, args, line_num)`.
+**Script errors:** Use File → Validate Script. Check devices exist in `/devices` and are connected.
 
-Once these files are in place, the main application will automatically discover and load your new device module on startup.
+**Logging not working:** Queue variables first, ensure devices are connected
+
+**Timeouts:** Devices timeout after 3 seconds without telemetry
+
+---
+
+## 10. License & Contact
+
+Developed by Blue Robotics for internal equipment control.
+
+Repository: https://github.com/bluerobotics/br-equipment-control-app

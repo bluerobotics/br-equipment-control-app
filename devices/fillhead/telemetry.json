@@ -1,214 +1,193 @@
 {
-    "fillhead_state": {
+    "main_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Standby",
-            "1": "Busy",
-            "2": "Error",
-            "3": "Disabled",
-            "4": "Clearing Errors"
+            "0": "standby",
+            "1": "busy",
+            "2": "error",
+            "3": "disabled",
+            "4": "clearing errors"
         },
-        "help": "Overall fillhead system state",
-        "cpp_source": "static_cast<int32_t>(m_mainState)"
+        "help": "Overall fillhead system state"
     },
     "injector_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Standby",
-            "1": "Homing",
-            "2": "Jogging",
-            "3": "Feeding",
-            "4": "Motor Fault"
+            "0": "standby",
+            "1": "homing",
+            "2": "jogging",
+            "3": "feeding",
+            "4": "motor fault"
         },
-        "help": "Current operational state of the injector motors",
-        "cpp_source": "static_cast<int32_t>(m_injector.m_state)"
+        "help": "Current operational state of the injector motors"
     },
     "inj_valve_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Closed",
-            "2": "Open",
-            "3": "Halted",
-            "4": "Moving",
-            "5": "Homing",
-            "6": "Jogging",
-            "7": "Resetting",
-            "8": "Error"
+            "0": "not homed",
+            "1": "closed",
+            "2": "open",
+            "3": "halted",
+            "4": "moving",
+            "5": "homing",
+            "6": "jogging",
+            "7": "resetting",
+            "8": "error"
         },
-        "help": "Current state of the injection pinch valve",
-        "cpp_source": "static_cast<int32_t>(m_injectorValve.m_state)"
+        "help": "Current state of the injection pinch valve"
     },
     "vac_valve_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Closed",
-            "2": "Open",
-            "3": "Halted",
-            "4": "Moving",
-            "5": "Homing",
-            "6": "Jogging",
-            "7": "Resetting",
-            "8": "Error"
+            "0": "not homed",
+            "1": "closed",
+            "2": "open",
+            "3": "halted",
+            "4": "moving",
+            "5": "homing",
+            "6": "jogging",
+            "7": "resetting",
+            "8": "error"
         },
-        "help": "Current state of the vacuum pinch valve",
-        "cpp_source": "static_cast<int32_t>(m_vacuumValve.m_state)"
+        "help": "Current state of the vacuum pinch valve"
     },
     "heater_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Off",
-            "1": "Active"
+            "0": "off",
+            "1": "active"
         },
-        "help": "Heater PID control status",
-        "cpp_source": "static_cast<int32_t>(m_heater.m_heaterState)"
+        "help": "Heater PID control status"
     },
     "vacuum_state": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Off",
-            "1": "Pulldown",
-            "2": "Settling",
-            "3": "Leak Testing",
-            "4": "On",
-            "5": "Error"
+            "0": "off",
+            "1": "pulldown",
+            "2": "settling",
+            "3": "leak testing",
+            "4": "on",
+            "5": "error"
         },
-        "help": "Current vacuum system operation state",
-        "cpp_source": "static_cast<int32_t>(m_vacuum.m_state)"
+        "help": "Current vacuum system operation state"
     },
     "injector_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for injector",
-        "cpp_source": "m_injector.m_smoothedTorqueValue0"
+        "help": "Current motor torque percentage for injector"
     },
     "injector_homed": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if injector has been homed to machine zero",
-        "cpp_source": "m_injector.m_homingMachineDone ? 1 : 0"
+        "help": "Indicates if injector has been homed to machine zero"
     },
     "injection_cumulative_ml": {
         "unit": "ml",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Total volume dispensed since last cartridge home",
-        "cpp_source": "m_injector.m_cumulative_dispensed_ml"
+        "help": "Total volume dispensed since last cartridge home"
     },
     "injection_active_ml": {
         "unit": "ml",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Volume dispensed in current injection operation",
-        "cpp_source": "m_injector.m_active_op_total_dispensed_ml"
+        "help": "Volume dispensed in current injection operation"
     },
     "injection_target_ml": {
         "unit": "ml",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Target volume for current injection operation",
-        "cpp_source": "m_injector.m_active_op_target_ml"
+        "help": "Target volume for current injection operation"
     },
     "motors_enabled": {
         "type": "bool",
         "default": 1,
         "map": {
-            "0": "Disabled",
-            "1": "Enabled"
+            "0": "disabled",
+            "1": "enabled"
         },
-        "help": "Global motor power enable status",
-        "cpp_source": "m_injector.m_isEnabled"
+        "help": "Global motor power enable status"
     },
     "inj_valve_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Current position of injection valve actuator",
-        "cpp_source": "m_injectorValve.m_motor->PositionRefCommanded() * MOTOR_STEPS_TO_MM"
+        "help": "Current position of injection valve actuator"
     },
     "inj_valve_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for injection valve",
-        "cpp_source": "m_injectorValve.m_smoothedTorque"
+        "help": "Current motor torque percentage for injection valve"
     },
     "inj_valve_homed": {
         "type": "bool",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if injection valve has been homed",
-        "cpp_source": "m_injectorValve.m_isHomed"
+        "help": "Indicates if injection valve has been homed"
     },
     "vac_valve_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Current position of vacuum valve actuator",
-        "cpp_source": "m_vacuumValve.m_motor->PositionRefCommanded() * MOTOR_STEPS_TO_MM"
+        "help": "Current position of vacuum valve actuator"
     },
     "vac_valve_motor_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for vacuum valve",
-        "cpp_source": "m_vacuumValve.m_smoothedTorque"
+        "help": "Current motor torque percentage for vacuum valve"
     },
     "vac_valve_homed": {
         "type": "bool",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if vacuum valve has been homed",
-        "cpp_source": "m_vacuumValve.m_isHomed"
+        "help": "Indicates if vacuum valve has been homed"
     },
     "temp_c": {
         "unit": "C",
         "type": "float",
         "default": 25.0,
         "precision": 1,
-        "help": "Current material temperature from thermocouple",
-        "cpp_source": "m_heater.m_smoothedTemperatureCelsius"
+        "help": "Current material temperature from thermocouple"
     },
     "heater_setpoint": {
         "unit": "C",
         "type": "float",
         "default": 70.0,
         "precision": 1,
-        "help": "Target temperature setpoint for PID controller",
-        "cpp_source": "m_heater.m_pid_setpoint"
+        "help": "Target temperature setpoint for PID controller"
     },
     "vacuum_psig": {
         "unit": "PSIG",
         "type": "float",
         "default": 0.5,
         "precision": 2,
-        "help": "Current vacuum pressure reading",
-        "cpp_source": "m_vacuum.m_smoothedVacuumPsig"
+        "help": "Current vacuum pressure reading"
     }
 }

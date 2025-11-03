@@ -104,7 +104,6 @@ class FindReplaceFrame(ttk.Frame):
     def replace_all(self):
         find_text = self.find_entry.get()
         replace_text = self.replace_entry.get()
-        print(f"[DEBUG] Replace All: find='{find_text}', replace='{replace_text}'")
         if not find_text:
             return
 
@@ -112,7 +111,6 @@ class FindReplaceFrame(ttk.Frame):
         start_pos = "1.0"
         while True:
             found_pos = self.text_widget.search(find_text, start_pos, stopindex=tk.END)
-            print(f"[DEBUG] Loop {count}: start_pos='{start_pos}', found_pos='{found_pos}'")
             if not found_pos:
                 break
             
@@ -214,14 +212,10 @@ class CustomText(tk.Text):
         
         # Verify font is actually monospace and set tab width
         actual_font = tkfont.Font(font=self.cget("font"))
-        print(f"[DEBUG FONT] Actual font family: {actual_font.actual('family')}")
-        print(f"[DEBUG FONT] Font is fixed: {actual_font.metrics('fixed')}")
-        print(f"[DEBUG FONT] Char widths - space: {actual_font.measure(' ')}, 'M': {actual_font.measure('M')}, 'i': {actual_font.measure('i')}")
         
         # Set tab width to 4 characters based on actual font width
         tab_width = actual_font.measure(' ' * 4)
         self.config(tabs=(tab_width,))
-        print(f"[DEBUG FONT] Tab width set to {tab_width} pixels (4 characters)")
 
         # Create a proxy for the underlying widget
         self._orig = self._w + "_orig"
@@ -769,14 +763,11 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         is_temp_file = current_filepath and current_filepath.startswith(tempfile.gettempdir())
         has_content = len(script_editor.get('1.0', tk.END).strip()) > 0
         
-        print(f"[DEBUG] check_unsaved_changes: edit_modified={is_modified}, is_temp_file={is_temp_file}, has_content={has_content}, current_filepath={current_filepath}")
         
         # If it's a temp file with content, always warn even if autosaved
         if is_temp_file and has_content:
-            print("[DEBUG] Temp file with content, showing save dialog")
             response = messagebox.askyesnocancel("Save Untitled Script?", 
                 "This script has not been saved to a permanent location. Do you want to save it?")
-            print(f"[DEBUG] User response: {response}")
             if response is True:
                 return save_script()  # This will trigger "Save As" dialog for temp files
             elif response is False:
@@ -786,12 +777,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         
         # Normal modification check for regular files
         if not is_modified:
-            print("[DEBUG] No changes, returning True")
             return True
         
-        print("[DEBUG] Showing unsaved changes dialog")
         response = messagebox.askyesnocancel("Unsaved Changes", "You have unsaved changes. Do you want to save them?")
-        print(f"[DEBUG] User response: {response}")
         if response is True:
             return save_script()
         elif response is False:
@@ -860,10 +848,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         filepath = filedialog.asksaveasfilename(title="Save Script As", defaultextension=".txt",
                                                 filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
         if not filepath:
-            print("[DEBUG] Save As cancelled by user")
             return False
         
-        print(f"[DEBUG] Saving to: {filepath}")
         current_filepath = filepath
         result = save_script()
         
@@ -871,9 +857,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if result and old_temp_file:
             try:
                 os.remove(old_temp_file)
-                print(f"[DEBUG] Deleted old temp file: {old_temp_file}")
             except Exception as e:
-                print(f"[DEBUG] Could not delete temp file: {e}")
+                pass  # Ignore errors when removing old temp file
         
         return result
 
@@ -910,12 +895,10 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     # --- Script Execution Logic ---
     def handle_cycle_start():
-        print("[DEBUG] handle_cycle_start called")
-        nonlocal feed_hold_line, is_held_by_user
+        nonlocal feed_hold_line, is_held_by_user, last_block_end_line
         is_held_by_user = False # Always clear hold flag on a new run attempt
 
         if not check_script_validity(): 
-            print("[DEBUG] Script validation failed.")
             return
 
         # --- FIX: Clear any old selection highlight before starting ---
@@ -947,25 +930,119 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if next_valid_line_num == -1:
             status_var.set("End of script reached.")
             on_run_finished()
-            print("[DEBUG] End of script reached before start.")
             return
 
         update_selection_highlight(next_valid_line_num)
 
         if is_single_block:
-            errors = validate_single_line(next_valid_line_content, next_valid_line_num, scripting_commands)
+            # Check if this is a logging command with an indented block
+            import shlex
+            try:
+                parts = shlex.split(next_valid_line_content.strip())
+            except ValueError:
+                parts = next_valid_line_content.strip().split()
+            
+            command_word = parts[0].lower() if parts else ''
+            logging_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+            
+            # Collect content including indented block if present
+            block_content = next_valid_line_content
+            block_end_line = next_valid_line_num
+            
+            if command_word in logging_commands:
+                # Get base indentation of the command line (handle tabs)
+                current_line_raw = all_lines[next_valid_line_num - 1]
+                base_indent_str = current_line_raw[:len(current_line_raw) - len(current_line_raw.lstrip())]
+                base_indent_expanded = base_indent_str.expandtabs(4)
+                base_indent_level = len(base_indent_expanded)
+                
+                # Look for indented lines below (start from next line)
+                indented_lines = [current_line_raw]
+                for idx in range(next_valid_line_num, len(all_lines)):  # Start from next line
+                    check_line = all_lines[idx]
+                    check_stripped = check_line.strip()
+                    
+                    # Skip empty lines and comments
+                    if not check_stripped or check_stripped.startswith('#'):
+                        continue
+                    
+                    # Check indentation (handle tabs)
+                    check_indent_str = check_line[:len(check_line) - len(check_line.lstrip())]
+                    check_indent_expanded = check_indent_str.expandtabs(4)
+                    check_indent_level = len(check_indent_expanded)
+                    
+                    if check_indent_level > base_indent_level:
+                        # This is an indented line - part of the block
+                        indented_lines.append(check_line)
+                        block_end_line = idx + 1
+                    else:
+                        # End of indented block
+                        break
+                
+                # Combine into block content
+                block_content = '\n'.join(indented_lines)
+                
+                # Store the block end line so on_step_finished knows where to go next
+                last_block_end_line = block_end_line
+            
+            # Validate the block (not just the first line)
+            # For logging commands with blocks, we don't validate strictly since they'll be collapsed
+            if command_word in logging_commands and block_content != next_valid_line_content:
+                # It's a multi-line block, skip detailed validation
+                errors = []
+            else:
+                errors = validate_single_line(next_valid_line_content, next_valid_line_num, scripting_commands)
             script_editor.tag_remove("error_highlight", "1.0", tk.END)
             if errors:
                 ValidationResultsWindow(scripting_area, errors)
                 script_editor.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
                 status_var.set(f"Error on line {next_valid_line_num}.")
-                print(f"[DEBUG] Single block validation error on line {next_valid_line_num}.")
                 return
-            print(f"[DEBUG] Running single block: line {next_valid_line_num}, content: '{next_valid_line_content}'")
-            run_script_from_content(next_valid_line_content, next_valid_line_num - 1, is_step=True)
+            # Check if required devices for this line are connected
+            required_devices_for_line = set()
+            import shlex
+            try:
+                check_parts = shlex.split(block_content)
+            except ValueError:
+                check_parts = block_content.split()
+            
+            for part in check_parts:
+                if '.' in part:
+                    device_name = part.split('.')[0].lower()
+                    if device_name in device_manager.device_state:
+                        required_devices_for_line.add(device_name)
+            
+            # Check if line command references a device
+            if check_parts:
+                cmd = check_parts[0].lower()
+                cmd_info = scripting_commands.get(cmd)
+                if cmd_info and cmd_info.get('device') not in ['script', 'both', None]:
+                    required_devices_for_line.add(cmd_info['device'])
+            
+            # Verify devices are connected
+            if required_devices_for_line:
+                disconnected = []
+                for dev_name in required_devices_for_line:
+                    dev_state = device_manager.get_device_state(dev_name)
+                    if not dev_state or not dev_state.get('connected'):
+                        disconnected.append(dev_name)
+                
+                if disconnected:
+                    error_msg = f"Cannot execute line {next_valid_line_num}: Device(s) not connected: {', '.join(disconnected)}"
+                    status_var.set(error_msg)
+                    script_editor.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
+                    
+                    # Show error dialog
+                    import tkinter.messagebox as messagebox
+                    messagebox.showerror(
+                        "Devices Not Connected",
+                        f"Cannot execute line {next_valid_line_num}.\n\nThe following devices are not connected:\n\n{', '.join(disconnected)}\n\nPlease connect the devices or start their simulators."
+                    )
+                    return
+            
+            run_script_from_content(block_content, next_valid_line_num - 1, is_step=True)
         else:
             content_from_line = "\n".join(all_lines[next_valid_line_num - 1:])
-            print(f"[DEBUG] Running script from line {next_valid_line_num}. Content passed to runner:\n---\n{content_from_line}\n---")
             run_script_from_content(content_from_line, next_valid_line_num - 1, is_step=False)
 
     def update_button_states(running=False, holding=False):
@@ -1009,10 +1086,21 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             update_button_states(running=False, holding=False)
             status_callback_handler("Idle", -1)
 
+    # Track the last block end line for single block mode
+    last_block_end_line = None
+    
     def on_step_finished():
+        nonlocal last_block_end_line
         update_button_states(running=False, holding=False)
         current_line_num = int(last_selection_highlight)
-        next_line_num = current_line_num + 1
+        
+        # If we ran a block with multiple lines, skip to the end of the block
+        if last_block_end_line and last_block_end_line > current_line_num:
+            next_line_num = last_block_end_line + 1
+        else:
+            next_line_num = current_line_num + 1
+        
+        last_block_end_line = None  # Reset for next step
         status_var.set(f"Step complete. Next line: {next_line_num}");
         
         # Use a single, scheduled function to advance both the cursor and selection highlights
@@ -1024,7 +1112,6 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def run_script_from_content(content, line_offset=0, is_step=False):
         nonlocal script_runner
-        print(f"[DEBUG] run_script_from_content called. line_offset={line_offset}, is_step={is_step}")
         update_button_states(running=True) # Set running state visuals
         completion_callback = on_step_finished if is_step else on_run_finished
         
@@ -1035,7 +1122,6 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                                      completion_callback, message_queue, scripting_commands, 
                                      script_handlers, line_offset);
         script_runner.start()
-        print("[DEBUG] ScriptRunner thread started.")
 
     def clear_error_highlighting():
         script_editor.tag_remove("error_highlight", "1.0", tk.END)
@@ -1117,7 +1203,19 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         feed_hold_line = None
 
     script_editor.bind("<Button-1>", on_line_click)
-    update_selection_highlight(1)
+    
+    # Set initial cursor position and highlight - do this immediately
+    script_editor.text.mark_set(tk.INSERT, "1.0")
+    script_editor.text.see("1.0")
+    
+    # Set initial highlight after a short delay to ensure everything is rendered
+    # This happens after any initial text loading/modifications are complete
+    def set_initial_highlight():
+        script_editor.text.mark_set(tk.INSERT, "1.0")
+        update_selection_highlight(1)
+        script_editor.text.see("1.0")
+    
+    script_editor.after(200, set_initial_highlight)
 
     # --- Control Buttons ---
     btn_container = ttk.Frame(control_frame, style='TFrame');
@@ -1164,7 +1262,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     }
     
     edit_commands = {
-        "find_replace": find_replace_frame.show
+        "undo": lambda: script_editor.text.event_generate("<<Undo>>"),
+        "redo": lambda: script_editor.text.event_generate("<<Redo>>"),
+        "cut": lambda: script_editor.text.event_generate("<<Cut>>"),
+        "copy": lambda: script_editor.text.event_generate("<<Copy>>"),
+        "paste": lambda: script_editor.text.event_generate("<<Paste>>"),
+        "find": find_replace_frame.show,
+        "replace": find_replace_frame.show,
+        "find_replace": find_replace_frame.show  # Keep for compatibility
     }
     
     # --- Check for recovery files on startup ---
@@ -1178,7 +1283,6 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         pattern = os.path.join(temp_dir, "untitled_*.txt")
         temp_files = glob.glob(pattern)
         
-        print(f"[DEBUG RECOVERY] Found {len(temp_files)} temp files: {temp_files}")
         
         # Filter files: must have content, ignore very new files (< 5 seconds, likely current session)
         recoverable_files = []
@@ -1187,17 +1291,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 # Check file age and size
                 age_seconds = time.time() - os.path.getmtime(tf)
                 size = os.path.getsize(tf)
-                print(f"[DEBUG RECOVERY] File: {os.path.basename(tf)}, age: {age_seconds:.1f}s, size: {size}")
                 
                 # Only offer recovery if file is > 5 seconds old and has content
                 # (5 seconds gives time for the new session to create its own temp file)
                 if age_seconds > 5 and size > 0:
                     recoverable_files.append((tf, age_seconds))
-                    print(f"[DEBUG RECOVERY] -> Recoverable")
             except Exception as e:
-                print(f"[DEBUG RECOVERY] Error checking {tf}: {e}")
+                pass  # Ignore errors checking temp files
         
-        print(f"[DEBUG RECOVERY] Found {len(recoverable_files)} recoverable files")
         
         if recoverable_files:
             # Sort by most recent first
@@ -1211,7 +1312,6 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             if response:
                 # Load the most recent file
                 most_recent = recoverable_files[0][0]
-                print(f"[DEBUG RECOVERY] Recovering: {most_recent}")
                 try:
                     with open(most_recent, 'r') as f:
                         content = f.read()
@@ -1222,12 +1322,10 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                     current_filepath = most_recent
                     update_window_title()
                     status_var.set("Recovered unsaved script - use 'Save As' to choose a permanent location")
-                    print(f"[DEBUG RECOVERY] Successfully recovered")
                 except Exception as e:
                     messagebox.showerror("Recovery Error", f"Could not recover file:\n{e}")
-                    print(f"[DEBUG RECOVERY] Recovery error: {e}")
             else:
-                print("[DEBUG RECOVERY] User declined recovery")
+                pass  # User declined recovery
             
             # Clean up old temp files (ask first) - but NOT the one we just recovered
             if len(recoverable_files) > 1:
@@ -1237,9 +1335,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                     for tf, _ in recoverable_files[1:]:
                         try:
                             os.remove(tf)
-                            print(f"[DEBUG RECOVERY] Deleted old temp file: {tf}")
                         except Exception as e:
-                            print(f"[DEBUG RECOVERY] Could not delete {tf}: {e}")
+                            pass  # Ignore errors deleting old temp files
     
     # Schedule recovery check after GUI is fully loaded
     root.after(500, check_for_recovery)

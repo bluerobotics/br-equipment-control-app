@@ -19,7 +19,7 @@ def open_documentation():
         messagebox.showerror("Documentation Not Found", f"Could not find README.md at:\n{filepath}")
 
 
-def create_top_menu(parent, file_commands, edit_commands, device_commands, autosave_var):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, autosave_var):
     """
     Creates the main application menu bar.
     """
@@ -54,32 +54,30 @@ def create_top_menu(parent, file_commands, edit_commands, device_commands, autos
                              activeforeground=theme.FG_COLOR)
     file_menu.add_cascade(label="Recent Files", menu=recent_files_menu)
     file_menu.add_separator(background=theme.WIDGET_BORDER)
+    file_menu.add_command(label="Validate Script", command=script_commands['validate'], accelerator="Ctrl+Shift+V")
+    file_menu.add_separator(background=theme.WIDGET_BORDER)
+    file_menu.add_command(label="Generate C++ Code...", command=device_commands['generate_cpp_code'])
+    file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_command(label="Exit", command=parent.quit)
     
     menubar.add_cascade(label="File", menu=file_menu)
 
-    # --- NEW: Edit Menu ---
+    # --- Edit Menu ---
     edit_menu = Menu(menubar, tearoff=0, 
                      bg=theme.WIDGET_BG, 
                      fg=theme.FG_COLOR,
                      activebackground=theme.PRIMARY_ACCENT,
                      activeforeground=theme.FG_COLOR)
-    edit_menu.add_command(label="Find/Replace", command=edit_commands['find_replace'], accelerator="Ctrl+F")
+    edit_menu.add_command(label="Undo", command=edit_commands['undo'], accelerator="Ctrl+Z")
+    edit_menu.add_command(label="Redo", command=edit_commands['redo'], accelerator="Ctrl+Y")
+    edit_menu.add_separator(background=theme.WIDGET_BORDER)
+    edit_menu.add_command(label="Cut", command=edit_commands['cut'], accelerator="Ctrl+X")
+    edit_menu.add_command(label="Copy", command=edit_commands['copy'], accelerator="Ctrl+C")
+    edit_menu.add_command(label="Paste", command=edit_commands['paste'], accelerator="Ctrl+V")
+    edit_menu.add_separator(background=theme.WIDGET_BORDER)
+    edit_menu.add_command(label="Find", command=edit_commands['find'], accelerator="Ctrl+F")
+    edit_menu.add_command(label="Replace", command=edit_commands['replace'], accelerator="Ctrl+H")
     menubar.add_cascade(label="Edit", menu=edit_menu)
-
-    # --- NEW: Devices Menu ---
-    devices_menu = Menu(menubar, tearoff=0,
-                        bg=theme.WIDGET_BG,
-                        fg=theme.FG_COLOR,
-                        activebackground=theme.PRIMARY_ACCENT,
-                        activeforeground=theme.FG_COLOR)
-    devices_menu.add_command(label="Run Simulator", command=device_commands['run_simulator'])
-    devices_menu.add_separator(background=theme.WIDGET_BORDER)
-    devices_menu.add_command(label="Scan for New Device Modules", command=device_commands['scan_for_devices'])
-    devices_menu.add_command(label="Show Known Devices", command=device_commands['show_known_devices'])
-    devices_menu.add_separator(background=theme.WIDGET_BORDER)
-    devices_menu.add_command(label="Generate C++ Code...", command=device_commands['generate_cpp_code'])
-    menubar.add_cascade(label="Devices", menu=devices_menu)
 
     # --- Help Menu ---
     help_menu = tk.Menu(menubar, tearoff=0, bg=theme.WIDGET_BG, fg=theme.FG_COLOR)
@@ -93,12 +91,5 @@ def create_top_menu(parent, file_commands, edit_commands, device_commands, autos
 
 
 def show_about_window(parent):
-    """Displays the 'About' window with version and author information."""
-    messagebox.showinfo(
-        "About BR Equipment Control App",
-        "BR Equipment Control App\n\n"
-        f"Version: {__version__}\n"
-        "Release Date: 2025-10-13\n\n"
-        "Author: Eldin Miller-Stead",
-        parent=parent
-    )
+    """Opens the GitHub repository in the browser."""
+    webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')

@@ -2,6 +2,9 @@ import os
 import importlib
 import tkinter as tk
 import json
+import threading
+import socket
+import time
 
 class DeviceManager:
     def __init__(self, shared_gui_refs):
@@ -9,6 +12,8 @@ class DeviceManager:
         self.device_state = {} # New dictionary for connection state
         self.discovery_logs = []
         self.shared_gui_refs = shared_gui_refs
+        self.simulator_threads = {}  # device_name -> {'thread': thread, 'stop_flag': Event, 'socket': socket}
+        self.telemetry_callbacks = {}  # device_name -> list of callback functions
         self.discover_devices()
 
     def discover_devices(self):
@@ -16,6 +21,11 @@ class DeviceManager:
         Dynamically discovers and loads device modules from the 'devices' directory.
         """
         self.log("Starting device discovery...")
+        
+        # Clear existing devices to pick up deletions/renames
+        self.devices.clear()
+        self.device_state.clear()
+        
         devices_dir = os.path.join(os.path.dirname(__file__), 'devices')
         if not os.path.isdir(devices_dir):
             self.log(f"Devices directory not found at '{devices_dir}'")
@@ -55,10 +65,12 @@ class DeviceManager:
                     if os.path.exists(schema_path):
                         with open(schema_path, 'r') as f:
                             telemetry_data = json.load(f)
-                        # Dynamically create the tk variables
+                        # Dynamically create the tk variables (auto-generate gui_var from key)
                         for key, details in telemetry_data.items():
-                            if 'gui_var' in details:
-                                self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
+                            # Auto-generate gui_var if not provided: device_key_var
+                            gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
+                            if gui_var_name not in self.shared_gui_refs:
+                                self.shared_gui_refs[gui_var_name] = tk.StringVar(value="---")
 
                     # Load events from JSON
                     events_data = {}
@@ -82,7 +94,8 @@ class DeviceManager:
                         "ip": None, 
                         "last_rx": 0, 
                         "connected": False, 
-                        "last_discovery_attempt": 0
+                        "last_discovery_attempt": 0,
+                        "simulated": False
                     }
                     self.log(f"Successfully loaded device module: {device_name}")
 
@@ -212,6 +225,127 @@ class DeviceManager:
         """Adds a log message to the discovery logs."""
         print(message) # Also print to console for immediate feedback
         self.discovery_logs.append(message)
+    
+    def start_simulator(self, device_name):
+        """Start a simulator thread for a specific device."""
+        if device_name in self.simulator_threads:
+            # Already running
+            return
+        
+        if device_name not in self.devices:
+            self.log(f"Cannot start simulator for unknown device: {device_name}")
+            return
+        
+        # Get device port (auto-assigned based on sorted device order)
+        device_names = sorted(self.devices.keys())
+        base_port = 8888
+        device_port = base_port + device_names.index(device_name)
+        
+        # Load telemetry schema for initial state
+        device_path = os.path.join(os.path.dirname(__file__), 'devices', device_name)
+        schema_file = os.path.join(device_path, 'telemetry.json')
+        initial_state = {}
+        if os.path.exists(schema_file):
+            with open(schema_file, 'r') as f:
+                schema_data = json.load(f)
+                # Use the telemetry key as-is (not prefixed with device name)
+                initial_state = {key: details.get('default', '---') 
+                               for key, details in schema_data.items()}
+        
+        # Create stop flag and socket
+        stop_flag = threading.Event()
+        sim_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sim_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sim_socket.bind(('127.0.0.1', device_port))
+        sim_socket.settimeout(0.01)  # Non-blocking with timeout (10ms for 10Hz telemetry)
+        
+        # Start simulator thread
+        thread = threading.Thread(
+            target=self._simulator_worker,
+            args=(device_name, sim_socket, initial_state, stop_flag, device_port),
+            daemon=True
+        )
+        thread.start()
+        
+        self.simulator_threads[device_name] = {
+            'thread': thread,
+            'stop_flag': stop_flag,
+            'socket': sim_socket,
+            'port': device_port
+        }
+        
+        # Mark as simulated, but let discovery handle the connection
+        self.device_state[device_name]['simulated'] = True
+        
+        self.log(f"Started simulator for {device_name} on port {device_port}")
+        
+        # Trigger a discovery to connect to the newly started simulator
+        import comms
+        comms.discover_devices(self.shared_gui_refs)
+    
+    def stop_simulator(self, device_name):
+        """Stop the simulator thread for a specific device."""
+        if device_name not in self.simulator_threads:
+            return
+        
+        sim_info = self.simulator_threads[device_name]
+        sim_info['stop_flag'].set()
+        sim_info['socket'].close()
+        sim_info['thread'].join(timeout=2.0)
+        
+        del self.simulator_threads[device_name]
+        
+        # Update device state - clear simulated flag
+        self.device_state[device_name]['simulated'] = False
+        # Let the monitor_connections thread handle disconnection
+        
+        self.log(f"Stopped simulator for {device_name}")
+    
+    def _simulator_worker(self, device_name, sim_socket, state, stop_flag, port):
+        """Worker thread for device simulator."""
+        gui_port = 6272
+        telemetry_interval = 0.1  # 10 Hz (100ms)
+        last_telemetry = 0
+        
+        while not stop_flag.is_set():
+            # Send telemetry periodically (format: devicename_TELEM:key=value;key=value)
+            current_time = time.time()
+            if current_time - last_telemetry >= telemetry_interval:
+                telemetry_msg = f"{device_name}_TELEM:" + ";".join([f"{k}={v}" for k, v in state.items()])
+                try:
+                    sim_socket.sendto(telemetry_msg.encode(), ('127.0.0.1', gui_port))
+                except:
+                    pass
+                last_telemetry = current_time
+            
+            # Receive commands
+            try:
+                data, addr = sim_socket.recvfrom(1024)
+                message = data.decode().strip()
+                
+                # Handle discovery messages
+                if message.startswith("DISCOVER_DEVICE"):
+                    # Send discovery response (format: DISCOVERY_RESPONSE: DEVICE_ID=devicename PORT=port)
+                    response = f"DISCOVERY_RESPONSE: DEVICE_ID={device_name} PORT={port}"
+                    sim_socket.sendto(response.encode(), addr)
+                else:
+                    # Send acknowledgment for other commands
+                    response = f"{device_name.upper()}_STATUS:{message}:DONE"
+                    sim_socket.sendto(response.encode(), addr)
+                    
+                    # Update state based on command (simplified)
+                    # You can enhance this with device-specific simulators
+                
+            except socket.timeout:
+                continue
+            except:
+                break
+        
+        # Cleanup
+        try:
+            sim_socket.close()
+        except:
+            pass
 
     def get_device_modules(self):
         """Returns the dictionary of loaded device modules."""
@@ -300,8 +434,16 @@ class DeviceManager:
     def get_all_scripting_commands(self):
         """
         Aggregates scripting command definitions from all discovered devices.
+        Also includes built-in script commands.
         """
         all_commands = {}
+        
+        # Add built-in script commands
+        from script_processor import SCRIPT_COMMANDS
+        for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
+            all_commands[cmd_name] = cmd_details.copy()
+        
+        # Add device-specific commands
         for device_name, modules in self.devices.items():
             # Check for commands loaded from JSON
             if modules.get('scripting_commands'):
@@ -369,3 +511,33 @@ class DeviceManager:
         if device:
             return device.get('events_data', {})
         return {}
+    
+    def register_telemetry_callback(self, device_name, callback):
+        """
+        Registers a callback function to be called when telemetry is received from a device.
+        Callback signature: callback(device_name, telemetry_dict)
+        """
+        if device_name not in self.telemetry_callbacks:
+            self.telemetry_callbacks[device_name] = []
+        self.telemetry_callbacks[device_name].append(callback)
+    
+    def unregister_telemetry_callback(self, device_name, callback):
+        """
+        Unregisters a telemetry callback function for a device.
+        """
+        if device_name in self.telemetry_callbacks:
+            try:
+                self.telemetry_callbacks[device_name].remove(callback)
+            except ValueError:
+                pass  # Callback wasn't in the list
+    
+    def notify_telemetry_callbacks(self, device_name, telemetry_dict):
+        """
+        Calls all registered callbacks for a device with the telemetry data.
+        """
+        if device_name in self.telemetry_callbacks:
+            for callback in self.telemetry_callbacks[device_name]:
+                try:
+                    callback(device_name, telemetry_dict)
+                except Exception as e:
+                    print(f"[ERROR] Telemetry callback error for {device_name}: {e}")

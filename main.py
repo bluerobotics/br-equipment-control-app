@@ -14,6 +14,7 @@ import ctypes
 from queue import Queue, Empty
 import device_actions # Import the new device actions
 from device_manager import DeviceManager # Import the new DeviceManager
+from data_logger import DataLogger # Import the data logger
 import datetime
 
 from _version import __version__
@@ -246,6 +247,7 @@ class MainApplication:
 
         # Initialize basic shared refs.
         self.shared_gui_refs = {
+            'root': self.root,
             'error_state_var': tk.StringVar(value='No Error'),
             "reset_and_hide_panel": self.reset_and_hide_panel,
             "show_panel": self.show_panel,
@@ -258,6 +260,10 @@ class MainApplication:
         self.device_modules = self.device_manager.get_device_modules()
         self.discovery_logs = self.device_manager.get_discovery_logs()
         self.shared_gui_refs['device_manager'] = self.device_manager
+        
+        # --- Data Logger ---
+        self.data_logger = DataLogger(self.shared_gui_refs)
+        self.shared_gui_refs['data_logger'] = self.data_logger
 
         # --- Populate device-specific shared refs ---
         for device_name, device_data in self.device_modules.items():
@@ -455,11 +461,18 @@ class MainApplication:
         # Create Top Menu (and pass it the file commands from the scripting GUI)
         file_commands = self.scripting_gui_refs['file_commands']
         edit_commands = self.scripting_gui_refs['edit_commands']
+        script_commands = {
+            'validate': self.validate_script
+        }
         device_commands = create_device_commands(self.root, self.shared_gui_refs)
-        self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, device_commands, self.autosave_var)
+        self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, script_commands, device_commands, self.autosave_var)
 
         # Pass the recent files menu reference to the scripting gui
         self.scripting_gui_refs['update_recent_menu_callback'](self.recent_files_menu)
+        
+        # Bind keyboard shortcuts
+        self.root.bind("<Control-Shift-V>", lambda e: self.validate_script())
+        self.root.bind("<Control-Shift-v>", lambda e: self.validate_script())  # lowercase variant
 
         # --- Store references for dynamic updates ---
         self.shared_gui_refs['add_device_panels_ref'] = self.add_new_device_panels
@@ -499,6 +512,84 @@ class MainApplication:
                     panel.pack_forget() # Hide by default
 
 
+    def validate_script(self):
+        """
+        Validates the current script and shows results in a dialog.
+        """
+        from tkinter import messagebox
+        from script_validator import validate_script
+        
+        # Get the current script content
+        script_content = self.scripting_gui_refs['get_script_content']()
+        
+        # Get all scripting commands
+        scripting_commands = self.device_manager.get_all_scripting_commands()
+        
+        # Run validation
+        errors = validate_script(script_content, scripting_commands)
+        
+        if not errors:
+            # Check for device connectivity issues
+            from script_processor import ScriptRunner
+            import shlex
+            
+            required_devices = set()
+            for line in script_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                try:
+                    parts = shlex.split(line)
+                except ValueError:
+                    parts = line.split()
+                
+                if not parts:
+                    continue
+                
+                command_word = parts[0].lower()
+                
+                # Check if this is a script-only command
+                if command_word in ['wait', 'wait_for', 'cycle', 'queue_for_logging', 
+                                   'unqueue_for_logging', 'start_logging', 'stop_logging']:
+                    continue
+                
+                # Check if command is device-specific
+                command_info = scripting_commands.get(command_word)
+                if not command_info:
+                    for cmd_key in scripting_commands:
+                        if cmd_key.lower() == command_word.lower():
+                            command_info = scripting_commands[cmd_key]
+                            break
+                
+                if command_info:
+                    device = command_info.get('device')
+                    if device and device not in ['script', 'both']:
+                        required_devices.add(device)
+            
+            # Check device connectivity
+            warnings = []
+            for device_name in required_devices:
+                device_state = self.device_manager.get_device_state(device_name)
+                if not device_state or not device_state.get('connected'):
+                    warnings.append(f"• {device_name} is not connected")
+            
+            if warnings:
+                warning_msg = "Script syntax is valid, but the following devices are not connected:\n\n" + "\n".join(warnings)
+                messagebox.showwarning("Script Validation - Warnings", warning_msg)
+            else:
+                messagebox.showinfo("Script Validation", "✓ Script is valid and all required devices are connected!")
+        else:
+            # Show errors
+            error_msg = "Script validation found the following errors:\n\n"
+            for error in errors[:10]:  # Limit to first 10 errors
+                error_msg += f"Line {error['line']}: {error['error']}\n"
+            
+            if len(errors) > 10:
+                error_msg += f"\n... and {len(errors) - 10} more error(s)"
+            
+            messagebox.showerror("Script Validation Failed", error_msg)
+    
     def setup_menu(self):
         """
         Sets up the top menu bar.
@@ -509,18 +600,35 @@ class MainApplication:
         """
         Handles the window close event, checking for unsaved changes before exiting.
         """
-        print("[DEBUG] on_closing called")
+        
+        # Check for active logging sessions
+        if self.data_logger.has_active_logs():
+            from tkinter import messagebox
+            active_logs = self.data_logger.get_active_logs()
+            log_names = [os.path.basename(path) for path in active_logs.keys()]
+            log_list = "\n".join(log_names)
+            
+            response = messagebox.askyesno(
+                "Active Logging Sessions",
+                f"The following log files are still active:\n\n{log_list}\n\nDo you want to close the application anyway?\n(Logging will be stopped)",
+                icon='warning'
+            )
+            
+            if not response:
+                return
+            
+            # Stop all logging before closing
+            self.data_logger.cleanup()
+        
         # Ask the scripting GUI to check for unsaved changes before closing
         check_result = self.scripting_gui_refs['check_unsaved']()
-        print(f"[DEBUG] check_unsaved returned: {check_result}")
         if check_result:
-            print("[DEBUG] Proceeding with close")
             # Terminate simulator if it's running
             if device_actions.simulator_process and device_actions.simulator_process.poll() is None:
                 device_actions.simulator_process.terminate()
             self.root.destroy()
         else:
-            print("[DEBUG] Close cancelled by user")
+            pass  # User cancelled closing
 
     def load_last_script(self):
         """

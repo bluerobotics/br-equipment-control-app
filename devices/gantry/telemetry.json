@@ -1,134 +1,118 @@
 {
-    "gantry_state": {
+    "main_state": {
         "type": "string",
-        "default": "STANDBY",
-        "help": "Overall gantry system state",
-        "gui_var": "gantry_main_state_var"
+        "default": "standby",
+        "help": "Overall gantry system state"
     },
     "x_state": {
         "type": "string",
-        "default": "Standby",
-        "help": "Current operational state of X-axis",
-        "gui_var": "gantry_x_state_var"
+        "default": "standby",
+        "help": "Current operational state of X-axis"
     },
     "y_state": {
         "type": "string",
-        "default": "Standby",
-        "help": "Current operational state of Y-axis",
-        "gui_var": "gantry_y_state_var"
+        "default": "standby",
+        "help": "Current operational state of Y-axis"
     },
     "z_state": {
         "type": "string",
-        "default": "Standby",
-        "help": "Current operational state of Z-axis",
-        "gui_var": "gantry_z_state_var"
+        "default": "standby",
+        "help": "Current operational state of Z-axis"
     },
     "x_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Current position of X-axis",
-        "gui_var": "gantry_x_pos_var"
+        "help": "Current position of X-axis"
     },
     "x_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for X-axis",
-        "gui_var": "gantry_x_torque_var"
+        "help": "Current motor torque percentage for X-axis"
     },
     "x_enabled": {
         "type": "int",
         "default": 1,
         "map": {
-            "0": "Disabled",
-            "1": "Enabled"
+            "0": "disabled",
+            "1": "enabled"
         },
-        "help": "Power enable status for X-axis motor",
-        "gui_var": "gantry_x_enabled_var"
+        "help": "Power enable status for X-axis motor"
     },
     "x_homed": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if X-axis has been homed",
-        "gui_var": "gantry_x_homed_var"
+        "help": "Indicates if X-axis has been homed"
     },
     "y_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Current position of Y-axis",
-        "gui_var": "gantry_y_pos_var"
+        "help": "Current position of Y-axis"
     },
     "y_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for Y-axis",
-        "gui_var": "gantry_y_torque_var"
+        "help": "Current motor torque percentage for Y-axis"
     },
     "y_enabled": {
         "type": "int",
         "default": 1,
         "map": {
-            "0": "Disabled",
-            "1": "Enabled"
+            "0": "disabled",
+            "1": "enabled"
         },
-        "help": "Power enable status for Y-axis motor",
-        "gui_var": "gantry_y_enabled_var"
+        "help": "Power enable status for Y-axis motor"
     },
     "y_homed": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if Y-axis has been homed",
-        "gui_var": "gantry_y_homed_var"
+        "help": "Indicates if Y-axis has been homed"
     },
     "z_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Current position of Z-axis",
-        "gui_var": "gantry_z_pos_var"
+        "help": "Current position of Z-axis"
     },
     "z_torque": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for Z-axis",
-        "gui_var": "gantry_z_torque_var"
+        "help": "Current motor torque percentage for Z-axis"
     },
     "z_enabled": {
         "type": "int",
         "default": 1,
         "map": {
-            "0": "Disabled",
-            "1": "Enabled"
+            "0": "disabled",
+            "1": "enabled"
         },
-        "help": "Power enable status for Z-axis motor",
-        "gui_var": "gantry_z_enabled_var"
+        "help": "Power enable status for Z-axis motor"
     },
     "z_homed": {
         "type": "int",
         "default": 0,
         "map": {
-            "0": "Not Homed",
-            "1": "Homed"
+            "0": "not homed",
+            "1": "homed"
         },
-        "help": "Indicates if Z-axis has been homed",
-        "gui_var": "gantry_z_homed_var"
+        "help": "Indicates if Z-axis has been homed"
     }
 }

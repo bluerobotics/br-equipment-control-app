@@ -1,9 +1,8 @@
 {
-    "MAIN_STATE": {
+    "main_state": {
         "type": "string",
-        "default": "STANDBY",
-        "help": "Overall pressurizer system state",
-        "gui_var": "pressurizer_main_state_var"
+        "default": "standby",
+        "help": "Overall pressurizer system state"
     },
     "pressure_psi": {
         "unit": "msw",
@@ -11,45 +10,39 @@
         "default": 0.0,
         "precision": 2,
         "multiplier": 0.7032496149,
-        "help": "Current pressure reading converted to meters of seawater",
-        "gui_var": "pressurizer_pressure_var"
+        "help": "Current pressure reading converted to meters of seawater"
     },
     "enabled": {
         "type": "int",
         "default": 1,
         "map": {
-            "0": "Disabled",
-            "1": "Enabled"
+            "0": "disabled",
+            "1": "enabled"
         },
-        "help": "Power enable status for pressurizer motor",
-        "gui_var": "pressurizer_enabled_var"
+        "help": "Power enable status for pressurizer motor"
     },
     "cycles_programmed": {
         "type": "int",
         "default": 10,
-        "help": "Number of pressure cycles programmed for current test",
-        "gui_var": "pressurizer_cycles_programmed_var"
+        "help": "Number of pressure cycles programmed for current test"
     },
     "cycles_complete": {
         "type": "int",
         "default": 0,
-        "help": "Number of pressure cycles completed in current test",
-        "gui_var": "pressurizer_cycles_complete_var"
+        "help": "Number of pressure cycles completed in current test"
     },
     "tank1_temp_c": {
         "unit": "C",
         "type": "float",
         "default": 25.0,
         "precision": 1,
-        "help": "Temperature reading from tank 1 sensor",
-        "gui_var": "pressurizer_tank1_temp_var"
+        "help": "Temperature reading from tank 1 sensor"
     },
     "tank2_temp_c": {
         "unit": "C",
         "type": "float",
         "default": 25.1,
         "precision": 1,
-        "help": "Temperature reading from tank 2 sensor",
-        "gui_var": "pressurizer_tank2_temp_var"
+        "help": "Temperature reading from tank 2 sensor"
     }
 }
