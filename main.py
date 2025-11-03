@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
+import sys
 import comms
 from scripting_gui import create_scripting_interface
 from status_panel import create_status_bar
@@ -556,7 +557,10 @@ class MainApplication:
             'validate': self.validate_script
         }
         device_commands = create_device_commands(self.root, self.shared_gui_refs)
-        self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, script_commands, device_commands, self.autosave_var)
+        settings_commands = {
+            'change_device_folder': self.change_device_folder
+        }
+        self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, script_commands, device_commands, settings_commands, self.autosave_var)
 
         # Pass the recent files menu reference to the scripting gui
         self.scripting_gui_refs['update_recent_menu_callback'](self.recent_files_menu)
@@ -603,6 +607,59 @@ class MainApplication:
                     panel.pack_forget() # Hide by default
 
 
+    def change_device_folder(self):
+        """
+        Allows the user to change the device folder path.
+        """
+        current_path = self.device_manager.devices_path
+        
+        result = messagebox.askyesno(
+            "Change Device Folder",
+            f"Current device folder:\n{current_path}\n\n"
+            "Do you want to select a new device folder?\n\n"
+            "Note: The application will reload after changing the folder.",
+            icon='question'
+        )
+        
+        if not result:
+            return
+        
+        # Prompt for new folder
+        new_path = filedialog.askdirectory(
+            title="Select New Devices Folder",
+            initialdir=current_path,
+            mustexist=True
+        )
+        
+        if not new_path:
+            return  # User cancelled
+        
+        # Verify it looks like a devices folder
+        if not os.path.basename(new_path) == 'devices':
+            response = messagebox.askyesno(
+                "Confirm Folder",
+                f"The selected folder is named '{os.path.basename(new_path)}'.\n\n"
+                "Are you sure this is the correct devices folder?\n"
+                "(It should contain device subfolders like 'fillhead', 'gantry', etc.)",
+                icon='warning'
+            )
+            if not response:
+                return
+        
+        # Save the new path
+        save_devices_path(new_path)
+        
+        # Inform user about restart
+        messagebox.showinfo(
+            "Restart Required",
+            "Device folder path has been updated.\n\n"
+            "The application will now restart to apply changes."
+        )
+        
+        # Restart the application
+        self.root.quit()
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    
     def validate_script(self):
         """
         Validates the current script and shows results in a dialog.

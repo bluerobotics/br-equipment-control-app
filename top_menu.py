@@ -19,7 +19,7 @@ def open_documentation():
         messagebox.showerror("Documentation Not Found", f"Could not find README.md at:\n{filepath}")
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, autosave_var):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, settings_commands, autosave_var):
     """
     Creates the main application menu bar.
     """
@@ -78,6 +78,15 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
     edit_menu.add_command(label="Find", command=edit_commands['find'], accelerator="Ctrl+F")
     edit_menu.add_command(label="Replace", command=edit_commands['replace'], accelerator="Ctrl+H")
     menubar.add_cascade(label="Edit", menu=edit_menu)
+
+    # --- Settings Menu ---
+    settings_menu = Menu(menubar, tearoff=0, 
+                         bg=theme.WIDGET_BG, 
+                         fg=theme.FG_COLOR,
+                         activebackground=theme.PRIMARY_ACCENT,
+                         activeforeground=theme.FG_COLOR)
+    settings_menu.add_command(label="Change Device Folder...", command=settings_commands['change_device_folder'])
+    menubar.add_cascade(label="Settings", menu=settings_menu)
 
     # --- Help Menu ---
     help_menu = tk.Menu(menubar, tearoff=0, bg=theme.WIDGET_BG, fg=theme.FG_COLOR)
