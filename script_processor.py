@@ -1001,7 +1001,8 @@ class ScriptRunner(threading.Thread):
                 if send_func:
                     send_func(final_command_str)
                     if command_info.get("wait_for_done", True): # Assume wait unless specified otherwise
-                        commands_to_wait_for.append(command_word)
+                        # Store the stripped command for DONE matching
+                        commands_to_wait_for.append(cmd_to_send)
 
             time.sleep(0.05)
 
