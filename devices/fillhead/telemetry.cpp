@@ -2,13 +2,13 @@
  * @file telemetry.cpp
  * @brief Telemetry construction implementation for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-10-24 16:49:57
+ * Generated from telemetry.json on 2025-11-03 11:25:17
  */
 
 #include "telemetry.h"
 #include <stdio.h>
 #include <string.h>
-#include "ClearCore.h"
+// #include "ClearCore.h"  // Include if using ClearCore hardware
 
 #define TELEM_PREFIX "FILLHEAD_TELEM: "
 
@@ -19,7 +19,7 @@
 void telemetry_init(TelemetryData* data) {
     if (data == NULL) return;
     
-    data->fillhead_state = 0;
+    data->main_state = 0;
     data->injector_state = 0;
     data->inj_valve_state = 0;
     data->vac_valve_state = 0;
@@ -54,9 +54,9 @@ int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buff
     // Write prefix
     pos += snprintf(buffer + pos, buffer_size - pos, "%s", TELEM_PREFIX);
     
-    // fillhead_state
+    // main_state
     if (pos < buffer_size) {
-        pos += snprintf(buffer + pos, buffer_size - pos, "%s:%d,", TELEM_KEY_FILLHEAD_STATE, data->fillhead_state);
+        pos += snprintf(buffer + pos, buffer_size - pos, "%s:%d,", TELEM_KEY_MAIN_STATE, data->main_state);
     }
     
     // injector_state
@@ -166,11 +166,16 @@ int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buff
 // Telemetry Transmission
 //==================================================================================================
 
+// NOTE: You need to provide a sendMessage() implementation based on your comms setup
+// For example:
+// extern CommsController comms;
+// #define sendMessage(msg) comms.enqueueTx(msg, comms.m_guiIp, comms.m_guiPort)
+
 void telemetry_send(const TelemetryData* data) {
     char buffer[512];
     int len = telemetry_build_message(data, buffer, sizeof(buffer));
     
     if (len > 0) {
-        ConnectorUsb.SendLine(buffer);
+        sendMessage(buffer);
     }
 }

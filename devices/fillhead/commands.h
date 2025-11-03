@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-10-24 16:49:57
+ * Generated from commands.json on 2025-11-03 11:25:17
  * 
  * This header file defines all commands that can be sent TO the Fillhead device.
  * For response message formats, see responses.h
@@ -23,6 +23,7 @@
 #define CMD_STR_DISCOVER_DEVICE                     "discover_device               " ///< Generic command for any device to respond to.
 #define CMD_STR_ABORT                               "abort                         " ///< Command to halt all ongoing operations.
 #define CMD_STR_CLEAR_ERRORS                        "clear_errors                  " ///< Command to clear any existing fault states.
+#define CMD_STR_TEST_COMMAND                        "test_command                  " ///< No description available.
 /** @} */
 
 /**
@@ -90,6 +91,7 @@ typedef enum {
     CMD_DISCOVER_DEVICE                     ///< @see CMD_STR_DISCOVER_DEVICE,
     CMD_ABORT                               ///< @see CMD_STR_ABORT,
     CMD_CLEAR_ERRORS                        ///< @see CMD_STR_CLEAR_ERRORS,
+    CMD_TEST_COMMAND                        ///< @see CMD_STR_TEST_COMMAND,
 
     // Motion Commands
     CMD_INJECT_STATOR                       ///< @see CMD_STR_INJECT_STATOR,

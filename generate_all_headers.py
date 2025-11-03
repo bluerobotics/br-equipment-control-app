@@ -9,10 +9,11 @@ from code_generator import (
     load_json, 
     generate_command_header, 
     generate_responses_header,
-    generate_command_parser_header,
-    generate_command_parser_cpp,
-    generate_telemetry_header,
-    generate_telemetry_cpp
+    generate_commands_cpp,
+    generate_variables_header,
+    generate_variables_cpp,
+    generate_events_header,
+    generate_events_cpp
 )
 
 def generate_headers_for_device(device_name):
@@ -22,6 +23,7 @@ def generate_headers_for_device(device_name):
     
     commands_json_path = os.path.join(device_dir, 'commands.json')
     telemetry_json_path = os.path.join(device_dir, 'telemetry.json')
+    events_json_path = os.path.join(device_dir, 'events.json')
     
     # Check if files exist
     if not os.path.exists(commands_json_path):
@@ -37,21 +39,32 @@ def generate_headers_for_device(device_name):
         commands = load_json(commands_json_path)
         telemetry = load_json(telemetry_json_path)
         
+        # Load events.json if it exists (optional)
+        events = {}
+        if os.path.exists(events_json_path):
+            events = load_json(events_json_path)
+        
         # Generate all files
         commands_h = generate_command_header(commands, device_name)
         responses_h = generate_responses_header(telemetry, device_name)
-        parser_h = generate_command_parser_header(commands, device_name)
-        parser_cpp = generate_command_parser_cpp(commands, device_name)
-        telemetry_h = generate_telemetry_header(telemetry, device_name)
-        telemetry_cpp = generate_telemetry_cpp(telemetry, device_name)
+        commands_cpp = generate_commands_cpp(commands, device_name)
+        variables_h = generate_variables_header(telemetry, device_name)
+        variables_cpp = generate_variables_cpp(telemetry, device_name)
+        events_h = generate_events_header(events, device_name)
+        events_cpp = generate_events_cpp(events, device_name)
         
-        # Save all files
-        commands_h_path = os.path.join(device_dir, 'commands.h')
-        responses_h_path = os.path.join(device_dir, 'responses.h')
-        parser_h_path = os.path.join(device_dir, 'command_parser.h')
-        parser_cpp_path = os.path.join(device_dir, 'command_parser.cpp')
-        telemetry_h_path = os.path.join(device_dir, 'telemetry.h')
-        telemetry_cpp_path = os.path.join(device_dir, 'telemetry.cpp')
+        # Create generated/ subfolder
+        gen_dir = os.path.join(device_dir, 'generated')
+        os.makedirs(gen_dir, exist_ok=True)
+        
+        # Save all files to generated/ folder
+        commands_h_path = os.path.join(gen_dir, 'commands.h')
+        responses_h_path = os.path.join(gen_dir, 'responses.h')
+        commands_cpp_path = os.path.join(gen_dir, 'commands.cpp')
+        variables_h_path = os.path.join(gen_dir, 'variables.h')
+        variables_cpp_path = os.path.join(gen_dir, 'variables.cpp')
+        events_h_path = os.path.join(gen_dir, 'events.h')
+        events_cpp_path = os.path.join(gen_dir, 'events.cpp')
         
         with open(commands_h_path, 'w', encoding='utf-8') as f:
             f.write(commands_h)
@@ -59,19 +72,22 @@ def generate_headers_for_device(device_name):
         with open(responses_h_path, 'w', encoding='utf-8') as f:
             f.write(responses_h)
         
-        with open(parser_h_path, 'w', encoding='utf-8') as f:
-            f.write(parser_h)
+        with open(commands_cpp_path, 'w', encoding='utf-8') as f:
+            f.write(commands_cpp)
         
-        with open(parser_cpp_path, 'w', encoding='utf-8') as f:
-            f.write(parser_cpp)
+        with open(variables_h_path, 'w', encoding='utf-8') as f:
+            f.write(variables_h)
         
-        with open(telemetry_h_path, 'w', encoding='utf-8') as f:
-            f.write(telemetry_h)
+        with open(variables_cpp_path, 'w', encoding='utf-8') as f:
+            f.write(variables_cpp)
         
-        with open(telemetry_cpp_path, 'w', encoding='utf-8') as f:
-            f.write(telemetry_cpp)
+        with open(events_h_path, 'w', encoding='utf-8') as f:
+            f.write(events_h)
         
-        print(f"  [OK] Generated 6 files for {device_name}")
+        with open(events_cpp_path, 'w', encoding='utf-8') as f:
+            f.write(events_cpp)
+        
+        print(f"  [OK] Generated 7 files for {device_name} in generated/ folder")
         return True
         
     except Exception as e:

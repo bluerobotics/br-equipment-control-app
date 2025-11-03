@@ -46,6 +46,27 @@
         "params": [],
         "returns": ["done", "error"]
     },
+    "pause": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Pauses any active move operation.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "resume": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Resumes a paused move operation.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "cancel": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Cancels any active move operation and returns to standby.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
     "enable": {
         "device": "pressboi",
         "target": "device",

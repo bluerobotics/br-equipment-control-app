@@ -2,7 +2,7 @@
  * @file command_parser.cpp
  * @brief Command parsing and dispatching implementations for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-10-24 16:49:57
+ * Generated from commands.json on 2025-11-03 11:25:17
  */
 
 #include "command_parser.h"
@@ -41,6 +41,7 @@ Command parseCommand(const char* cmdStr) {
     if (strncmp(cmdStr, CMD_STR_VACUUM_VALVE_OPEN, strlen(CMD_STR_VACUUM_VALVE_OPEN)) == 0) return CMD_VACUUM_VALVE_OPEN;
     if (strncmp(cmdStr, CMD_STR_VACUUM_VALVE_CLOSE, strlen(CMD_STR_VACUUM_VALVE_CLOSE)) == 0) return CMD_VACUUM_VALVE_CLOSE;
     if (strncmp(cmdStr, CMD_STR_VACUUM_VALVE_JOG, strlen(CMD_STR_VACUUM_VALVE_JOG)) == 0) return CMD_VACUUM_VALVE_JOG;
+    if (strncmp(cmdStr, CMD_STR_TEST_COMMAND, strlen(CMD_STR_TEST_COMMAND)) == 0) return CMD_TEST_COMMAND;
     return CMD_UNKNOWN;
 }
 
@@ -64,6 +65,8 @@ const char* getCommandParams(const char* cmdStr, Command cmd) {
             return cmdStr + strlen(CMD_STR_INJECTION_VALVE_JOG);
         case CMD_VACUUM_VALVE_JOG:
             return cmdStr + strlen(CMD_STR_VACUUM_VALVE_JOG);
+        case CMD_TEST_COMMAND:
+            return cmdStr + strlen(CMD_STR_TEST_COMMAND);
         default:
             return NULL;
     }
@@ -213,6 +216,11 @@ bool dispatchCommand(Command cmd, const char* params) {
         case CMD_VACUUM_VALVE_JOG:
             // TODO: Implement handler with parameters
             // handle_vacuum_valve_jog(params);
+            return true;
+
+        case CMD_TEST_COMMAND:
+            // TODO: Implement handler with parameters
+            // handle_test_command(params);
             return true;
 
         case CMD_UNKNOWN:

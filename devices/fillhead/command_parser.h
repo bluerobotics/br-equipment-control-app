@@ -2,7 +2,7 @@
  * @file command_parser.h
  * @brief Command parsing and dispatching declarations for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-10-24 16:49:57
+ * Generated from commands.json on 2025-11-03 11:25:17
  * 
  * This header declares utility functions to parse and dispatch commands for the Fillhead.
  * @see commands.h for command definitions

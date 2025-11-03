@@ -2,7 +2,7 @@
  * @file command_parser.cpp
  * @brief Command parsing and dispatching implementations for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-10-24 16:49:57
+ * Generated from commands.json on 2025-11-03 11:25:17
  */
 
 #include "command_parser.h"

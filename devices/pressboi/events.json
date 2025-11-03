@@ -1,25 +1,2 @@
 {
-    "script_run": {
-        "device": "pressboi",
-        "description": "Firmware requesting script to start or resume execution. Sent when conditions are safe to continue (e.g., after clearing a light curtain or pressing cycle start button).",
-        "type": "script_control",
-        "params": []
-    },
-    "script_hold": {
-        "device": "pressboi",
-        "description": "Firmware requesting script to pause execution. Sent when a safety condition is triggered (e.g., light curtain, door open, emergency stop) or operator requests pause.",
-        "type": "script_control",
-        "params": [
-            { "parameter": "reason", "type": "string", "optional": true, "description": "Human-readable reason for the hold (e.g., 'Light curtain zone 1 triggered', 'Door opened')" }
-        ]
-    },
-    "script_reset": {
-        "device": "pressboi",
-        "description": "Firmware requesting script to abort and reset to beginning. Sent on critical errors or when operator presses reset button.",
-        "type": "script_control",
-        "params": [
-            { "parameter": "reason", "type": "string", "optional": true, "description": "Human-readable reason for the reset (e.g., 'Emergency stop pressed', 'Critical fault detected')" }
-        ]
-    }
 }
-

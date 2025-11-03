@@ -219,30 +219,50 @@ class DeviceManager:
             return
 
         for device_name in self.devices.keys():
-            device_path = os.path.join(devices_dir, device_name)
-            
-            # Reload commands.json
-            json_path = os.path.join(device_path, 'commands.json')
-            if os.path.exists(json_path):
-                with open(json_path, 'r') as f:
-                    self.devices[device_name]['scripting_commands'] = json.load(f)
-            
-            # Reload telemetry.json
-            schema_path = os.path.join(device_path, 'telemetry.json')
-            if os.path.exists(schema_path):
-                with open(schema_path, 'r') as f:
-                    telemetry_data = json.load(f)
-                    self.devices[device_name]['telemetry_data'] = telemetry_data
-                    # Update GUI variables if needed
-                    for key, details in telemetry_data.items():
-                        if 'gui_var' in details and details['gui_var'] not in self.shared_gui_refs:
-                            self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
-            
-            # Reload events.json
-            events_path = os.path.join(device_path, 'events.json')
-            if os.path.exists(events_path):
-                with open(events_path, 'r') as f:
-                    self.devices[device_name]['events_data'] = json.load(f)
+            self.reload_single_device(device_name)
+
+    def reload_single_device(self, device_name):
+        """
+        Reloads the JSON configuration files for a single device.
+        """
+        if device_name not in self.devices:
+            return
+        
+        devices_dir = self.devices_path
+        device_path = os.path.join(devices_dir, device_name)
+        
+        # Reload commands.json
+        json_path = os.path.join(device_path, 'commands.json')
+        if os.path.exists(json_path):
+            with open(json_path, 'r') as f:
+                self.devices[device_name]['scripting_commands'] = json.load(f)
+                self.log(f"Reloaded commands.json for {device_name}")
+        
+        # Reload telemetry.json
+        schema_path = os.path.join(device_path, 'telemetry.json')
+        if os.path.exists(schema_path):
+            with open(schema_path, 'r') as f:
+                telemetry_data = json.load(f)
+                self.devices[device_name]['telemetry_data'] = telemetry_data
+                # Update GUI variables if needed
+                for key, details in telemetry_data.items():
+                    if 'gui_var' in details and details['gui_var'] not in self.shared_gui_refs:
+                        self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
+                self.log(f"Reloaded telemetry.json for {device_name}")
+        
+        # Reload events.json
+        events_path = os.path.join(device_path, 'events.json')
+        if os.path.exists(events_path):
+            with open(events_path, 'r') as f:
+                self.devices[device_name]['events_data'] = json.load(f)
+                self.log(f"Reloaded events.json for {device_name}")
+        
+        # Refresh syntax highlighter if available
+        if 'syntax_highlighter' in self.shared_gui_refs:
+            self.shared_gui_refs['syntax_highlighter'].refresh_keywords()
+            self.log(f"Refreshed syntax highlighter for {device_name}")
+        
+        return True
 
     def log(self, message):
         """Adds a log message to the discovery logs."""

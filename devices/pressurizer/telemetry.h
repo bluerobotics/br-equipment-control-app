@@ -2,7 +2,7 @@
  * @file telemetry.h
  * @brief Telemetry structure and construction interface for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-10-24 16:49:57
+ * Generated from telemetry.json on 2025-11-03 11:25:17
  * 
  * This header defines the complete telemetry data structure for the Pressurizer.
  * All telemetry fields are assembled in one centralized location.
@@ -23,7 +23,7 @@
  * Format: "PRESSURIZER_TELEM: field1:value1,field2:value2,..."
  * @{
  */
-#define TELEM_KEY_MAIN_STATE                     "MAIN_STATE               "  ///< Overall pressurizer system state
+#define TELEM_KEY_MAIN_STATE                     "main_state               "  ///< Overall pressurizer system state
 #define TELEM_KEY_PRESSURE_PSI                   "pressure_psi             "  ///< Current pressure reading converted to meters of seawater
 #define TELEM_KEY_ENABLED                        "enabled                  "  ///< Power enable status for pressurizer motor
 #define TELEM_KEY_CYCLES_PROGRAMMED              "cycles_programmed        "  ///< Number of pressure cycles programmed for current test
@@ -42,7 +42,7 @@
  * @details This structure contains all telemetry values that are transmitted to the host.
  */
 typedef struct {
-    int32_t      MAIN_STATE                    ; ///< Overall pressurizer system state
+    int32_t      main_state                    ; ///< Overall pressurizer system state
     float        pressure_psi                  ; ///< Current pressure reading converted to meters of seawater
     int32_t      enabled                       ; ///< Power enable status for pressurizer motor
     int32_t      cycles_programmed             ; ///< Number of pressure cycles programmed for current test

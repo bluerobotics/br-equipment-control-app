@@ -731,6 +731,8 @@ class CommandReference(ttk.Frame):
             if queued_vars or has_active_logs:
                 self.context_menu.add_separator()
             
+            self.context_menu.add_command(label="Refresh Device", command=lambda: self.refresh_device(device_name))
+            self.context_menu.add_separator()
             self.context_menu.add_command(label="Edit Device...", command=self.edit_device)
             self.context_menu.add_command(label="More Info...", command=self.show_device_info)
             self.context_menu.add_separator()
@@ -2287,6 +2289,31 @@ class CommandReference(ttk.Frame):
         device = self.get_selected_device()
         if device:
             self.devices_context_menu.post(event.x_root, event.y_root)
+    
+    def refresh_device(self, device_name):
+        """Refreshes/reloads the JSON files for a single device."""
+        from tkinter import messagebox
+        
+        try:
+            success = self.device_manager.reload_single_device(device_name)
+            if success:
+                # Refresh the display
+                self.refresh()
+                messagebox.showinfo(
+                    "Device Refreshed",
+                    f"Successfully reloaded configuration for '{device_name}'.\n\n"
+                    f"Commands, telemetry, and events have been updated."
+                )
+            else:
+                messagebox.showerror(
+                    "Refresh Failed",
+                    f"Failed to reload device '{device_name}'."
+                )
+        except Exception as e:
+            messagebox.showerror(
+                "Refresh Error",
+                f"Error refreshing device '{device_name}':\n{str(e)}"
+            )
     
     def show_device_info(self):
         """Opens a detailed information window for the selected device."""

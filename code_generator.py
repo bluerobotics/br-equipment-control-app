@@ -26,7 +26,7 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
     
     # Organize commands by category based on common patterns
     categories = {
-        'General System Commands': [],
+        'General System Commands': [('DISCOVER_DEVICE', {'help': 'Generic command for any device to respond to.'})],
         'Motion Commands': [],
         'Valve Commands': [],
         'Heater Commands': [],
@@ -90,6 +90,39 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
         lines.append("")
     
     # Generate enum
+    # Add response/status prefixes
+    lines.append("//==================================================================================================")
+    lines.append("// Response Message Prefixes (Device → Host)")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Status Message Prefixes")
+    lines.append(" * @brief Prefixes used for different types of status messages from the device.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define STATUS_PREFIX_INFO                  "{device_upper}_INFO: "          ///< Prefix for informational status messages.')
+    lines.append(f'#define STATUS_PREFIX_START                 "{device_upper}_START: "         ///< Prefix for messages indicating the start of an operation.')
+    lines.append(f'#define STATUS_PREFIX_DONE                  "{device_upper}_DONE: "          ///< Prefix for messages indicating the successful completion of an operation.')
+    lines.append(f'#define STATUS_PREFIX_ERROR                 "{device_upper}_ERROR: "         ///< Prefix for messages indicating an error or fault.')
+    lines.append(f'#define STATUS_PREFIX_DISCOVERY             "DISCOVERY_RESPONSE: "     ///< Prefix for the device discovery response.')
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Telemetry Prefix")
+    lines.append(" * @brief Prefix for periodic telemetry data messages.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define TELEM_PREFIX                        "{device_upper}_TELEM: "         ///< Prefix for all telemetry messages.')
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Event Prefix")
+    lines.append(" * @brief Prefix for event messages.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define EVENT_PREFIX                        "{device_upper}_EVENT: "         ///< Prefix for all event messages.')
+    lines.append("/** @} */")
+    lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Command Enum")
     lines.append("//==================================================================================================")
@@ -104,15 +137,20 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
     lines.append("")
     
     # Add enum entries by category
+    all_cmds_list = []
+    for category, cmds in categories.items():
+        if cmds:
+            all_cmds_list.extend(cmds)
+    
     for category, cmds in categories.items():
         if not cmds:
             continue
             
         lines.append(f"    // {category}")
         for i, (cmd_name, cmd_data) in enumerate(cmds):
-            # Determine if this is the last entry overall
-            is_last = (category == list(categories.keys())[-1] and i == len(cmds) - 1)
-            comma = "" if is_last else ","
+            # Check if this is the very last command across all categories
+            is_last_overall = (cmd_name, cmd_data) == all_cmds_list[-1]
+            comma = "" if is_last_overall else ","
             lines.append(f"    CMD_{cmd_name.upper():<35} ///< @see CMD_STR_{cmd_name.upper()}{comma}")
         lines.append("")
     
@@ -120,6 +158,25 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
     if lines[-1] == "":
         lines.pop()
     lines.append("} Command;")
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Command Parser Functions")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Parse a command string and return the corresponding Command enum.")
+    lines.append(" * @param cmdStr The command string to parse")
+    lines.append(" * @return The parsed Command enum value, or CMD_UNKNOWN if not recognized")
+    lines.append(" */")
+    lines.append("Command parseCommand(const char* cmdStr);")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @brief Extract parameter string from a command.")
+    lines.append(" * @param cmdStr The full command string")
+    lines.append(" * @param cmd The parsed command enum")
+    lines.append(" * @return Pointer to the parameter substring, or NULL if no parameters")
+    lines.append(" */")
+    lines.append("const char* getCommandParams(const char* cmdStr, Command cmd);")
     
     return '\n'.join(lines)
 
@@ -177,21 +234,23 @@ def generate_command_parser_header(commands: Dict[str, Any], device_name: str) -
     return '\n'.join(lines)
 
 
-def generate_command_parser_cpp(commands: Dict[str, Any], device_name: str) -> str:
-    """Generate command_parser.cpp implementation file."""
+def generate_commands_cpp(commands: Dict[str, Any], device_name: str) -> str:
+    """Generate commands.cpp with integrated command parser."""
     
     device_upper = device_name.upper()
     device_title = device_name.capitalize()
     
     lines = []
     lines.append("/**")
-    lines.append(" * @file command_parser.cpp")
-    lines.append(f" * @brief Command parsing and dispatching implementations for the {device_title} controller.")
+    lines.append(" * @file commands.cpp")
+    lines.append(f" * @brief Command parsing implementation for the {device_title} controller.")
     lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
     lines.append(f" * Generated from commands.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(" * ")
+    lines.append(" * This file contains the command parser integrated into commands.cpp")
     lines.append(" */")
     lines.append("")
-    lines.append('#include "command_parser.h"')
+    lines.append('#include "commands.h"')
     lines.append('#include <string.h>')
     lines.append("")
     lines.append("//==================================================================================================")
@@ -199,6 +258,9 @@ def generate_command_parser_cpp(commands: Dict[str, Any], device_name: str) -> s
     lines.append("//==================================================================================================")
     lines.append("")
     lines.append("Command parseCommand(const char* cmdStr) {")
+    
+    # Always add DISCOVER_DEVICE first
+    lines.append(f"    if (strncmp(cmdStr, CMD_STR_DISCOVER_DEVICE, strlen(CMD_STR_DISCOVER_DEVICE)) == 0) return CMD_DISCOVER_DEVICE;")
     
     # Generate parsing logic for each command
     for cmd_name in commands.keys():
@@ -218,32 +280,6 @@ def generate_command_parser_cpp(commands: Dict[str, Any], device_name: str) -> s
     
     lines.append("        default:")
     lines.append("            return NULL;")
-    lines.append("    }")
-    lines.append("}")
-    lines.append("")
-    lines.append("//==================================================================================================")
-    lines.append("// Command Dispatcher Template")
-    lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("bool dispatchCommand(Command cmd, const char* params) {")
-    lines.append("    switch (cmd) {")
-    
-    # Generate dispatch cases
-    for cmd_name, cmd_data in commands.items():
-        has_params = len(cmd_data.get('params', [])) > 0
-        lines.append(f"        case CMD_{cmd_name.upper()}:")
-        if has_params:
-            lines.append(f"            // TODO: Implement handler with parameters")
-            lines.append(f"            // handle_{cmd_name}(params);")
-        else:
-            lines.append(f"            // TODO: Implement handler")
-            lines.append(f"            // handle_{cmd_name}();")
-        lines.append("            return true;")
-        lines.append("")
-    
-    lines.append("        case CMD_UNKNOWN:")
-    lines.append("        default:")
-    lines.append("            return false;")
     lines.append("    }")
     lines.append("}")
     
@@ -403,15 +439,15 @@ def generate_telemetry_formatter(telemetry: Dict[str, Any], device_name: str) ->
     return '\n'.join(lines)
 
 
-def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> str:
-    """Generate telemetry.h content from telemetry.json with struct and function declarations."""
+def generate_variables_header(telemetry: Dict[str, Any], device_name: str) -> str:
+    """Generate variables.h content from telemetry.json with struct and function declarations."""
     
     device_upper = device_name.upper()
     device_title = device_name.capitalize()
     
     lines = []
     lines.append("/**")
-    lines.append(" * @file telemetry.h")
+    lines.append(" * @file variables.h")
     lines.append(f" * @brief Telemetry structure and construction interface for the {device_title} controller.")
     lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
     lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -424,6 +460,7 @@ def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> st
     lines.append("")
     lines.append('#include <stdint.h>')
     lines.append('#include <stdbool.h>')
+    lines.append('#include <stddef.h>')
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Telemetry Field Keys")
@@ -466,6 +503,8 @@ def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> st
             c_type = 'float'
         elif field_type == 'bool':
             c_type = 'bool'
+        elif field_type == 'string':
+            c_type = 'const char*'
         else:
             c_type = 'int32_t'
         
@@ -495,7 +534,7 @@ def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> st
     lines.append("int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buffer_size);")
     lines.append("")
     lines.append("/**")
-    lines.append(" * @brief Send telemetry message via Serial.")
+    lines.append(" * @brief Send telemetry message via comms controller.")
     lines.append(" * @param data Pointer to TelemetryData structure containing current values")
     lines.append(" * ")
     lines.append(" * @details Builds and transmits the complete telemetry message.")
@@ -504,27 +543,31 @@ def generate_telemetry_header(telemetry: Dict[str, Any], device_name: str) -> st
     
     return '\n'.join(lines)
 
+# Alias for backwards compatibility
+generate_telemetry_header = generate_variables_header
 
-def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
-    """Generate telemetry.cpp implementation file."""
+
+def generate_variables_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
+    """Generate variables.cpp implementation file."""
     
     device_upper = device_name.upper()
     device_title = device_name.capitalize()
     
     lines = []
     lines.append("/**")
-    lines.append(" * @file telemetry.cpp")
+    lines.append(" * @file variables.cpp")
     lines.append(f" * @brief Telemetry construction implementation for the {device_title} controller.")
     lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
     lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(" */")
     lines.append("")
-    lines.append('#include "telemetry.h"')
+    lines.append('#include "variables.h"')
+    lines.append('#include "commands.h"')
     lines.append('#include <stdio.h>')
     lines.append('#include <string.h>')
-    lines.append('// #include "ClearCore.h"  // Include if using ClearCore hardware')
     lines.append("")
-    lines.append(f'#define TELEM_PREFIX "{device_upper}_TELEM: "')
+    lines.append("// Forward declaration - implemented in comms_controller")
+    lines.append("extern void sendMessage(const char* msg);")
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Telemetry Initialization")
@@ -543,6 +586,8 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
             lines.append(f"    data->{field} = {default}f;")
         elif field_type == 'bool':
             lines.append(f"    data->{field} = {'true' if default else 'false'};")
+        elif field_type == 'string':
+            lines.append(f"    data->{field} = \"{default}\";")
         else:
             lines.append(f"    data->{field} = {default};")
     
@@ -555,7 +600,7 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
     lines.append("int telemetry_build_message(const TelemetryData* data, char* buffer, size_t buffer_size) {")
     lines.append("    if (data == NULL || buffer == NULL || buffer_size == 0) return 0;")
     lines.append("    ")
-    lines.append("    int pos = 0;")
+    lines.append("    size_t pos = 0;")
     lines.append("    ")
     lines.append("    // Write prefix")
     lines.append("    pos += snprintf(buffer + pos, buffer_size - pos, \"%s\", TELEM_PREFIX);")
@@ -576,13 +621,15 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
             lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%.{precision}f{separator}\", TELEM_KEY_{field.upper()}, data->{field});")
         elif field_type == 'bool':
             lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%d{separator}\", TELEM_KEY_{field.upper()}, data->{field} ? 1 : 0);")
-        else:  # int
-            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%d{separator}\", TELEM_KEY_{field.upper()}, data->{field});")
+        elif field_type == 'string':
+            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%s{separator}\", TELEM_KEY_{field.upper()}, data->{field});")
+        else:  # int/int32_t
+            lines.append(f"        pos += snprintf(buffer + pos, buffer_size - pos, \"%s:%ld{separator}\", TELEM_KEY_{field.upper()}, (long)data->{field});")
         
         lines.append("    }")
         lines.append("    ")
     
-    lines.append("    return pos;")
+    lines.append("    return (int)pos;")
     lines.append("}")
     lines.append("")
     lines.append("//==================================================================================================")
@@ -604,6 +651,9 @@ def generate_telemetry_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
     lines.append("}")
     
     return '\n'.join(lines)
+
+# Alias for backwards compatibility
+generate_telemetry_cpp = generate_variables_cpp
 
 
 def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
@@ -629,18 +679,6 @@ def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
     lines.append("")
     lines.append('#include <stdint.h>')
     lines.append('#include <stdbool.h>')
-    lines.append("")
-    lines.append("//==================================================================================================")
-    lines.append("// Event Message Prefixes (Device → Host)")
-    lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Event Message Prefix")
-    lines.append(" * @brief Prefix used for all event messages from the device.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define EVENT_PREFIX                        "{device_upper}_EVENT: "         ///< Prefix for all event messages.')
-    lines.append("/** @} */")
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Event String Definitions")
@@ -677,7 +715,7 @@ def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
     for i, (event_name, event_data) in enumerate(event_items):
         is_last = (i == len(event_items) - 1)
         comma = "" if is_last else ","
-        lines.append(f"    EVENT_{event_name.upper():<35} ///< @see EVENT_STR_{event_name.upper()}{comma}")
+        lines.append(f"    EVENT_{event_name.upper()}{comma:<35} ///< @see EVENT_STR_{event_name.upper()}")
     
     lines.append("} Event;")
     lines.append("")
@@ -749,28 +787,30 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     lines.append(" */")
     lines.append("")
     lines.append('#include "events.h"')
+    lines.append('#include "commands.h"')
     lines.append('#include <stdio.h>')
     lines.append('#include <string.h>')
-    lines.append('// #include "ClearCore.h"  // Include if using ClearCore hardware')
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Event Sending Implementation")
     lines.append("//==================================================================================================")
     lines.append("")
-    lines.append("// NOTE: You need to provide a sendMessage() implementation based on your comms setup")
-    lines.append("// For example:")
-    lines.append("// extern CommsController comms;")
-    lines.append("// #define sendMessage(msg) comms.enqueueTx(msg, comms.m_guiIp, comms.m_guiPort)")
+    lines.append("// Forward declaration - implemented in comms_controller")
+    lines.append("extern void sendMessage(const char* msg);")
     lines.append("")
     lines.append("void sendEvent(Event event) {")
-    lines.append("    char buffer[256];")
+    if events:  # Only create buffer if there are events
+        lines.append("    char buffer[256];")
     lines.append("    switch (event) {")
     
     # Generate cases for each event
     for event_name, event_data in events.items():
         lines.append(f"        case EVENT_{event_name.upper()}:")
-        lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()});")
-        lines.append(f"            sendMessage(buffer);")
+        lines.append(f"            {{")
+        lines.append(f"                char buffer[256];")
+        lines.append(f"                snprintf(buffer, sizeof(buffer), \"%s%s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()});")
+        lines.append(f"                sendMessage(buffer);")
+        lines.append(f"            }}")
         lines.append("            break;")
         lines.append("")
     
@@ -782,17 +822,21 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     lines.append("}")
     lines.append("")
     lines.append("void sendEventInt(Event event, int32_t param) {")
-    lines.append("    char buffer[256];")
     lines.append("    switch (event) {")
     
     # Generate cases for events that might have integer parameters
+    has_int_events = False
     for event_name, event_data in events.items():
         params = event_data.get('params', [])
         has_int_param = any(p.get('type') == 'int' for p in params)
         if has_int_param:
+            has_int_events = True
             lines.append(f"        case EVENT_{event_name.upper()}:")
-            lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s %d\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
-            lines.append(f"            sendMessage(buffer);")
+            lines.append(f"            {{")
+            lines.append(f"                char buffer[256];")
+            lines.append(f"                snprintf(buffer, sizeof(buffer), \"%s%s %d\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
+            lines.append(f"                sendMessage(buffer);")
+            lines.append(f"            }}")
             lines.append("            break;")
             lines.append("")
     
@@ -804,17 +848,21 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     lines.append("}")
     lines.append("")
     lines.append("void sendEventString(Event event, const char* param) {")
-    lines.append("    char buffer[256];")
     lines.append("    switch (event) {")
     
     # Generate cases for events that might have string parameters
+    has_string_events = False
     for event_name, event_data in events.items():
         params = event_data.get('params', [])
         has_string_param = any(p.get('type') == 'string' for p in params)
         if has_string_param:
+            has_string_events = True
             lines.append(f"        case EVENT_{event_name.upper()}:")
-            lines.append(f"            snprintf(buffer, sizeof(buffer), \"%s%s %s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
-            lines.append(f"            sendMessage(buffer);")
+            lines.append(f"            {{")
+            lines.append(f"                char buffer[256];")
+            lines.append(f"                snprintf(buffer, sizeof(buffer), \"%s%s %s\", EVENT_PREFIX, EVENT_STR_{event_name.upper()}, param);")
+            lines.append(f"                sendMessage(buffer);")
+            lines.append(f"            }}")
             lines.append("            break;")
             lines.append("")
     
@@ -826,7 +874,6 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     lines.append("}")
     lines.append("")
     lines.append("void sendEventMulti(Event event, int32_t param1, int32_t param2) {")
-    lines.append("    char buffer[256];")
     lines.append("    switch (event) {")
     lines.append("        // Add specific cases for events that need multiple parameters")
     lines.append("        default:")
@@ -960,7 +1007,7 @@ class CodeGeneratorDialog(tk.Toplevel):
         # Description
         desc_label = tk.Label(
             main_frame,
-            text="Generate C++ files from device JSON schemas.\nFiles saved to: devices/{device}/generated/\nIncludes: commands.h, responses.h, command_parser.h/cpp, telemetry.h/cpp, events.h/cpp",
+            text="Generate C++ files from device JSON schemas.\nFiles saved to: devices/{device}/generated/\nIncludes: commands.h, responses.h, commands.cpp, variables.h/cpp, events.h/cpp",
             bg=theme.BG_COLOR,
             fg=theme.COMMENT_COLOR,
             font=theme.FONT_NORMAL,
@@ -1059,57 +1106,44 @@ class CodeGeneratorDialog(tk.Toplevel):
         self.responses_text.pack(fill=tk.BOTH, expand=True)
         self.notebook.add(responses_frame, text="responses.h")
         
-        # Command Parser tab
-        parser_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
-        self.parser_text = scrolledtext.ScrolledText(
-            parser_frame,
+        # Commands.cpp tab
+        commands_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.commands_cpp_text = scrolledtext.ScrolledText(
+            commands_cpp_frame,
             bg=theme.WIDGET_BG,
             fg=theme.FG_COLOR,
             insertbackground=theme.FG_COLOR,
             font=('Courier', 9),
             wrap=tk.NONE
         )
-        self.parser_text.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(parser_frame, text="command_parser.h")
+        self.commands_cpp_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(commands_cpp_frame, text="commands.cpp")
         
-        # Command Parser CPP tab
-        parser_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
-        self.parser_cpp_text = scrolledtext.ScrolledText(
-            parser_cpp_frame,
+        # Variables.h tab
+        variables_h_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.variables_h_text = scrolledtext.ScrolledText(
+            variables_h_frame,
             bg=theme.WIDGET_BG,
             fg=theme.FG_COLOR,
             insertbackground=theme.FG_COLOR,
             font=('Courier', 9),
             wrap=tk.NONE
         )
-        self.parser_cpp_text.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(parser_cpp_frame, text="command_parser.cpp")
+        self.variables_h_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(variables_h_frame, text="variables.h")
         
-        # Telemetry.h tab
-        telemetry_h_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
-        self.telemetry_h_text = scrolledtext.ScrolledText(
-            telemetry_h_frame,
+        # Variables.cpp tab
+        variables_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
+        self.variables_cpp_text = scrolledtext.ScrolledText(
+            variables_cpp_frame,
             bg=theme.WIDGET_BG,
             fg=theme.FG_COLOR,
             insertbackground=theme.FG_COLOR,
             font=('Courier', 9),
             wrap=tk.NONE
         )
-        self.telemetry_h_text.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(telemetry_h_frame, text="telemetry.h")
-        
-        # Telemetry.cpp tab
-        telemetry_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
-        self.telemetry_cpp_text = scrolledtext.ScrolledText(
-            telemetry_cpp_frame,
-            bg=theme.WIDGET_BG,
-            fg=theme.FG_COLOR,
-            insertbackground=theme.FG_COLOR,
-            font=('Courier', 9),
-            wrap=tk.NONE
-        )
-        self.telemetry_cpp_text.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(telemetry_cpp_frame, text="telemetry.cpp")
+        self.variables_cpp_text.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(variables_cpp_frame, text="variables.cpp")
         
         # Events.h tab
         events_h_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
@@ -1190,10 +1224,9 @@ class CodeGeneratorDialog(tk.Toplevel):
         initial_msg = "Select a device and click 'Generate Headers' to begin..."
         self.commands_text.insert('1.0', initial_msg)
         self.responses_text.insert('1.0', initial_msg)
-        self.parser_text.insert('1.0', initial_msg)
-        self.parser_cpp_text.insert('1.0', initial_msg)
-        self.telemetry_h_text.insert('1.0', initial_msg)
-        self.telemetry_cpp_text.insert('1.0', initial_msg)
+        self.commands_cpp_text.insert('1.0', initial_msg)
+        self.variables_h_text.insert('1.0', initial_msg)
+        self.variables_cpp_text.insert('1.0', initial_msg)
         self.events_h_text.insert('1.0', initial_msg)
         self.events_cpp_text.insert('1.0', initial_msg)
     
@@ -1234,10 +1267,9 @@ class CodeGeneratorDialog(tk.Toplevel):
             # Generate all files
             commands_h = generate_command_header(commands, device_name)
             responses_h = generate_responses_header(telemetry, device_name)
-            parser_h = generate_command_parser_header(commands, device_name)
-            parser_cpp = generate_command_parser_cpp(commands, device_name)
-            telemetry_h = generate_telemetry_header(telemetry, device_name)
-            telemetry_cpp = generate_telemetry_cpp(telemetry, device_name)
+            commands_cpp = generate_commands_cpp(commands, device_name)
+            variables_h = generate_variables_header(telemetry, device_name)
+            variables_cpp = generate_variables_cpp(telemetry, device_name)
             events_h = generate_events_header(events, device_name)
             events_cpp = generate_events_cpp(events, device_name)
             
@@ -1248,17 +1280,14 @@ class CodeGeneratorDialog(tk.Toplevel):
             self.responses_text.delete('1.0', tk.END)
             self.responses_text.insert('1.0', responses_h)
             
-            self.parser_text.delete('1.0', tk.END)
-            self.parser_text.insert('1.0', parser_h)
+            self.commands_cpp_text.delete('1.0', tk.END)
+            self.commands_cpp_text.insert('1.0', commands_cpp)
             
-            self.parser_cpp_text.delete('1.0', tk.END)
-            self.parser_cpp_text.insert('1.0', parser_cpp)
+            self.variables_h_text.delete('1.0', tk.END)
+            self.variables_h_text.insert('1.0', variables_h)
             
-            self.telemetry_h_text.delete('1.0', tk.END)
-            self.telemetry_h_text.insert('1.0', telemetry_h)
-            
-            self.telemetry_cpp_text.delete('1.0', tk.END)
-            self.telemetry_cpp_text.insert('1.0', telemetry_cpp)
+            self.variables_cpp_text.delete('1.0', tk.END)
+            self.variables_cpp_text.insert('1.0', variables_cpp)
             
             self.events_h_text.delete('1.0', tk.END)
             self.events_h_text.insert('1.0', events_h)
@@ -1269,10 +1298,9 @@ class CodeGeneratorDialog(tk.Toplevel):
             # Store generated content for saving
             self.generated_commands = commands_h
             self.generated_responses = responses_h
-            self.generated_parser = parser_h
-            self.generated_parser_cpp = parser_cpp
-            self.generated_telemetry_h = telemetry_h
-            self.generated_telemetry_cpp = telemetry_cpp
+            self.generated_commands_cpp = commands_cpp
+            self.generated_variables_h = variables_h
+            self.generated_variables_cpp = variables_cpp
             self.generated_events_h = events_h
             self.generated_events_cpp = events_cpp
             self.current_device = device_name
@@ -1288,15 +1316,13 @@ class CodeGeneratorDialog(tk.Toplevel):
             content = self.commands_text.get('1.0', tk.END)
         elif current_tab == 1:  # responses.h
             content = self.responses_text.get('1.0', tk.END)
-        elif current_tab == 2:  # command_parser.h
-            content = self.parser_text.get('1.0', tk.END)
-        elif current_tab == 3:  # command_parser.cpp
-            content = self.parser_cpp_text.get('1.0', tk.END)
-        elif current_tab == 4:  # telemetry.h
-            content = self.telemetry_h_text.get('1.0', tk.END)
-        elif current_tab == 5:  # telemetry.cpp
-            content = self.telemetry_cpp_text.get('1.0', tk.END)
-        elif current_tab == 6:  # events.h
+        elif current_tab == 2:  # commands.cpp
+            content = self.commands_cpp_text.get('1.0', tk.END)
+        elif current_tab == 3:  # variables.h
+            content = self.variables_h_text.get('1.0', tk.END)
+        elif current_tab == 4:  # variables.cpp
+            content = self.variables_cpp_text.get('1.0', tk.END)
+        elif current_tab == 5:  # events.h
             content = self.events_h_text.get('1.0', tk.END)
         else:  # events.cpp
             content = self.events_cpp_text.get('1.0', tk.END)
@@ -1323,10 +1349,9 @@ class CodeGeneratorDialog(tk.Toplevel):
             
             commands_h_path = os.path.join(gen_dir, 'commands.h')
             responses_h_path = os.path.join(gen_dir, 'responses.h')
-            parser_h_path = os.path.join(gen_dir, 'command_parser.h')
-            parser_cpp_path = os.path.join(gen_dir, 'command_parser.cpp')
-            telemetry_h_path = os.path.join(gen_dir, 'telemetry.h')
-            telemetry_cpp_path = os.path.join(gen_dir, 'telemetry.cpp')
+            commands_cpp_path = os.path.join(gen_dir, 'commands.cpp')
+            variables_h_path = os.path.join(gen_dir, 'variables.h')
+            variables_cpp_path = os.path.join(gen_dir, 'variables.cpp')
             events_h_path = os.path.join(gen_dir, 'events.h')
             events_cpp_path = os.path.join(gen_dir, 'events.cpp')
             
@@ -1337,17 +1362,14 @@ class CodeGeneratorDialog(tk.Toplevel):
             with open(responses_h_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_responses)
             
-            with open(parser_h_path, 'w', encoding='utf-8') as f:
-                f.write(self.generated_parser)
+            with open(commands_cpp_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_commands_cpp)
             
-            with open(parser_cpp_path, 'w', encoding='utf-8') as f:
-                f.write(self.generated_parser_cpp)
+            with open(variables_h_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_variables_h)
             
-            with open(telemetry_h_path, 'w', encoding='utf-8') as f:
-                f.write(self.generated_telemetry_h)
-            
-            with open(telemetry_cpp_path, 'w', encoding='utf-8') as f:
-                f.write(self.generated_telemetry_cpp)
+            with open(variables_cpp_path, 'w', encoding='utf-8') as f:
+                f.write(self.generated_variables_cpp)
             
             with open(events_h_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_events_h)
@@ -1360,10 +1382,9 @@ class CodeGeneratorDialog(tk.Toplevel):
                 f"All files saved successfully to generated/ folder!\n\n"
                 f"generated/commands.h\n"
                 f"generated/responses.h\n"
-                f"generated/command_parser.h\n"
-                f"generated/command_parser.cpp\n"
-                f"generated/telemetry.h\n"
-                f"generated/telemetry.cpp\n"
+                f"generated/commands.cpp\n"
+                f"generated/variables.h\n"
+                f"generated/variables.cpp\n"
                 f"generated/events.h\n"
                 f"generated/events.cpp\n\n"
                 f"Location: {gen_dir}"

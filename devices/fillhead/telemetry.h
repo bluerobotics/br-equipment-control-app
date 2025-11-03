@@ -2,7 +2,7 @@
  * @file telemetry.h
  * @brief Telemetry structure and construction interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-10-24 16:49:57
+ * Generated from telemetry.json on 2025-11-03 11:25:17
  * 
  * This header defines the complete telemetry data structure for the Fillhead.
  * All telemetry fields are assembled in one centralized location.
@@ -23,7 +23,7 @@
  * Format: "FILLHEAD_TELEM: field1:value1,field2:value2,..."
  * @{
  */
-#define TELEM_KEY_FILLHEAD_STATE                 "fillhead_state           "  ///< Overall fillhead system state
+#define TELEM_KEY_MAIN_STATE                     "main_state               "  ///< Overall fillhead system state
 #define TELEM_KEY_INJECTOR_STATE                 "injector_state           "  ///< Current operational state of the injector motors
 #define TELEM_KEY_INJ_VALVE_STATE                "inj_valve_state          "  ///< Current state of the injection pinch valve
 #define TELEM_KEY_VAC_VALVE_STATE                "vac_valve_state          "  ///< Current state of the vacuum pinch valve
@@ -56,7 +56,7 @@
  * @details This structure contains all telemetry values that are transmitted to the host.
  */
 typedef struct {
-    int32_t      fillhead_state                ; ///< Overall fillhead system state
+    int32_t      main_state                    ; ///< Overall fillhead system state
     int32_t      injector_state                ; ///< Current operational state of the injector motors
     int32_t      inj_valve_state               ; ///< Current state of the injection pinch valve
     int32_t      vac_valve_state               ; ///< Current state of the vacuum pinch valve

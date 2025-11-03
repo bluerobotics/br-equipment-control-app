@@ -2,7 +2,7 @@
  * @file telemetry.h
  * @brief Telemetry structure and construction interface for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-10-24 16:49:57
+ * Generated from telemetry.json on 2025-11-03 11:25:17
  * 
  * This header defines the complete telemetry data structure for the Gantry.
  * All telemetry fields are assembled in one centralized location.
@@ -23,7 +23,7 @@
  * Format: "GANTRY_TELEM: field1:value1,field2:value2,..."
  * @{
  */
-#define TELEM_KEY_GANTRY_STATE                   "gantry_state             "  ///< Overall gantry system state
+#define TELEM_KEY_MAIN_STATE                     "main_state               "  ///< Overall gantry system state
 #define TELEM_KEY_X_STATE                        "x_state                  "  ///< Current operational state of X-axis
 #define TELEM_KEY_Y_STATE                        "y_state                  "  ///< Current operational state of Y-axis
 #define TELEM_KEY_Z_STATE                        "z_state                  "  ///< Current operational state of Z-axis
@@ -51,7 +51,7 @@
  * @details This structure contains all telemetry values that are transmitted to the host.
  */
 typedef struct {
-    int32_t      gantry_state                  ; ///< Overall gantry system state
+    int32_t      main_state                    ; ///< Overall gantry system state
     int32_t      x_state                       ; ///< Current operational state of X-axis
     int32_t      y_state                       ; ///< Current operational state of Y-axis
     int32_t      z_state                       ; ///< Current operational state of Z-axis

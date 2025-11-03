@@ -2,7 +2,7 @@
  * @file telemetry.h
  * @brief Telemetry structure and construction interface for the Pressboi controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-10-24 16:49:57
+ * Generated from telemetry.json on 2025-11-03 11:25:17
  * 
  * This header defines the complete telemetry data structure for the Pressboi.
  * All telemetry fields are assembled in one centralized location.
