@@ -383,7 +383,7 @@ class MainApplication:
 
         # --- Populate UI Components ---
         # Commands panel lives in the splitter (right pane), resizable
-        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Commands", width=800)
+        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=800)
         splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
 

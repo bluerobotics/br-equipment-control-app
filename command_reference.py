@@ -310,7 +310,7 @@ class CommandReference(ttk.Frame):
             icon = "► " if is_collapsed else "▼ "
             
             self.text.insert(f"{line_num}.0", icon, "folder_icon")
-            self.text.insert(f"{line_num}.end", f"script commands ({len(script_only)})\n", "script_header")
+            self.text.insert(f"{line_num}.end", f"script functions ({len(script_only)})\n", "script_header")
             self.line_items[line_num] = {'type': 'script_folder', 'line_start': line_num, 'device': '', 'name': ''}
             line_num += 1
             
