@@ -144,6 +144,34 @@ jobs:
       - name: Display structure
         run: ls -R artifacts
 
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Extracting changelog for version $VERSION"
+          
+          # Extract the changelog section for this version
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/{
+              if ($2 == "["ver"]") {
+                found=1
+                next
+              } else if (found) {
+                exit
+              }
+            }
+            found { print }
+          ' CHANGELOG.md)
+          
+          # Format the changelog
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          echo "$CHANGELOG" | sed 's/^### Added//' | sed 's/^### Changed//' | sed 's/^### Fixed//' | grep -v '^$' >> release_notes.md
+          echo "" >> release_notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.3.0...v$VERSION" >> release_notes.md
+          
+          cat release_notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -152,9 +180,9 @@ jobs:
             artifacts/macos-build/br-equipment-control-app-macos.dmg
             artifacts/macos-build/br-equipment-control-app-macos.zip
             artifacts/linux-build/br-equipment-control-app-linux.tar.gz
+          body_path: release_notes.md
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

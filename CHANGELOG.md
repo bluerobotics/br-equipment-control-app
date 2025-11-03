@@ -1,23 +1,30 @@
-## v1.2.0 - 2025-10-27
-- **Major:** Added variables tab for displaying all available device telemetry variables
-- **Major:** Added automatic C++ header code generation from commands.json and telemetry.json
-- **Major:** Added WAIT_FOR command to wait for conditions (variables, comparisons, timeouts)
-- Enhanced commands.json structure with device/host/target specifications
-- Added syntax highlighting for device variables (device.variable format)
-- Added pressboi `force_action` parameter with options: return, halt, continue
-- Standardized command response pattern to `done` and `error`
-- Fixed tab width in script editor
-- Added syntax highlighting support for keyword-type parameters
+# Changelog
 
-## v1.1.0 - 2025-10-20
-- **Major:** Refactored command syntax to dot notation (device.do_something) and added syntax highlighting for devices
-- **Major:** Refactored device-specific simulator methods to be within device folders
-- **Major:** Added file recovery and unsaved file warnings
-- Fixed simulator device discovery on macOS
-- Added new "more info" window for commands to display more details about them
-- Added support for strings as command parameters
-- Changed fonts to monospaced and improved tab indenting
-- Added basic distance <> force graph to the pressboi device definition
+All notable changes to this project will be documented in this file.
 
-## v1.0.1  - 2025-10-13
-- **Major:** Initial release of the BR Equipment Control App.
+## [1.3.1] - 2025-11-03
+
+### Added
+- **Major:** Added builds for Windows, macOS, and Linux
+- User must now select device folder location on first startup
+- Added method to change device folder location via Settings menu
+- UI fixes and improvements
+
+### Changed
+- Standardized executable naming to `br-equipment-control-app` across all platforms
+- Device folder can now be customized and stored separately from app installation
+
+### Fixed
+- macOS build compatibility issues
+
+## [1.3.0] - 2025-11-03
+
+### Added
+- Initial release with full feature set
+- Script editor with syntax highlighting
+- Data logging with CSV export
+- Device simulator
+- Multi-device support (fillhead, gantry, pressboi, pressurizer)
+- Command Reference panel
+- Real-time device discovery and connection monitoring
+
