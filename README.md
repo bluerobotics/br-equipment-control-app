@@ -4,7 +4,14 @@
 
 # BR Equipment Control App
 
-[View Changelog](CHANGELOG.md)
+**Multi-Device Manufacturing Equipment Control & Automation**
+
+[![license: MIT](https://img.shields.io/github/license/bluerobotics/br-equipment-control-app?style=flat-square)](LICENSE)
+[![release](https://img.shields.io/github/v/release/bluerobotics/br-equipment-control-app?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/releases/latest)
+[![build](https://img.shields.io/github/actions/workflow/status/bluerobotics/br-equipment-control-app/build.yml?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/actions)
+[![downloads](https://img.shields.io/github/downloads/bluerobotics/br-equipment-control-app/total?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/releases)
+
+[View Changelog](CHANGELOG.md) • [Download Latest Release](https://github.com/bluerobotics/br-equipment-control-app/releases/latest)
 
 ---
 
@@ -523,8 +530,38 @@ Creates `logs/` directory on first run.
 
 ---
 
-## 11. License & Contact
+## 11. Related Projects
 
-Developed by Blue Robotics for internal equipment control.
+- **[Pressboi Firmware](https://github.com/bluerobotics/pressboi)** - Dual-motor press control firmware for ClearCore
+- **[Fillhead Firmware](https://github.com/bluerobotics/fillhead)** - Automated filling system firmware
+- **[Gantry Firmware](https://github.com/bluerobotics/gantry)** - XYZ gantry motion control firmware
 
-Repository: https://github.com/bluerobotics/br-equipment-control-app
+---
+
+## 12. License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2025 Blue Robotics
+
+---
+
+## 13. Contributing
+
+For issues, feature requests, or contributions, please open an issue or pull request on GitHub.
+
+---
+
+<div align="center">
+
+⭐ **Star us on GitHub if you found this useful!**
+
+Made with 💙 by the Blue Robotics team and contributors worldwide
+
+---
+
+<img src="assets/logo.png" alt="Blue Robotics" width="300">
+
+**[bluerobotics.com](https://bluerobotics.com)** | Manufacturing Equipment Control
+
+</div>
