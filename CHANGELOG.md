@@ -20,11 +20,59 @@ All notable changes to this project will be documented in this file.
 ## [1.3.0] - 2025-11-03
 
 ### Added
-- Initial release with full feature set
+- **Major:** Refactored device panel
+- **Major:** Added ability to add/edit/delete devices, commands, variables, and events from the app
+- **Major:** Added events (messages from the device that can control the script execution)
+- **Major:** Added datalogging features
+- Integrated device simulation into the main app (now accessible by right clicking device in device pane)
+- Added checks to block script execution if devices aren't connected
+
+### Changed
+- Improvements to pressboi and gantry device status panels
+- Many small bug fixes
+- Updated readme
+
+## [1.2.0] - 2025-10-30
+
+### Added
+- **Major:** Added variables tab for displaying all available device telemetry variables
+- **Major:** Added automatic C++ header code generation from commands.json and telemetry.json
+- **Major:** Added wait_for command to wait for conditions (variables, comparisons, timeouts)
+- Enhanced commands.json structure with device/host/target specifications
+- Added syntax highlighting for device variables (device.variable format)
+- Added pressboi `force_action` parameter with options: return, halt, continue
+- Added syntax highlighting support for keyword-type parameters
+
+### Changed
+- Standardized command response pattern to `done` and `error`
+
+### Fixed
+- Fixed tab width in script editor
+
+## [1.1.0] - 2025-10-25
+
+### Added
+- **Major:** Refactored command syntax to dot notation (device.do_something) and added syntax highlighting for devices
+- **Major:** Refactored device-specific simulator methods to be within device folders
+- **Major:** Added file recovery and unsaved file warnings
+- Added new "more info" window for commands to display more details about them
+- Added support for strings as command parameters
+
+### Changed
+- Changed fonts to monospaced and improved tab indenting
+- Added basic distance <> force graph to the pressboi device definition
+
+### Fixed
+- Fixed simulator device discovery on macOS
+
+## [1.0.1] - 2025-10-20
+
+### Added
+- Initial release of the br-equipment-control-app
 - Script editor with syntax highlighting
-- Data logging with CSV export
-- Device simulator
 - Multi-device support (fillhead, gantry, pressboi, pressurizer)
+- Device simulator
 - Command Reference panel
 - Real-time device discovery and connection monitoring
+- UDP-based communication protocol
 
