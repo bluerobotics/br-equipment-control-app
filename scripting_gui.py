@@ -1166,7 +1166,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_editor.tag_remove("exec_highlight", "1.0", tk.END)
         last_exec_highlight = -1 # Reset the tracker
 
-        # Send CLEAR_ERRORS to all devices that are currently connected.
+        # Send reset to all devices that are currently connected.
         device_manager = shared_gui_refs.get('device_manager')
         if device_manager:
             all_devices = device_manager.get_device_modules()
@@ -1174,7 +1174,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 # The command_funcs dictionary already has the correctly scoped sender function.
                 sender_func_name = f"send_{device_key}"
                 if sender_func_name in shared_gui_refs['command_funcs']:
-                    shared_gui_refs['command_funcs'][sender_func_name]("CLEAR_ERRORS")
+                    shared_gui_refs['command_funcs'][sender_func_name]("reset")
 
         feed_hold_line = None
         update_button_states(running=False, holding=False)

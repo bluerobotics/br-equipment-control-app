@@ -451,15 +451,15 @@ class DeviceManager:
         return lambda msg: comms.send_to_device(device_name, msg, self.shared_gui_refs)
 
     def send_global_abort(self):
-        """Sends an ABORT command to all connected devices."""
+        """Sends a cancel command to all connected devices."""
         import comms # Local import
         # Pass the entire shared_gui_refs dictionary to the logger
-        comms.log_to_terminal("--- GLOBAL ABORT TRIGGERED ---", self.shared_gui_refs)
+        comms.log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
         
         for device_name in self.devices.keys():
             # A more robust implementation would check if the device is actually connected
             sender = self.get_device_sender(device_name)
-            sender("ABORT")
+            sender("cancel")
 
     def get_device_state(self, device_name):
         """Returns the connection state for a specific device."""

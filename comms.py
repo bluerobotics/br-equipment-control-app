@@ -109,8 +109,8 @@ def send_to_device(device_key, msg, gui_refs):
                 log_to_terminal(f"Error sending to {device_key}: {e}", gui_refs)
 
     elif "DISCOVER" not in msg:
-        # Only log if it's not an ABORT or CLEAR_ERRORS command (which are sent to all devices)
-        if msg not in ["ABORT", "CLEAR_ERRORS"]:
+        # Only log if it's not a cancel or reset command (which are sent to all devices)
+        if msg not in ["cancel", "reset"]:
             log_to_terminal(f"Cannot send to {device_key}: IP unknown.", gui_refs)
 
 
