@@ -42,52 +42,52 @@ echo "Build complete!"
 cd dist
 
 if [[ "$OS" == "macOS" ]]; then
-    echo "Executable location: dist/BR Equipment Control.app"
+    echo "Executable location: dist/br-equipment-control-app.app"
     echo ""
     
     # Try to create DMG if create-dmg is available
     if command -v create-dmg &> /dev/null; then
         echo "Creating DMG..."
         create-dmg \
-            --volname "BR Equipment Control" \
+            --volname "br-equipment-control-app" \
             --volicon "../assets/icon.png" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 100 \
-            --icon "BR Equipment Control.app" 200 190 \
-            --hide-extension "BR Equipment Control.app" \
+            --icon "br-equipment-control-app.app" 200 190 \
+            --hide-extension "br-equipment-control-app.app" \
             --app-drop-link 600 185 \
-            "BR-Equipment-Control-macOS.dmg" \
-            "BR Equipment Control.app"
+            "br-equipment-control-app-macos.dmg" \
+            "br-equipment-control-app.app"
         
         if [ $? -eq 0 ]; then
             echo ""
             echo "Done! Distributable DMG file created at:"
-            echo "  dist/BR-Equipment-Control-macOS.dmg"
+            echo "  dist/br-equipment-control-app-macos.dmg"
         else
             echo "DMG creation failed, creating zip instead..."
-            zip -r "BR-Equipment-Control-macOS.zip" "BR Equipment Control.app"
+            zip -r "br-equipment-control-app-macos.zip" "br-equipment-control-app.app"
             echo ""
             echo "Done! Distributable zip file created at:"
-            echo "  dist/BR-Equipment-Control-macOS.zip"
+            echo "  dist/br-equipment-control-app-macos.zip"
         fi
     else
         echo "create-dmg not found, creating zip..."
         echo "Tip: Install with: brew install create-dmg"
-        zip -r "BR-Equipment-Control-macOS.zip" "BR Equipment Control.app"
+        zip -r "br-equipment-control-app-macos.zip" "br-equipment-control-app.app"
         echo ""
         echo "Done! Distributable zip file created at:"
-        echo "  dist/BR-Equipment-Control-macOS.zip"
+        echo "  dist/br-equipment-control-app-macos.zip"
     fi
     
 elif [[ "$OS" == "Linux" ]]; then
-    echo "Executable location: dist/BR-Equipment-Control/BR-Equipment-Control"
+    echo "Executable location: dist/br-equipment-control-app/br-equipment-control-app"
     echo ""
     echo "Creating tarball..."
-    tar -czf BR-Equipment-Control-Linux.tar.gz BR-Equipment-Control/
+    tar -czf br-equipment-control-app-linux.tar.gz br-equipment-control-app/
     echo ""
     echo "Done! Distributable tarball created at:"
-    echo "  dist/BR-Equipment-Control-Linux.tar.gz"
+        echo "  dist/br-equipment-control-app-linux.tar.gz"
 fi
 
 cd ..

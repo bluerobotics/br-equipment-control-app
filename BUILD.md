@@ -33,18 +33,18 @@ GitHub Actions will build executables for all three platforms and create a relea
 # Build the executable
 pyinstaller build.spec
 
-# The executable will be in: dist/BR-Equipment-Control/
+# The executable will be in: dist/br-equipment-control-app/
 # To create a zip for distribution:
 cd dist
-powershell Compress-Archive -Path "BR-Equipment-Control" -DestinationPath "BR-Equipment-Control-Windows.zip"
+powershell Compress-Archive -Path "br-equipment-control-app" -DestinationPath "br-equipment-control-app-windows.zip"
 ```
 
 The Windows build will:
 - Create a `.exe` file with no console window
 - Include the icon from `assets/icon.ico`
-- Bundle all dependencies in the `dist/BR-Equipment-Control/` folder
+- Bundle all dependencies in the `dist/br-equipment-control-app/` folder
 
-**Distribution:** Share the entire `BR-Equipment-Control` folder or the zip file. Users can run `BR-Equipment-Control.exe` directly.
+**Distribution:** Share the entire `br-equipment-control-app` folder or the zip file. Users can run `br-equipment-control-app.exe` directly.
 
 ---
 
@@ -54,21 +54,21 @@ The Windows build will:
 # Build the app bundle
 pyinstaller build.spec
 
-# The app will be in: dist/BR Equipment Control.app/
+# The app will be in: dist/br-equipment-control-app.app/
 # To create a DMG (requires create-dmg):
 brew install create-dmg
 cd dist
 create-dmg \
-  --volname "BR Equipment Control" \
+  --volname "br-equipment-control-app" \
   --volicon "../assets/icon.png" \
   --window-pos 200 120 \
   --window-size 800 400 \
   --icon-size 100 \
-  --icon "BR Equipment Control.app" 200 190 \
-  --hide-extension "BR Equipment Control.app" \
+  --icon "br-equipment-control-app.app" 200 190 \
+  --hide-extension "br-equipment-control-app.app" \
   --app-drop-link 600 185 \
-  "BR-Equipment-Control-macOS.dmg" \
-  "BR Equipment Control.app"
+  "br-equipment-control-app-macos.dmg" \
+  "br-equipment-control-app.app"
 ```
 
 The macOS build will:
@@ -91,10 +91,10 @@ sudo yum install python3-tkinter  # RHEL/CentOS
 # Build the executable
 pyinstaller build.spec
 
-# The executable will be in: dist/BR-Equipment-Control/
+# The executable will be in: dist/br-equipment-control-app/
 # To create a tarball:
 cd dist
-tar -czf BR-Equipment-Control-Linux.tar.gz BR-Equipment-Control/
+tar -czf br-equipment-control-app-linux.tar.gz br-equipment-control-app/
 ```
 
 The Linux build will:
@@ -102,7 +102,7 @@ The Linux build will:
 - Bundle all dependencies
 - Include all device modules and assets
 
-**Distribution:** Share the `.tar.gz` file. Users extract it and run `./BR-Equipment-Control` from the terminal.
+**Distribution:** Share the `.tar.gz` file. Users extract it and run `./br-equipment-control-app` from the terminal.
 
 ---
 

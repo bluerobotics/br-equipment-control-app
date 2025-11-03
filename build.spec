@@ -78,7 +78,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='BR-Equipment-Control',
+    name='br-equipment-control-app',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -100,14 +100,14 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='BR-Equipment-Control',
+    name='br-equipment-control-app',
 )
 
 # macOS app bundle
 if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
-        name='BR Equipment Control.app',
+        name='br-equipment-control-app.app',
         icon=None,  # Icon can be set manually later if needed
         bundle_identifier='com.bluerobotics.equipment-control',
         info_plist={

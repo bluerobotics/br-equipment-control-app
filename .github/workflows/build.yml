@@ -30,13 +30,13 @@ jobs:
       - name: Create zip archive
         run: |
           cd dist
-          Compress-Archive -Path "BR-Equipment-Control" -DestinationPath "BR-Equipment-Control-Windows.zip"
+          Compress-Archive -Path "br-equipment-control-app" -DestinationPath "br-equipment-control-app-windows.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: dist/BR-Equipment-Control-Windows.zip
+          path: dist/br-equipment-control-app-windows.zip
 
   build-macos:
     runs-on: macos-latest
@@ -63,23 +63,23 @@ jobs:
           brew install create-dmg
           cd dist
           create-dmg \
-            --volname "BR Equipment Control" \
+            --volname "br-equipment-control-app" \
             --volicon "../assets/icon.png" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 100 \
-            --icon "BR Equipment Control.app" 200 190 \
-            --hide-extension "BR Equipment Control.app" \
+            --icon "br-equipment-control-app.app" 200 190 \
+            --hide-extension "br-equipment-control-app.app" \
             --app-drop-link 600 185 \
-            "BR-Equipment-Control-macOS.dmg" \
-            "BR Equipment Control.app"
+            "br-equipment-control-app-macos.dmg" \
+            "br-equipment-control-app.app"
         continue-on-error: true
 
       - name: Create zip fallback if DMG fails
         run: |
           cd dist
-          if [ ! -f "BR-Equipment-Control-macOS.dmg" ]; then
-            zip -r "BR-Equipment-Control-macOS.zip" "BR Equipment Control.app"
+          if [ ! -f "br-equipment-control-app-macos.dmg" ]; then
+            zip -r "br-equipment-control-app-macos.zip" "br-equipment-control-app.app"
           fi
 
       - name: Upload artifact
@@ -87,8 +87,8 @@ jobs:
         with:
           name: macos-build
           path: |
-            dist/BR-Equipment-Control-macOS.dmg
-            dist/BR-Equipment-Control-macOS.zip
+            dist/br-equipment-control-app-macos.dmg
+            dist/br-equipment-control-app-macos.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -118,13 +118,13 @@ jobs:
       - name: Create tar.gz archive
         run: |
           cd dist
-          tar -czf BR-Equipment-Control-Linux.tar.gz BR-Equipment-Control/
+          tar -czf br-equipment-control-app-linux.tar.gz br-equipment-control-app/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: dist/BR-Equipment-Control-Linux.tar.gz
+          path: dist/br-equipment-control-app-linux.tar.gz
 
   create-release:
     needs: [build-windows, build-macos, build-linux]
@@ -148,10 +148,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/windows-build/BR-Equipment-Control-Windows.zip
-            artifacts/macos-build/BR-Equipment-Control-macOS.dmg
-            artifacts/macos-build/BR-Equipment-Control-macOS.zip
-            artifacts/linux-build/BR-Equipment-Control-Linux.tar.gz
+            artifacts/windows-build/br-equipment-control-app-windows.zip
+            artifacts/macos-build/br-equipment-control-app-macos.dmg
+            artifacts/macos-build/br-equipment-control-app-macos.zip
+            artifacts/linux-build/br-equipment-control-app-linux.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true

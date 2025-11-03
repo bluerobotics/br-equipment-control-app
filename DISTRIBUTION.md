@@ -5,26 +5,26 @@
 Download the pre-built executable for your platform from the [Releases page](https://github.com/bluerobotics/br-equipment-control-app/releases):
 
 ### Windows
-1. Download `BR-Equipment-Control-Windows.zip`
+1. Download `br-equipment-control-app-windows.zip`
 2. Extract the zip file
-3. Run `BR-Equipment-Control.exe`
+3. Run `br-equipment-control-app.exe`
 4. On first run, you'll be prompted to select your `devices` folder location
    - **For development:** Point to your local git repo's devices folder
    - **For general use:** Use the bundled devices folder in the extracted directory
 
 ### macOS
-1. Download `BR-Equipment-Control-macOS.dmg`
+1. Download `br-equipment-control-app-macos.dmg`
 2. Open the DMG file
-3. Drag `BR Equipment Control.app` to your Applications folder
+3. Drag `br-equipment-control-app.app` to your Applications folder
 4. If you get a security warning, right-click the app and select "Open"
 5. On first run, you'll be prompted to select your `devices` folder location
    - **For development:** Point to your local git repo's devices folder
    - **For general use:** Create/select a folder with your device configs
 
 ### Linux
-1. Download `BR-Equipment-Control-Linux.tar.gz`
-2. Extract: `tar -xzf BR-Equipment-Control-Linux.tar.gz`
-3. Run: `cd BR-Equipment-Control && ./BR-Equipment-Control`
+1. Download `br-equipment-control-app-linux.tar.gz`
+2. Extract: `tar -xzf br-equipment-control-app-linux.tar.gz`
+3. Run: `cd br-equipment-control-app && ./br-equipment-control-app`
 4. If you get a "tkinter not found" error, install it:
    - Ubuntu/Debian: `sudo apt-get install python3-tk`
    - Fedora/RHEL: `sudo dnf install python3-tkinter`

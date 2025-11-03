@@ -26,16 +26,16 @@ if errorlevel 1 (
 
 echo.
 echo Build complete!
-echo Executable location: dist\BR-Equipment-Control\BR-Equipment-Control.exe
+echo Executable location: dist\br-equipment-control-app\br-equipment-control-app.exe
 echo.
 echo Creating zip archive...
 cd dist
-powershell -Command "Compress-Archive -Path 'BR-Equipment-Control' -DestinationPath 'BR-Equipment-Control-Windows.zip' -Force"
+powershell -Command "Compress-Archive -Path 'br-equipment-control-app' -DestinationPath 'br-equipment-control-app-windows.zip' -Force"
 cd ..
 
 echo.
 echo Done! Distributable zip file created at:
-echo   dist\BR-Equipment-Control-Windows.zip
+echo   dist\br-equipment-control-app-windows.zip
 echo.
 pause
 
