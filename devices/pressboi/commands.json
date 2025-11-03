@@ -1,4 +1,18 @@
 {
+    "abort": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Emergency stop - halt all motion immediately.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "clear_errors": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Clear error states and reset system to standby.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
     "home": {
         "device": "pressboi",
         "target": "device",
