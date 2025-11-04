@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2025-11-04
+
+### Added
+- Script validator now checks that all connected devices support required commands (pause, reset, resume)
+- Pause/resume functionality for all connected devices during script execution
+- Hold button sends pause command to all connected devices
+
+### Changed
+- Script execution now properly waits for resumed moves to complete before advancing
+- ScriptRunner remains active during pause/hold, waiting for device DONE messages
+- Improved button state management with centralized refresh logic
+
+### Fixed
+- Fixed cursor advancement in single block mode - cursor now properly advances after command completion
+- Fixed hold button becoming disabled after pause/resume cycles
+- Fixed line advancing prematurely during pause/resume operations
+- Fixed validation window display for device capability errors
+- Implemented complete `advance_to_next_line()` function that was previously a stub
+
 ## [1.4.0] - 2025-11-03
 
 ### Added
