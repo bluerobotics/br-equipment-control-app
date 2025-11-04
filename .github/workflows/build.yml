@@ -163,12 +163,15 @@ jobs:
             found { print }
           ' CHANGELOG.md)
           
+          # Get previous version tag for comparison
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^v${VERSION}$" | head -n 1)
+          
           # Format the changelog
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
-          echo "$CHANGELOG" | sed 's/^### Added//' | sed 's/^### Changed//' | sed 's/^### Fixed//' | grep -v '^$' >> release_notes.md
+          echo "$CHANGELOG" >> release_notes.md
           echo "" >> release_notes.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.3.0...v$VERSION" >> release_notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...v${VERSION}" >> release_notes.md
           
           cat release_notes.md
 
