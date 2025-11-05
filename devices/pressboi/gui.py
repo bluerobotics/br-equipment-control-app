@@ -133,7 +133,7 @@ def get_required_variables():
     return [
         'pressboi_main_state_var', 'status_var_pressboi',
         'pressboi_force_var', 'pressboi_force_limit_var',
-        'pressboi_current_pos_var', 'pressboi_start_pos_var',
+        'pressboi_current_pos_var', 'pressboi_retract_pos_var',
         'pressboi_target_pos_var', 'pressboi_homed_var',
         'pressboi_enabled0_var', 'pressboi_enabled1_var',
         'pressboi_torque_m1_var', 'pressboi_torque_m2_var',
@@ -272,19 +272,19 @@ def create_gui_components(parent, shared_gui_refs):
     shared_gui_refs['pressboi_homed_var'].trace_add('write', position_homed_tracer)
     position_homed_tracer()
     
-    # Routine Start Position
-    start_row = ttk.Frame(pos_grid, style='Card.TFrame')
-    start_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(10, 2))
+    # Retract Position
+    retract_row = ttk.Frame(pos_grid, style='Card.TFrame')
+    retract_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(10, 2))
     
-    ttk.Label(start_row, text="Routine Start Position:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
+    ttk.Label(retract_row, text="Retract Position:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
     
-    # Create display variable that strips " mm" from start position
-    start_pos_display = tk.StringVar(value='0.00')
-    start_stripper = make_unit_stripper(shared_gui_refs['pressboi_start_pos_var'], start_pos_display, ' mm')
-    shared_gui_refs['pressboi_start_pos_var'].trace_add('write', start_stripper)
-    start_stripper()
+    # Create display variable that strips " mm" from retract position
+    retract_pos_display = tk.StringVar(value='0.00')
+    retract_stripper = make_unit_stripper(shared_gui_refs['pressboi_retract_pos_var'], retract_pos_display, ' mm')
+    shared_gui_refs['pressboi_retract_pos_var'].trace_add('write', retract_stripper)
+    retract_stripper()
     
-    ttk.Label(start_row, textvariable=start_pos_display, 
+    ttk.Label(retract_row, textvariable=retract_pos_display, 
               font=font_small, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
     
     # Homed and Enabled Status (inline, no "Homed:" label)

@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-03 13:59:24
+ * Generated from commands.json on 2025-11-04 12:18:51
  * 
  * This header file defines all commands that can be sent TO the Pressurizer device.
  * For response message formats, see responses.h
@@ -76,13 +76,13 @@ typedef enum {
     CMD_UNKNOWN,                        ///< Represents an unrecognized or invalid command.
 
     // General System Commands
-    CMD_DISCOVER_DEVICE                     ///< @see CMD_STR_DISCOVER_DEVICE,
-    CMD_DISABLE                             ///< @see CMD_STR_DISABLE,
-    CMD_ENABLE                              ///< @see CMD_STR_ENABLE,
+    CMD_DISCOVER_DEVICE,                                    ///< @see CMD_STR_DISCOVER_DEVICE
+    CMD_DISABLE,                                    ///< @see CMD_STR_DISABLE
+    CMD_ENABLE,                                    ///< @see CMD_STR_ENABLE
 
     // Motion Commands
-    CMD_HOME                                ///< @see CMD_STR_HOME,
-    CMD_MOVE_TO_PRESSURE                    ///< @see CMD_STR_MOVE_TO_PRESSURE
+    CMD_HOME,                                    ///< @see CMD_STR_HOME
+    CMD_MOVE_TO_PRESSURE                                     ///< @see CMD_STR_MOVE_TO_PRESSURE
 } Command;
 
 //==================================================================================================

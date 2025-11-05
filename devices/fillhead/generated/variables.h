@@ -2,7 +2,7 @@
  * @file variables.h
  * @brief Telemetry structure and construction interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-03 13:59:24
+ * Generated from telemetry.json on 2025-11-04 12:18:51
  * 
  * This header defines the complete telemetry data structure for the Fillhead.
  * All telemetry fields are assembled in one centralized location.

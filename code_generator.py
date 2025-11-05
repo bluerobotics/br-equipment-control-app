@@ -79,9 +79,10 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
         lines.append(" */")
         
         for cmd_name, cmd_data in cmds:
-            # Determine if command has parameters (add trailing space)
-            has_params = len(cmd_data.get('params', [])) > 0
-            cmd_str = cmd_name + (" " if has_params else "")
+            # Determine if command has REQUIRED parameters (add trailing space)
+            params = cmd_data.get('params', [])
+            has_required_params = any(not p.get('optional', False) for p in params)
+            cmd_str = cmd_name + (" " if has_required_params else "")
             
             help_text = cmd_data.get('help', 'No description available.')
             # Don't pad the string with spaces - just use it as-is
@@ -801,8 +802,6 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     lines.append("extern void sendMessage(const char* msg);")
     lines.append("")
     lines.append("void sendEvent(Event event) {")
-    if events:  # Only create buffer if there are events
-        lines.append("    char buffer[256];")
     lines.append("    switch (event) {")
     
     # Generate cases for each event

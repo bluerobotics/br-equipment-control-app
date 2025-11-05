@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-03 13:59:24
+ * Generated from commands.json on 2025-11-04 12:18:51
  * 
  * This header file defines all commands that can be sent TO the Fillhead device.
  * For response message formats, see responses.h
@@ -61,7 +61,7 @@
  * @name Heater Commands
  * @{
  */
-#define CMD_STR_HEATER_ON                           "heater_on " ///< Command to turn the heater on.
+#define CMD_STR_HEATER_ON                           "heater_on" ///< Command to turn the heater on.
 #define CMD_STR_HEATER_OFF                          "heater_off" ///< Command to turn the heater off.
 /** @} */
 
@@ -69,9 +69,9 @@
  * @name Vacuum Commands
  * @{
  */
-#define CMD_STR_VACUUM_ON                           "vacuum_on " ///< Command to turn the vacuum pump on.
+#define CMD_STR_VACUUM_ON                           "vacuum_on" ///< Command to turn the vacuum pump on.
 #define CMD_STR_VACUUM_OFF                          "vacuum_off" ///< Command to turn the vacuum pump off.
-#define CMD_STR_VACUUM_LEAK_TEST                    "vacuum_leak_test " ///< Command to initiate a vacuum leak test.
+#define CMD_STR_VACUUM_LEAK_TEST                    "vacuum_leak_test" ///< Command to initiate a vacuum leak test.
 /** @} */
 
 //==================================================================================================
@@ -119,44 +119,44 @@ typedef enum {
     CMD_UNKNOWN,                        ///< Represents an unrecognized or invalid command.
 
     // General System Commands
-    CMD_DISCOVER_DEVICE                     ///< @see CMD_STR_DISCOVER_DEVICE,
-    CMD_ENABLE                              ///< @see CMD_STR_ENABLE,
-    CMD_DISABLE                             ///< @see CMD_STR_DISABLE,
-    CMD_DISCOVER_DEVICE                     ///< @see CMD_STR_DISCOVER_DEVICE,
-    CMD_ABORT                               ///< @see CMD_STR_ABORT,
-    CMD_CLEAR_ERRORS                        ///< @see CMD_STR_CLEAR_ERRORS,
-    CMD_TEST_COMMAND                        ///< @see CMD_STR_TEST_COMMAND,
+    CMD_DISCOVER_DEVICE,                                    ///< @see CMD_STR_DISCOVER_DEVICE
+    CMD_ENABLE,                                    ///< @see CMD_STR_ENABLE
+    CMD_DISABLE,                                    ///< @see CMD_STR_DISABLE
+    CMD_DISCOVER_DEVICE,                                    ///< @see CMD_STR_DISCOVER_DEVICE
+    CMD_ABORT,                                    ///< @see CMD_STR_ABORT
+    CMD_CLEAR_ERRORS,                                    ///< @see CMD_STR_CLEAR_ERRORS
+    CMD_TEST_COMMAND,                                    ///< @see CMD_STR_TEST_COMMAND
 
     // Motion Commands
-    CMD_INJECT_STATOR                       ///< @see CMD_STR_INJECT_STATOR,
-    CMD_INJECT_ROTOR                        ///< @see CMD_STR_INJECT_ROTOR,
-    CMD_JOG_MOVE                            ///< @see CMD_STR_JOG_MOVE,
-    CMD_MACHINE_HOME                        ///< @see CMD_STR_MACHINE_HOME,
-    CMD_CARTRIDGE_HOME                      ///< @see CMD_STR_CARTRIDGE_HOME,
-    CMD_MOVE_TO_CARTRIDGE_HOME              ///< @see CMD_STR_MOVE_TO_CARTRIDGE_HOME,
-    CMD_MOVE_TO_CARTRIDGE_RETRACT           ///< @see CMD_STR_MOVE_TO_CARTRIDGE_RETRACT,
-    CMD_PAUSE_INJECTION                     ///< @see CMD_STR_PAUSE_INJECTION,
-    CMD_RESUME_INJECTION                    ///< @see CMD_STR_RESUME_INJECTION,
-    CMD_CANCEL_INJECTION                    ///< @see CMD_STR_CANCEL_INJECTION,
+    CMD_INJECT_STATOR,                                    ///< @see CMD_STR_INJECT_STATOR
+    CMD_INJECT_ROTOR,                                    ///< @see CMD_STR_INJECT_ROTOR
+    CMD_JOG_MOVE,                                    ///< @see CMD_STR_JOG_MOVE
+    CMD_MACHINE_HOME,                                    ///< @see CMD_STR_MACHINE_HOME
+    CMD_CARTRIDGE_HOME,                                    ///< @see CMD_STR_CARTRIDGE_HOME
+    CMD_MOVE_TO_CARTRIDGE_HOME,                                    ///< @see CMD_STR_MOVE_TO_CARTRIDGE_HOME
+    CMD_MOVE_TO_CARTRIDGE_RETRACT,                                    ///< @see CMD_STR_MOVE_TO_CARTRIDGE_RETRACT
+    CMD_PAUSE_INJECTION,                                    ///< @see CMD_STR_PAUSE_INJECTION
+    CMD_RESUME_INJECTION,                                    ///< @see CMD_STR_RESUME_INJECTION
+    CMD_CANCEL_INJECTION,                                    ///< @see CMD_STR_CANCEL_INJECTION
 
     // Valve Commands
-    CMD_INJECTION_VALVE_HOME                ///< @see CMD_STR_INJECTION_VALVE_HOME,
-    CMD_INJECTION_VALVE_OPEN                ///< @see CMD_STR_INJECTION_VALVE_OPEN,
-    CMD_INJECTION_VALVE_CLOSE               ///< @see CMD_STR_INJECTION_VALVE_CLOSE,
-    CMD_INJECTION_VALVE_JOG                 ///< @see CMD_STR_INJECTION_VALVE_JOG,
-    CMD_VACUUM_VALVE_HOME                   ///< @see CMD_STR_VACUUM_VALVE_HOME,
-    CMD_VACUUM_VALVE_OPEN                   ///< @see CMD_STR_VACUUM_VALVE_OPEN,
-    CMD_VACUUM_VALVE_CLOSE                  ///< @see CMD_STR_VACUUM_VALVE_CLOSE,
-    CMD_VACUUM_VALVE_JOG                    ///< @see CMD_STR_VACUUM_VALVE_JOG,
+    CMD_INJECTION_VALVE_HOME,                                    ///< @see CMD_STR_INJECTION_VALVE_HOME
+    CMD_INJECTION_VALVE_OPEN,                                    ///< @see CMD_STR_INJECTION_VALVE_OPEN
+    CMD_INJECTION_VALVE_CLOSE,                                    ///< @see CMD_STR_INJECTION_VALVE_CLOSE
+    CMD_INJECTION_VALVE_JOG,                                    ///< @see CMD_STR_INJECTION_VALVE_JOG
+    CMD_VACUUM_VALVE_HOME,                                    ///< @see CMD_STR_VACUUM_VALVE_HOME
+    CMD_VACUUM_VALVE_OPEN,                                    ///< @see CMD_STR_VACUUM_VALVE_OPEN
+    CMD_VACUUM_VALVE_CLOSE,                                    ///< @see CMD_STR_VACUUM_VALVE_CLOSE
+    CMD_VACUUM_VALVE_JOG,                                    ///< @see CMD_STR_VACUUM_VALVE_JOG
 
     // Heater Commands
-    CMD_HEATER_ON                           ///< @see CMD_STR_HEATER_ON,
-    CMD_HEATER_OFF                          ///< @see CMD_STR_HEATER_OFF,
+    CMD_HEATER_ON,                                    ///< @see CMD_STR_HEATER_ON
+    CMD_HEATER_OFF,                                    ///< @see CMD_STR_HEATER_OFF
 
     // Vacuum Commands
-    CMD_VACUUM_ON                           ///< @see CMD_STR_VACUUM_ON,
-    CMD_VACUUM_OFF                          ///< @see CMD_STR_VACUUM_OFF,
-    CMD_VACUUM_LEAK_TEST                    ///< @see CMD_STR_VACUUM_LEAK_TEST
+    CMD_VACUUM_ON,                                    ///< @see CMD_STR_VACUUM_ON
+    CMD_VACUUM_OFF,                                    ///< @see CMD_STR_VACUUM_OFF
+    CMD_VACUUM_LEAK_TEST                                     ///< @see CMD_STR_VACUUM_LEAK_TEST
 } Command;
 
 //==================================================================================================

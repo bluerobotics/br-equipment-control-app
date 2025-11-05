@@ -985,7 +985,11 @@ class ScriptRunner(threading.Thread):
                 for param_def in command_info.get('params', []):
                     param_name = param_def.get('parameter', param_def.get('name', ''))
                     if param_name in resolved_params:
-                        final_args.append(str(resolved_params[param_name]))
+                        # Strip units from the value before sending to firmware
+                        param_value = str(resolved_params[param_name])
+                        # Extract just the numeric part (first word)
+                        numeric_value = param_value.split()[0] if param_value else param_value
+                        final_args.append(numeric_value)
                     elif not param_def.get('optional'):
                         # This should have been caught by the parser, but as a safeguard:
                         self.status_cb(f"Error on L{line_num}: Missing required parameter '{param_name}' for {command_word}.", line_num)
@@ -1033,6 +1037,12 @@ class ScriptRunner(threading.Thread):
 
             try:
                 msg = self.msg_q.get(timeout=0.1)
+
+                # Check for ERROR messages - stop and hold the script
+                if "_ERROR:" in msg:
+                    self.status_cb(f"ERROR: {msg}", line_num)
+                    # Stop execution - GUI will detect this and go into hold state
+                    return False
 
                 # Check for failure messages first
                 if "FAILED" in msg:

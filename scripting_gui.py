@@ -405,6 +405,25 @@ class SyntaxHighlighter:
             for match in re.finditer(keyword_pattern, content, re.IGNORECASE):
                 start, end = match.span()
                 self.text.tag_add("script_command", f"1.0+{start}c", f"1.0+{end}c")
+                
+                # For logging commands, highlight the parameters that follow
+                cmd = match.group(1).lower()
+                if cmd in ['start_logging', 'stop_logging', 'queue_for_logging', 'unqueue_for_logging']:
+                    # Find the rest of the line after the command
+                    line_start_pos = content.rfind('\n', 0, start) + 1
+                    line_end_pos = content.find('\n', end)
+                    if line_end_pos == -1:
+                        line_end_pos = len(content)
+                    
+                    params_text = content[end:line_end_pos].strip()
+                    if params_text:
+                        # Highlight the parameters after the command in parameter color
+                        params_start = end
+                        # Skip whitespace
+                        while params_start < line_end_pos and content[params_start].isspace():
+                            params_start += 1
+                        if params_start < line_end_pos:
+                            self.text.tag_add("parameter", f"1.0+{params_start}c", f"1.0+{line_end_pos}c")
 
         # Highlight colons
         for match in re.finditer(r':', content):
@@ -475,17 +494,17 @@ class ScriptEditor(tk.Frame):
         self.text.bind("<Button-1>", self._on_change)
         # Tab behavior is handled by the Text widget's configured tab width
 
-        # --- Right-click Context Menu ---
-        self.context_menu = ThemedContextMenu(self.text)
-        right_click_event = "<Button-2>" if platform.system() == 'Darwin' else "<Button-3>"
-        self.text.bind(right_click_event, self.show_context_menu)
-
         self.text.tag_configure("current_line", background=theme.SECONDARY_ACCENT)
         self._highlight_current_line()
         
         # Get all commands from the manager
         all_commands = self.device_manager.get_all_scripting_commands()
         all_commands.update(SCRIPT_COMMANDS) # Add the generic script commands
+        
+        # --- Right-click Context Menu ---
+        self.context_menu = ThemedContextMenu(self.text, all_commands)
+        right_click_event = "<Button-2>" if platform.system() == 'Darwin' else "<Button-3>"
+        self.text.bind(right_click_event, self.show_context_menu)
 
         # Separate the keywords for the highlighter based on the 'device' key
         device_keywords = [cmd for cmd, details in all_commands.items() if details.get('device') not in ['script', 'both']]
@@ -509,6 +528,9 @@ class ScriptEditor(tk.Frame):
         self.text.tag_remove("current_line", "1.0", "end")
         self.text.tag_add("current_line", "insert linestart", "insert lineend+1c")
         self.text.tag_raise("sel") # Raise selection tag to the top of the stacking order
+        # Ensure exec_highlight stays on top when running
+        if self.text.tag_ranges("exec_highlight"):
+            self.text.tag_raise("exec_highlight")
 
     def _on_change(self, event=None):
         self.linenumbers.redraw()
@@ -528,9 +550,10 @@ class ScriptEditor(tk.Frame):
 
 # --- Themed Right-click Menu ---
 class ThemedContextMenu(tk.Menu):
-    def __init__(self, parent_widget, **kwargs):
+    def __init__(self, parent_widget, all_commands=None, **kwargs):
         super().__init__(parent_widget, tearoff=0, **kwargs)
         self.parent_widget = parent_widget
+        self.all_commands = all_commands or {}
 
         # --- Theming ---
         self.configure(
@@ -546,6 +569,8 @@ class ThemedContextMenu(tk.Menu):
         self.add_command(label="Cut", command=self._cut)
         self.add_command(label="Copy", command=self._copy)
         self.add_command(label="Paste", command=self._paste)
+        self.add_separator()
+        self.add_command(label="Command Help...", command=self._show_command_help)
 
     def _cut(self):
         self.parent_widget.event_generate("<<Cut>>")
@@ -555,6 +580,10 @@ class ThemedContextMenu(tk.Menu):
 
     def _paste(self):
         self.parent_widget.event_generate("<<Paste>>")
+    
+    def _show_command_help(self):
+        """Show command help window."""
+        CommandHelpWindow(self.parent_widget, self.all_commands)
 
     def show(self, event):
         """Updates menu state and displays it."""
@@ -611,6 +640,214 @@ class ValidationResultsWindow(tk.Toplevel):
         super().destroy()
 
 
+# --- Command Help Window ---
+class CommandHelpWindow(tk.Toplevel):
+    def __init__(self, parent, all_commands):
+        super().__init__(parent)
+        self.title("Script Command Reference")
+        self.geometry("800x600")
+        self.configure(bg=theme.WIDGET_BG)
+        self.transient(parent)
+        
+        # Create main frame
+        main_frame = ttk.Frame(self)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Search box
+        search_frame = ttk.Frame(main_frame)
+        search_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=(0, 5))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', lambda *args: self._filter_commands())
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Command list (left side)
+        list_frame = ttk.Frame(main_frame)
+        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 10))
+        
+        ttk.Label(list_frame, text="Commands:").pack(anchor=tk.W)
+        
+        self.command_listbox = tk.Listbox(list_frame, width=30,
+                                          bg=theme.WIDGET_BG,
+                                          fg=theme.FG_COLOR,
+                                          selectbackground=theme.PRIMARY_ACCENT,
+                                          selectforeground=theme.SELECTION_FG,
+                                          font=theme.FONT_MONO)
+        self.command_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        listbox_scrollbar = ttk.Scrollbar(list_frame, command=self.command_listbox.yview)
+        listbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.command_listbox.config(yscrollcommand=listbox_scrollbar.set)
+        
+        self.command_listbox.bind('<<ListboxSelect>>', self._on_command_select)
+        
+        # Details panel (right side)
+        details_frame = ttk.Frame(main_frame)
+        details_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        
+        ttk.Label(details_frame, text="Command Details:").pack(anchor=tk.W)
+        
+        self.details_text = tk.Text(details_frame, wrap=tk.WORD,
+                                    bg=theme.WIDGET_BG,
+                                    fg=theme.FG_COLOR,
+                                    font=theme.FONT_NORMAL,
+                                    borderwidth=1,
+                                    relief=tk.SOLID)
+        self.details_text.pack(fill=tk.BOTH, expand=True)
+        
+        details_scrollbar = ttk.Scrollbar(details_frame, command=self.details_text.yview)
+        details_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.details_text.config(yscrollcommand=details_scrollbar.set)
+        
+        # Configure text tags for formatting
+        self.details_text.tag_configure("title", font=theme.FONT_BOLD, foreground=theme.PRIMARY_ACCENT)
+        self.details_text.tag_configure("section", font=theme.FONT_BOLD)
+        self.details_text.tag_configure("code", font=theme.FONT_MONO, background=theme.SECONDARY_ACCENT)
+        
+        # Close button
+        close_button = ttk.Button(main_frame, text="Close", command=self.destroy)
+        close_button.pack(pady=(10, 0))
+        
+        # Store commands and populate list
+        self.all_commands = all_commands
+        self._populate_command_list()
+    
+    def _populate_command_list(self):
+        """Populate the command listbox with all commands."""
+        self.command_listbox.delete(0, tk.END)
+        
+        # Sort commands by category
+        script_commands = []
+        device_commands = []
+        
+        for cmd_name, cmd_info in sorted(self.all_commands.items()):
+            device = cmd_info.get('device', 'unknown')
+            if device in ['script', 'both']:
+                script_commands.append(cmd_name)
+            else:
+                device_commands.append(f"{cmd_name}")
+        
+        # Add script commands first
+        if script_commands:
+            for cmd in sorted(script_commands):
+                self.command_listbox.insert(tk.END, cmd)
+        
+        # Add device commands
+        if device_commands:
+            for cmd in sorted(device_commands):
+                self.command_listbox.insert(tk.END, cmd)
+    
+    def _filter_commands(self):
+        """Filter commands based on search text."""
+        search_text = self.search_var.get().lower()
+        self.command_listbox.delete(0, tk.END)
+        
+        for cmd_name, cmd_info in sorted(self.all_commands.items()):
+            if search_text in cmd_name.lower() or search_text in cmd_info.get('description', '').lower():
+                self.command_listbox.insert(tk.END, cmd_name)
+    
+    def _on_command_select(self, event):
+        """Display details for the selected command."""
+        selection = self.command_listbox.curselection()
+        if not selection:
+            return
+        
+        cmd_name = self.command_listbox.get(selection[0])
+        cmd_info = self.all_commands.get(cmd_name, {})
+        
+        self.details_text.config(state=tk.NORMAL)
+        self.details_text.delete(1.0, tk.END)
+        
+        # Command name
+        self.details_text.insert(tk.END, f"{cmd_name}\n", "title")
+        self.details_text.insert(tk.END, "\n")
+        
+        # Description
+        description = cmd_info.get('description', 'No description available.')
+        self.details_text.insert(tk.END, "Description:\n", "section")
+        self.details_text.insert(tk.END, f"{description}\n\n")
+        
+        # Parameters
+        params = cmd_info.get('params', [])
+        if params:
+            self.details_text.insert(tk.END, "Parameters:\n", "section")
+            for param in params:
+                param_text = f"  • {param}\n"
+                self.details_text.insert(tk.END, param_text)
+            self.details_text.insert(tk.END, "\n")
+        
+        # Examples (special handling for logging commands)
+        self.details_text.insert(tk.END, "Examples:\n", "section")
+        
+        if cmd_name == "queue_for_logging":
+            example = """  queue_for_logging pressboi.force pressboi.current_pos
+  
+  This queues variables for logging. They will be written
+  to CSV when start_logging is called. You can also use
+  an indented block:
+  
+  queue_for_logging
+      pressboi.force
+      pressboi.current_pos
+      pressboi.torque"""
+            self.details_text.insert(tk.END, example, "code")
+        
+        elif cmd_name == "start_logging":
+            example = """  start_logging "test_data.csv" pressboi
+  start_logging "<date>-<time> data.csv" fillhead gantry
+  
+  Starts logging queued variables to a CSV file.
+  Use <date> and <time> tags for automatic timestamps.
+  
+  Example workflow:
+  queue_for_logging pressboi.force pressboi.current_pos
+  start_logging "my_data.csv" pressboi
+  # Your test commands here
+  stop_logging"""
+            self.details_text.insert(tk.END, example, "code")
+        
+        elif cmd_name == "stop_logging":
+            example = """  stop_logging
+  
+  Stops logging and closes the CSV file.
+  Use this at the end of your test."""
+            self.details_text.insert(tk.END, example, "code")
+        
+        elif cmd_name == "unqueue_for_logging":
+            example = """  unqueue_for_logging pressboi.force
+  
+  Removes specific variables from the logging queue."""
+            self.details_text.insert(tk.END, example, "code")
+        
+        elif cmd_name == "wait":
+            example = """  wait 2 sec
+  wait 500 ms
+  
+  Pauses script execution for the specified duration."""
+            self.details_text.insert(tk.END, example, "code")
+        
+        elif cmd_name == "cycle":
+            example = """  cycle 5
+      pressboi.move_abs 50 mm 10 mm/s
+      wait 1 sec
+      pressboi.retract 20 mm/s
+  
+  Repeats the indented block 5 times."""
+            self.details_text.insert(tk.END, example, "code")
+        
+        else:
+            # Generic example for device commands
+            device = cmd_info.get('device', '')
+            if device and device not in ['script', 'both']:
+                example = f"  {cmd_name} [parameters]"
+            else:
+                example = f"  {cmd_name}"
+            self.details_text.insert(tk.END, example, "code")
+        
+        self.details_text.config(state=tk.DISABLED)
+
+
 def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var):
     """
     Creates the main scripting area.
@@ -645,10 +882,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     # --- Scripting State Variables ---
     script_runner = None
+    current_run_token = None  # Unique token for the current run
     last_exec_highlight = -1
     last_selection_highlight = 1
     current_filepath = None
     feed_hold_line = None
+    paused_device = None  # Track which device was paused (for resume)
     is_held_by_user = False # Flag to manage Hold state vs. a normal stop
     single_block_var = tk.BooleanVar(value=False)
 
@@ -895,24 +1134,55 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     # --- Script Execution Logic ---
     def handle_cycle_start():
-        nonlocal feed_hold_line, is_held_by_user, last_block_end_line
-        is_held_by_user = False # Always clear hold flag on a new run attempt
+        nonlocal feed_hold_line, is_held_by_user, last_block_end_line, paused_device
+        is_held_by_user = False
 
-        if not check_script_validity(): 
-            return
+        # Clear invalid feed_hold_line values
+        if feed_hold_line == -1:
+            feed_hold_line = None
+        
+        # Check if we're resuming before clearing feed_hold_line
+        is_resuming = feed_hold_line is not None
+        resume_line_num = feed_hold_line if is_resuming else None
+        
+        if not is_resuming:
+            if not check_script_validity(): 
+                return
+            # Validation passed - show starting status
+            status_var.set("Starting execution...")
+        else:
+            # Resuming from hold
+            status_var.set(f"Resuming from line {feed_hold_line}...")
+            
+            # If we paused a device (pressboi), send resume command instead of re-executing
+            if paused_device == 'pressboi':
+                print(f"[RESUME] Sending resume to pressboi at line {feed_hold_line}")
+                paused_device = None
+                feed_hold_line = None
+                # Just send resume directly without ScriptRunner - don't advance line
+                # The move will continue and we'll stay on the current line
+                if 'send_pressboi' in shared_gui_refs['command_funcs']:
+                    shared_gui_refs['command_funcs']['send_pressboi']('resume')
+                    status_var.set(f"Resumed pressboi at line {resume_line_num}...")
+                    # Set buttons to show we're not running anymore (move continues in background)
+                    refresh_button_states()
+                return
 
         # --- FIX: Clear any old selection highlight before starting ---
         script_editor.tag_remove("selection_highlight", "1.0", tk.END)
 
         start_line_num = 1
-        if feed_hold_line is not None:
+        if is_resuming:
             start_line_num = feed_hold_line
-            feed_hold_line = None
         else:
             try:
                 start_line_num = int(last_selection_highlight)
             except (ValueError, TypeError):
                 start_line_num = 1
+        
+        # CRITICAL: Clear feed_hold_line now that we've used it
+        # This ensures refresh_button_states() won't think we're holding
+        feed_hold_line = None
 
         update_selection_highlight(start_line_num)
         is_single_block = single_block_var.get()
@@ -929,7 +1199,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
         if next_valid_line_num == -1:
             status_var.set("End of script reached.")
-            on_run_finished()
+            update_button_states(running=False, holding=False)
             return
 
         update_selection_highlight(next_valid_line_num)
@@ -997,6 +1267,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 ValidationResultsWindow(scripting_area, errors)
                 script_editor.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
                 status_var.set(f"Error on line {next_valid_line_num}.")
+                update_button_states(running=False, holding=False)
                 return
             # Check if required devices for this line are connected
             required_devices_for_line = set()
@@ -1038,6 +1309,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                         "Devices Not Connected",
                         f"Cannot execute line {next_valid_line_num}.\n\nThe following devices are not connected:\n\n{', '.join(disconnected)}\n\nPlease connect the devices or start their simulators."
                     )
+                    update_button_states(running=False, holding=False)
                     return
             
             run_script_from_content(block_content, next_valid_line_num - 1, is_step=True)
@@ -1045,53 +1317,87 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             content_from_line = "\n".join(all_lines[next_valid_line_num - 1:])
             run_script_from_content(content_from_line, next_valid_line_num - 1, is_step=False)
 
-    def update_button_states(running=False, holding=False):
-        if holding:
-            # Script is paused. Run is enabled to resume, Hold is prominent and enabled.
+    def refresh_button_states():
+        """Refresh button states based on ACTUAL current state."""
+        # Check the actual state right now
+        is_running = script_runner is not None and script_runner.is_running
+        is_holding = feed_hold_line is not None
+        print(f"[refresh_button_states] Running: {is_running}, Holding: {is_holding}")
+        
+        if is_holding:
             run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
             hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Holding')
-        elif running:
-            # Script is running. Run is disabled and prominent, Hold is enabled.
+        elif is_running:
             run_button.config(state=tk.DISABLED, style='Running.Green.TButton', text='Running...')
             hold_button.config(state=tk.NORMAL, style='Red.TButton', text='Hold')
-        else: # Idle
-            # Script is idle. Run is enabled, Hold is disabled.
+        else:
             run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
             hold_button.config(state=tk.DISABLED, style='Red.TButton', text='Hold')
+    
+    def update_button_states(running=False, holding=False):
+        """Legacy function for explicit state setting."""
+        refresh_button_states()
 
     # MODIFIED: This function now safely schedules GUI updates on the main thread.
     def status_callback_handler(message, line_num):
         def update_gui():
-            nonlocal last_exec_highlight
+            nonlocal last_exec_highlight, is_held_by_user, feed_hold_line
             status_var.set(message)
+            
+            # If we received an ERROR message during script execution, trigger hold (same as Hold button)
+            if "ERROR:" in message and script_runner and script_runner.is_running:
+                is_held_by_user = True
+                feed_hold_line = line_num if line_num != -1 else last_exec_highlight
+                shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
+                script_runner.stop()  # Stop the script - on_run_finished will handle hold state
+            
             if last_exec_highlight != line_num:
                 if last_exec_highlight != -1:
                     script_editor.tag_remove("exec_highlight", f"{last_exec_highlight}.0", f"{last_exec_highlight}.end")
                 if line_num != -1:
                     script_editor.tag_add("exec_highlight", f"{line_num}.0", f"{line_num}.end")
+                    # Raise exec_highlight above other tags so it's visible
+                    script_editor.text.tag_raise("exec_highlight")
                 last_exec_highlight = line_num
 
         # Schedule the GUI update to run in the main event loop
         root.after(0, update_gui)
 
-    def on_run_finished():
+    def on_run_finished(my_runner):
         nonlocal is_held_by_user
+        # Only execute if this runner is still the current one
+        if my_runner is not script_runner:
+            return
+        
         if is_held_by_user:
-            # This was a user-initiated hold, not the end of the script
-            update_button_states(holding=True)
             status_var.set(f"Hold active. Halted at line {feed_hold_line}.")
-            is_held_by_user = False # Reset the flag
+            is_held_by_user = False
         else:
-            # The script finished normally
-            update_button_states(running=False, holding=False)
             status_callback_handler("Idle", -1)
+        
+        # Always refresh button states based on actual state
+        refresh_button_states()
 
     # Track the last block end line for single block mode
     last_block_end_line = None
     
-    def on_step_finished():
-        nonlocal last_block_end_line
-        update_button_states(running=False, holding=False)
+    def on_step_finished(my_runner):
+        nonlocal last_block_end_line, is_held_by_user, feed_hold_line
+        print(f"[on_step_finished] Called. Runner match: {my_runner is script_runner}, held: {is_held_by_user}")
+        
+        # Only execute if this runner is still the current one
+        if my_runner is not script_runner:
+            print(f"[on_step_finished] Runner mismatch, ignoring")
+            return
+        
+        if is_held_by_user:
+            held_line = last_exec_highlight if last_exec_highlight != -1 else last_selection_highlight
+            status_var.set(f"Hold active. Halted at line {held_line}.")
+            is_held_by_user = False
+            refresh_button_states()
+            return
+        
+        refresh_button_states()
         current_line_num = int(last_selection_highlight)
         
         # If we ran a block with multiple lines, skip to the end of the block
@@ -1101,6 +1407,20 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             next_line_num = current_line_num + 1
         
         last_block_end_line = None  # Reset for next step
+        
+        # Skip empty lines and comments to find the next executable line
+        all_lines = script_editor.get("1.0", tk.END).splitlines()
+        next_valid_line_num = -1
+        for i in range(next_line_num - 1, len(all_lines)):
+            line_content = all_lines[i].strip()
+            if line_content and not line_content.startswith('#'):
+                next_valid_line_num = i + 1
+                break
+        
+        # If we found a valid line, use it; otherwise keep next_line_num
+        if next_valid_line_num != -1:
+            next_line_num = next_valid_line_num
+        
         status_var.set(f"Step complete. Next line: {next_line_num}");
         
         # Use a single, scheduled function to advance both the cursor and selection highlights
@@ -1112,16 +1432,68 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def run_script_from_content(content, line_offset=0, is_step=False):
         nonlocal script_runner
-        update_button_states(running=True) # Set running state visuals
-        completion_callback = on_step_finished if is_step else on_run_finished
+        
+        # Debug logging
+        mode = "SINGLE BLOCK" if is_step else "CONTINUOUS"
+        first_line = content.split('\n')[0][:50] if content else ""
+        print(f"[RUN] Starting {mode} mode: {first_line}")
         
         # Get the latest script handlers from the device manager
         script_handlers = device_manager.get_all_script_handlers()
-
+        
+        # Simple approach: callbacks just refresh state, state machine handles everything
+        def callback():
+            print(f"[CALLBACK] Completion callback fired (mode: {mode})")
+            # Just refresh - let refresh_button_states figure out the actual state
+            refresh_button_states()
+            
+            # Handle the line advancement for single block mode
+            if is_step and not is_held_by_user:
+                print(f"[CALLBACK] Advancing to next line")
+                advance_to_next_line()
+        
+        # Create the runner
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,
-                                     completion_callback, message_queue, scripting_commands, 
-                                     script_handlers, line_offset);
+                                     callback,
+                                     message_queue, scripting_commands, 
+                                     script_handlers, line_offset)
+        
         script_runner.start()
+        
+        # Refresh button states to reflect that we're now running
+        refresh_button_states()
+    
+    def advance_to_next_line():
+        """Advance to the next executable line after a single block completes."""
+        nonlocal last_block_end_line
+        current_line_num = int(last_selection_highlight)
+        
+        # If we ran a block with multiple lines, skip to the end of the block
+        if last_block_end_line and last_block_end_line > current_line_num:
+            next_line_num = last_block_end_line + 1
+        else:
+            next_line_num = current_line_num + 1
+        
+        last_block_end_line = None  # Reset for next step
+        
+        # Skip empty lines and comments to find the next executable line
+        all_lines = script_editor.get("1.0", tk.END).splitlines()
+        next_valid_line_num = -1
+        for i in range(next_line_num - 1, len(all_lines)):
+            line_content = all_lines[i].strip()
+            if line_content and not line_content.startswith('#'):
+                next_valid_line_num = i + 1
+                break
+        
+        # If we found a valid line, use it; otherwise keep next_line_num
+        if next_valid_line_num != -1:
+            next_line_num = next_valid_line_num
+        
+        status_var.set(f"Step complete. Next line: {next_line_num}")
+        
+        # Advance both the cursor and selection highlights
+        script_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
+        update_selection_highlight(next_line_num)
 
     def clear_error_highlighting():
         script_editor.tag_remove("error_highlight", "1.0", tk.END)
@@ -1130,40 +1502,102 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_content = script_editor.get("1.0", tk.END);
         errors = validate_script(script_content, scripting_commands);
         clear_error_highlighting() # Always clear previous errors
+        
+        # Check that all connected devices support pause, reset, and resume
+        if device_manager:
+            all_commands = device_manager.get_all_scripting_commands()
+            required_commands = ['pause', 'reset', 'resume']
+            
+            for device_name in device_manager.get_all_device_names():
+                device_state = device_manager.get_device_state(device_name)
+                if device_state and device_state.get('connected'):
+                    # Check if this device supports all required commands
+                    for required_cmd in required_commands:
+                        # Commands are stored with device prefix (e.g., "pressboi.pause")
+                        full_cmd_name = f"{device_name}.{required_cmd}"
+                        
+                        if full_cmd_name not in all_commands:
+                            error_msg = f"Device '{device_name}' does not support required command '{required_cmd}'. All connected devices must support pause, reset, and resume for script execution."
+                            errors.append({
+                                'line': 0,
+                                'error': error_msg,
+                                'type': 'device_validation'
+                            })
+        
         if errors:
             ValidationResultsWindow(scripting_area, errors, on_close_callback=clear_error_highlighting);
             status_var.set(f"{len(errors)} error(s) found.")
-            for error in errors: line_num = error['line']; script_editor.tag_add("error_highlight", f"{line_num}.0",
-                                                                                 f"{line_num}.end")
+            for error in errors: 
+                if error.get('line', 0) > 0:
+                    line_num = error['line']
+                    script_editor.tag_add("error_highlight", f"{line_num}.0", f"{line_num}.end")
             return False
         else:
-            if show_success: messagebox.showinfo("Validation Success", "Script is valid!")
-            status_var.set("Validation Successful");
+            if show_success: 
+                messagebox.showinfo("Validation Success", "Script is valid!")
+            # Don't set status here - let the execution update it
+            # status_var.set("Validation Successful");
             return True
 
     def handle_feed_hold():
-        nonlocal feed_hold_line, is_held_by_user
-        shared_gui_refs['command_funcs']['abort']()
-
+        nonlocal feed_hold_line, is_held_by_user, paused_device
+        print(f"[HOLD] Hold button pressed. Running: {script_runner is not None and script_runner.is_running}")
+        
         if script_runner and script_runner.is_running:
-            is_held_by_user = True # Signal that the stop was intentional
-            feed_hold_line = last_exec_highlight
-            script_runner.stop() # This will trigger on_run_finished
+            # Mark that we're pausing (but DON'T stop the ScriptRunner)
+            # The ScriptRunner will keep waiting for the device's DONE message
+            feed_hold_line = last_exec_highlight if last_exec_highlight != -1 else last_selection_highlight
+            print(f"[HOLD] Pausing at line {feed_hold_line}")
+            
+            # Send pause to ALL connected devices
+            paused_devices = []
+            if device_manager:
+                for device_name in device_manager.get_all_device_names():
+                    device_state = device_manager.get_device_state(device_name)
+                    if device_state and device_state.get('connected'):
+                        sender_func = f"send_{device_name}"
+                        if sender_func in shared_gui_refs['command_funcs']:
+                            print(f"[HOLD] Sending pause to {device_name}")
+                            try:
+                                shared_gui_refs['command_funcs'][sender_func]('pause')
+                                paused_devices.append(device_name)
+                            except Exception as e:
+                                print(f"[HOLD] Failed to send pause to {device_name}: {e}")
+            
+            # Track paused devices (for now, focus on pressboi for resume logic)
+            if 'pressboi' in paused_devices:
+                paused_device = 'pressboi'
+            elif paused_devices:
+                paused_device = paused_devices[0]  # Use first paused device
+            else:
+                paused_device = None
+            
+            # Update button states to show we're holding
+            # ScriptRunner is still active and waiting for DONE
+            status_var.set(f"Paused at line {feed_hold_line}. Press Run to resume.")
+            refresh_button_states()
         else:
             # If the script isn't running, just stop all motion.
+            print(f"[HOLD] Not running, just stopping motion")
+            shared_gui_refs['command_funcs']['abort']()
             status_var.set("All motion stopped.")
-            update_button_states(running=False, holding=False)
+            refresh_button_states()
 
     def handle_reset():
-        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight
+        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight, paused_device
+        print(f"[RESET] Reset button pressed")
+        
         if script_runner and script_runner.is_running:
+            print(f"[RESET] Stopping running script")
             script_runner.stop()
         
         is_held_by_user = False # Ensure reset clears any hold state
+        paused_device = None # Clear paused device
         shared_gui_refs['command_funcs']['abort']()
 
-        # Explicitly clear any lingering execution highlight immediately.
+        # Explicitly clear any lingering execution and error highlights immediately.
         script_editor.tag_remove("exec_highlight", "1.0", tk.END)
+        script_editor.tag_remove("error_highlight", "1.0", tk.END)
         last_exec_highlight = -1 # Reset the tracker
 
         # Send reset to all devices that are currently connected.
@@ -1177,13 +1611,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                     shared_gui_refs['command_funcs'][sender_func_name]("reset")
 
         feed_hold_line = None
-        update_button_states(running=False, holding=False)
+        print(f"[RESET] Cleared feed_hold_line, resetting to line 1")
         
         # Move cursor and selection highlight to the top
         script_editor.text.mark_set(tk.INSERT, "1.0")
         update_selection_highlight(1)
         
         status_var.set("Script reset. Ready to start from line 1.")
+        refresh_button_states()
 
     def update_selection_highlight(line_num):
         nonlocal last_selection_highlight
@@ -1192,6 +1627,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if line_num != -1:
             script_editor.tag_add("selection_highlight", f"{line_num}.0", f"{line_num}.end")
             last_selection_highlight = line_num
+        # Ensure exec_highlight (golden) stays on top of selection_highlight (grey)
+        if script_editor.text.tag_ranges("exec_highlight"):
+            script_editor.text.tag_raise("exec_highlight")
 
     def on_line_click(event):
         nonlocal feed_hold_line
@@ -1235,7 +1673,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                                           style="OrangeToggle.TButton")
     single_block_switch.pack(side=tk.LEFT, padx=5)
 
-    update_button_states(running=False, holding=False) # Initial state
+    refresh_button_states() # Initial state
 
     # --- Status Label ---
     status_label = ttk.Label(control_frame, textvariable=status_var, anchor='w', 

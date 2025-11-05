@@ -2,7 +2,7 @@
  * @file events.cpp
  * @brief Event sending implementation for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from events.json on 2025-11-03 13:59:24
+ * Generated from events.json on 2025-11-04 12:18:51
  */
 
 #include "events.h"
@@ -18,7 +18,6 @@
 extern void sendMessage(const char* msg);
 
 void sendEvent(Event event) {
-    char buffer[256];
     switch (event) {
         case EVENT_SCRIPT_RUN:
             {

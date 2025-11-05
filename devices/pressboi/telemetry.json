@@ -49,13 +49,13 @@
         "help": "Current position of press axis",
         "gui_var": "pressboi_current_pos_var"
     },
-    "start_pos": {
+    "retract_pos": {
         "unit": "mm",
         "type": "float",
         "default": 0.0,
         "precision": 2,
-        "help": "Preset starting position for pressing routine",
-        "gui_var": "pressboi_start_pos_var"
+        "help": "Preset retract position for the press",
+        "gui_var": "pressboi_retract_pos_var"
     },
     "target_pos": {
         "unit": "mm",

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2025-11-05
+
+### Added
+- Right-click context menu for script functions (logging commands) with detailed help and examples
+- Auto-refresh of device connection status in Command Reference panel
+
+### Changed
+- Improved syntax highlighting for logging commands
+
+### Fixed
+- Fixed "More Info" display for script-only commands (logging functions)
+- Fixed device connection status not updating in Command Reference panel until tree expansion
+
 ## [1.5.0] - 2025-11-04
 
 ### Added

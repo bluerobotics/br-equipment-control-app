@@ -33,15 +33,17 @@ def handle_command(device_sim, command, args, gui_address):
         device_sim.command_queue.append((simulate_move, (device_sim, target, 2.0, gui_address, command)))
         return True
     
-    elif cmd_lower == "pressboi.set_start_pos":
+    elif cmd_lower == "pressboi.set_retract":
         pos = float(args[0]) if args else 0
-        device_sim.state['start_pos'] = pos
+        device_sim.state['retract_pos'] = pos
         return False  # Send generic DONE response
     
-    elif cmd_lower == "pressboi.move_to_start":
-        target = device_sim.state.get('start_pos', 0.0)
+    elif cmd_lower == "pressboi.retract":
+        target = device_sim.state.get('retract_pos', 0.0)
+        speed = float(args[0]) if args else 6.25  # Optional speed parameter
+        duration = abs(target - device_sim.state.get('current_pos', 0.0)) / speed if speed > 0 else 2.0
         device_sim.set_state('MAIN_STATE', 'MOVING')
-        device_sim.command_queue.append((simulate_move, (device_sim, target, 2.0, gui_address, command)))
+        device_sim.command_queue.append((simulate_move, (device_sim, target, duration, gui_address, command)))
         return True
     
     return False  # Command not handled, use default

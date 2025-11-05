@@ -201,6 +201,12 @@ class CommandReference(ttk.Frame):
         self.text.bind("<Button-1>", self.on_text_single_click)
         self.text.bind("<Motion>", self.on_text_motion)
         self.text.bind("<Leave>", self.on_text_leave)
+        
+        # Start auto-refresh for connection status
+        # First refresh after 1 second to catch devices connecting during startup
+        self.after(1000, self._update_connection_status)
+        # Then start periodic refresh every 2 seconds
+        self.after(2000, self._schedule_status_refresh)
     
     def _create_text_widget(self, parent, widget_type):
         """Create and configure a text widget for commands, variables, or events."""
@@ -289,6 +295,129 @@ class CommandReference(ttk.Frame):
             return param_name, ""
         except ValueError:
             return param_name, ""
+    
+    def _schedule_status_refresh(self):
+        """Schedule periodic refresh of connection status without full panel refresh."""
+        self._update_connection_status()
+        # Schedule next refresh in 2 seconds
+        self.after(2000, self._schedule_status_refresh)
+    
+    def _update_connection_status(self):
+        """Update only the connection status indicators without refreshing entire panel."""
+        try:
+            with devices_lock:
+                device_states = self.device_manager.get_all_device_states()
+                
+                # Update each device's status in line_items
+                for line_num, item_data in self.line_items.items():
+                    if item_data.get('type') == 'device':
+                        device_name = item_data.get('name', '')
+                        device_state = device_states.get(device_name, {})
+                        is_connected = device_state.get('connected', False)
+                        is_simulated = device_name in self.device_manager.simulator_threads
+                        device_ip = device_state.get('ip', '')
+                        
+                        # Get current line content
+                        line_content = self.text.get(f"{line_num}.0", f"{line_num}.end")
+                        
+                        # Determine what the status text should be
+                        if is_simulated:
+                            # [simulated] always comes after connected
+                            expected_has_connected = " connected" in line_content
+                            expected_has_simulated = " [simulated]" in line_content
+                            
+                            if not expected_has_connected or not expected_has_simulated:
+                                # Need to update: add/update connected and simulated
+                                self._replace_status_badge(line_num, line_content, " connected", "connected_status")
+                                # Add simulated after connected if not present
+                                if " [simulated]" not in line_content:
+                                    connected_idx = line_content.find(" connected")
+                                    if connected_idx != -1:
+                                        # Find end of connected text (might have @ IP)
+                                        end_idx = line_content.find(" [simulated]", connected_idx)
+                                        if end_idx == -1:
+                                            end_idx = line_content.find("\n", connected_idx)
+                                            if end_idx == -1:
+                                                end_idx = len(line_content)
+                                        self.text.insert(f"{line_num}.{end_idx}", " [simulated]", "simulated_status")
+                        elif is_connected:
+                            # Should have " connected" or " connected @ IP", no [simulated]
+                            expected_has_connected = " connected" in line_content
+                            expected_has_disconnected = " disconnected" in line_content
+                            expected_has_simulated = " [simulated]" in line_content
+                            
+                            # Build new status text
+                            if device_ip:
+                                new_status_text = f" connected @ {device_ip}"
+                            else:
+                                new_status_text = " connected"
+                            
+                            if expected_has_disconnected or expected_has_simulated or not expected_has_connected:
+                                # Need to update
+                                # Remove simulated if present
+                                if " [simulated]" in line_content:
+                                    sim_start = line_content.find(" [simulated]")
+                                    self.text.delete(f"{line_num}.{sim_start}", f"{line_num}.{sim_start + 12}")
+                                    line_content = self.text.get(f"{line_num}.0", f"{line_num}.end")
+                                
+                                # Replace disconnected or update connected
+                                self._replace_status_badge(line_num, line_content, new_status_text, "connected_status")
+                        else:
+                            # Should have " disconnected", no connected, no simulated
+                            expected_has_disconnected = " disconnected" in line_content
+                            expected_has_connected = " connected" in line_content
+                            expected_has_simulated = " [simulated]" in line_content
+                            
+                            if expected_has_connected or expected_has_simulated or not expected_has_disconnected:
+                                # Need to update
+                                # Remove simulated if present
+                                if " [simulated]" in line_content:
+                                    sim_start = line_content.find(" [simulated]")
+                                    self.text.delete(f"{line_num}.{sim_start}", f"{line_num}.{sim_start + 12}")
+                                    line_content = self.text.get(f"{line_num}.0", f"{line_num}.end")
+                                
+                                # Replace connected or update disconnected
+                                self._replace_status_badge(line_num, line_content, " disconnected", "disconnected_status")
+        except Exception as e:
+            # Silently ignore errors during status update to prevent GUI crashes
+            print(f"[CommandReference] Status update error: {e}")
+    
+    def _replace_status_badge(self, line_num, line_content, new_status_text, new_tag):
+        """Helper to replace status badge text on a line."""
+        # Find and replace connected/disconnected status
+        # Try " connected @" first (longer match), then " connected", then " disconnected"
+        for old_text in [" connected @", " connected", " disconnected"]:
+            if old_text in line_content:
+                start_idx = line_content.find(old_text)
+                # Find end - either [simulated], newline, or end of line
+                # For " connected @", we need to include the IP address (everything after @ until space/newline/[simulated])
+                if old_text == " connected @":
+                    # Find @ position
+                    at_idx = line_content.find("@", start_idx)
+                    if at_idx != -1:
+                        # Find first space, newline, or [simulated] after @
+                        end_idx = line_content.find(" [simulated]", at_idx)
+                        if end_idx == -1:
+                            end_idx = line_content.find("\n", at_idx)
+                            if end_idx == -1:
+                                end_idx = len(line_content)
+                    else:
+                        # Fallback if @ not found
+                        end_idx = line_content.find("\n", start_idx)
+                        if end_idx == -1:
+                            end_idx = len(line_content)
+                else:
+                    # For " connected" or " disconnected", end at [simulated], newline, or end
+                    end_idx = line_content.find(" [simulated]", start_idx)
+                    if end_idx == -1:
+                        end_idx = line_content.find("\n", start_idx)
+                        if end_idx == -1:
+                            end_idx = len(line_content)
+                
+                # Delete old and insert new
+                self.text.delete(f"{line_num}.{start_idx}", f"{line_num}.{end_idx}")
+                self.text.insert(f"{line_num}.{start_idx}", new_status_text, new_tag)
+                return
     
     def refresh(self):
         """Clears and repopulates the text widget with all devices and their items."""
@@ -739,11 +868,12 @@ class CommandReference(ttk.Frame):
             self.context_menu.add_command(label="Delete Device", command=self.delete_device,
                                          foreground=theme.ERROR_RED)
         
-        elif item_type == 'command':
+        elif item_type == 'command' or item_type == 'script_command':
             command_name = item_data.get('name', '')
             script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE',
-                             'wait', 'math', 'wait_for', 'comment', 'cycle']
-            is_script_command = command_name in script_commands
+                             'wait', 'math', 'wait_for', 'comment', 'cycle',
+                             'queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+            is_script_command = command_name in script_commands or command_name.startswith('script.') or item_type == 'script_command'
             
             self.context_menu.add_command(label="Copy Command", command=self.copy_command)
             self.context_menu.add_command(label="Add to Script", command=self.add_to_script)
@@ -1258,7 +1388,7 @@ class CommandReference(ttk.Frame):
         
         item_data = self.line_items.get(line_num, {})
         
-        if item_data.get('type') == 'command':
+        if item_data.get('type') in ['command', 'script_command']:
             return item_data.get('name')
         return None
 
@@ -1417,8 +1547,9 @@ class CommandReference(ttk.Frame):
             
             # Check if it's a script command (case-insensitive)
             script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE', 
-                             'wait', 'math', 'wait_for', 'comment', 'cycle']
-            is_script_command = command in script_commands
+                             'wait', 'math', 'wait_for', 'comment', 'cycle',
+                             'queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+            is_script_command = command in script_commands or command.startswith('script.')
             
             # Add common options
             self.commands_context_menu.add_command(label="Copy Command", command=self.copy_command)
@@ -1452,7 +1583,14 @@ class CommandReference(ttk.Frame):
             return
         
         # Get full command details
-        cmd_details = self.scripting_commands.get(command)
+        all_commands = self.device_manager.get_all_scripting_commands()
+        cmd_details = all_commands.get(command)
+        
+        # If not found, check SCRIPT_COMMANDS directly (for script-only commands)
+        if not cmd_details:
+            from script_processor import SCRIPT_COMMANDS
+            cmd_details = SCRIPT_COMMANDS.get(command)
+        
         if not cmd_details:
             return
         
@@ -2039,6 +2177,25 @@ class CommandReference(ttk.Frame):
         examples = []
         params = cmd_details.get('params', [])
         
+        # Special examples for logging commands
+        if command == 'queue_for_logging' or command == 'script.queue_for_logging':
+            examples.append("# Queue variables inline\nqueue_for_logging pressboi.force pressboi.current_pos pressboi.torque")
+            examples.append("# Queue variables with indented block\nqueue_for_logging\n    pressboi.force\n    pressboi.current_pos\n    pressboi.torque")
+            return examples
+        
+        if command == 'start_logging' or command == 'script.start_logging':
+            examples.append('# Start logging with timestamp in filename\nstart_logging "<date>-<time> data.csv" pressboi')
+            examples.append('# Complete workflow\nqueue_for_logging pressboi.force pressboi.current_pos\nstart_logging "test_data.csv" pressboi\n# Your test commands here\nstop_logging')
+            return examples
+        
+        if command == 'stop_logging' or command == 'script.stop_logging':
+            examples.append("# Stop all logging\nstop_logging")
+            return examples
+        
+        if command == 'unqueue_for_logging' or command == 'script.unqueue_for_logging':
+            examples.append("# Remove specific variables from queue\nunqueue_for_logging pressboi.force pressboi.torque")
+            return examples
+        
         def extract_unit(param_name):
             try:
                 start = param_name.index('(')
@@ -2220,15 +2377,17 @@ class CommandReference(ttk.Frame):
         
         # Don't allow editing script commands
         script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE', 
-                         'wait', 'math', 'wait_for', 'comment', 'cycle']
-        if command in script_commands:
+                         'wait', 'math', 'wait_for', 'comment', 'cycle',
+                         'queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+        if command in script_commands or command.startswith('script.'):
             from tkinter import messagebox
             messagebox.showerror("Cannot Edit", 
                                "Built-in script commands cannot be edited.")
             return
         
         # Get command details
-        cmd_details = self.scripting_commands.get(command)
+        all_commands = self.device_manager.get_all_scripting_commands()
+        cmd_details = all_commands.get(command)
         if cmd_details:
             AddCommandDialog(self, self.device_manager, 
                            on_save=lambda: self.refresh(),
@@ -2442,8 +2601,9 @@ class CommandReference(ttk.Frame):
         
         # Don't allow deleting script commands
         script_commands = ['WAIT', 'MATH', 'WAIT_FOR', 'COMMENT', 'CYCLE', 
-                         'wait', 'math', 'wait_for', 'comment', 'cycle']
-        if command in script_commands:
+                         'wait', 'math', 'wait_for', 'comment', 'cycle',
+                         'queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+        if command in script_commands or command.startswith('script.'):
             messagebox.showerror("Cannot Delete", 
                                "Built-in script commands cannot be deleted.")
             return

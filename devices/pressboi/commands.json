@@ -21,7 +21,7 @@
             { "parameter": "position", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
             { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "force_action", "type": "string", "enum": ["return", "halt", "continue"], "optional": true, "default": "halt" }
+            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" }
         ],
         "returns": ["done", "error"]
     },
@@ -33,24 +33,26 @@
             { "parameter": "distance", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
             { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "force_action", "type": "string", "enum": ["return", "halt", "continue"], "optional": true, "default": "halt" }
+            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" }
         ],
         "returns": ["done", "error"]
     },
-    "set_start_pos": {
+    "set_retract": {
         "device": "pressboi",
         "target": "device",
-        "description": "Sets the starting position for a pressing routine.",
+        "description": "Sets the retract position for the press.",
         "params": [
             { "parameter": "position", "unit": "mm", "type": "float" }
         ],
         "returns": ["done", "error"]
     },
-    "move_to_start": {
+    "retract": {
         "device": "pressboi",
         "target": "device",
-        "description": "Moves the press to the preset starting position.",
-        "params": [],
+        "description": "Moves the press to the preset retract position with optional speed.",
+        "params": [
+            { "parameter": "speed", "unit": "mm/s", "type": "float", "optional": true, "default": 6.25 }
+        ],
         "returns": ["done", "error"]
     },
     "pause": {

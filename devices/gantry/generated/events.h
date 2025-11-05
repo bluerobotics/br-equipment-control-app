@@ -2,7 +2,7 @@
  * @file events.h
  * @brief Defines all event types that can be sent from the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from events.json on 2025-11-03 13:59:24
+ * Generated from events.json on 2025-11-04 12:18:51
  * 
  * This header file defines all events sent FROM the Gantry device TO the host.
  * Events are asynchronous notifications that can trigger host-side actions.

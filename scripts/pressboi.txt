@@ -1,18 +1,84 @@
 ### pressboi test ###
+pressboi.enable
 
 pressboi.home
-pressboi.set_start_pos 154 mm
-pressboi.move_to_start
+pressboi.set_retract 100 mm
+pressboi.retract 20 mm/s
 
-pressboi.move_abs 170 mm 10 mm/s 10 kg return       # search move
+queue_for_logging pressboi.force pressboi.current_pos 
+start_logging test pressboi
+pressboi.move_abs 300 mm 0.5 mm/s 1000 kg retract     # press move
+stop_logging 
+
+
+
+pressboi.move_abs 60 mm 2 mm/s 1 kg retract       # search move
 wait 1 sec
-pressboi.move_abs 178 mm 0.5 mm/s 10 kg return     # approach move
+pressboi.move_abs 64 mm 1 mm/s 10 kg retract     # approach move
 wait 1 sec
-pressboi.move_abs 176 mm 2 mm/s 4 kg return        # alignment move
+pressboi.move_abs 66 mm 0.5 mm/s 4 kg retract        # alignment move
 wait 1 sec
-pressboi.move_abs 178 mm 0.5 mm/s 320 kg return     # press move
+pressboi.move_abs 68 mm 0.25 mm/s 320 kg retract     # press move
 wait 1 sec
-pressboi.move_to_start
+pressboi.retract 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
