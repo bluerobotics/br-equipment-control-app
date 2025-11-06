@@ -201,7 +201,7 @@ class CommandReference(ttk.Frame):
         self.text.bind("<Button-1>", self.on_text_single_click)
         self.text.bind("<Motion>", self.on_text_motion)
         self.text.bind("<Leave>", self.on_text_leave)
-        
+    
         # Start auto-refresh for connection status
         # First refresh after 1 second to catch devices connecting during startup
         self.after(1000, self._update_connection_status)
@@ -1049,8 +1049,13 @@ class CommandReference(ttk.Frame):
                                 self.commands_text.insert(tk.END, " ")
                                 
                                 # Add parameter name in orange
+                                # For start_logging and stop_logging, add quotes around filename parameter
+                                param_display = param_name
+                                if cmd in ['start_logging', 'stop_logging'] and param_name == 'filename':
+                                    param_display = f'"{param_name}"'
+                                
                                 param_start_col = int(self.commands_text.index(f'{line_num}.end').split('.')[1])
-                                self.commands_text.insert(tk.END, param_name)
+                                self.commands_text.insert(tk.END, param_display)
                                 param_end_col = int(self.commands_text.index(f'{line_num}.end').split('.')[1])
                                 self.commands_text.tag_add('params', f"{line_num}.{param_start_col}", f"{line_num}.{param_end_col}")
                                 

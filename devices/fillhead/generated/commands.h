@@ -2,10 +2,10 @@
  * @file commands.h
  * @brief Defines the command interface for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-04 12:18:51
+ * Generated from commands.json on 2025-11-05 20:42:41
  * 
  * This header file defines all commands that can be sent TO the Fillhead device.
- * For response message formats, see responses.h
+ * For message prefixes and events, see events.h
  * To modify commands, edit commands.json and regenerate this file.
  */
 #pragma once
@@ -77,34 +77,6 @@
 //==================================================================================================
 // Response Message Prefixes (Device → Host)
 //==================================================================================================
-
-/**
- * @name Status Message Prefixes
- * @brief Prefixes used for different types of status messages from the device.
- * @{
- */
-#define STATUS_PREFIX_INFO                  "FILLHEAD_INFO: "          ///< Prefix for informational status messages.
-#define STATUS_PREFIX_START                 "FILLHEAD_START: "         ///< Prefix for messages indicating the start of an operation.
-#define STATUS_PREFIX_DONE                  "FILLHEAD_DONE: "          ///< Prefix for messages indicating the successful completion of an operation.
-#define STATUS_PREFIX_ERROR                 "FILLHEAD_ERROR: "         ///< Prefix for messages indicating an error or fault.
-#define STATUS_PREFIX_DISCOVERY             "DISCOVERY_RESPONSE: "     ///< Prefix for the device discovery response.
-/** @} */
-
-/**
- * @name Telemetry Prefix
- * @brief Prefix for periodic telemetry data messages.
- * @{
- */
-#define TELEM_PREFIX                        "FILLHEAD_TELEM: "         ///< Prefix for all telemetry messages.
-/** @} */
-
-/**
- * @name Event Prefix
- * @brief Prefix for event messages.
- * @{
- */
-#define EVENT_PREFIX                        "FILLHEAD_EVENT: "         ///< Prefix for all event messages.
-/** @} */
 
 //==================================================================================================
 // Command Enum

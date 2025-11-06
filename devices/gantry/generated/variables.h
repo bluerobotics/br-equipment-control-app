@@ -2,7 +2,7 @@
  * @file variables.h
  * @brief Telemetry structure and construction interface for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-04 12:18:51
+ * Generated from telemetry.json on 2025-11-05 20:42:41
  * 
  * This header defines the complete telemetry data structure for the Gantry.
  * All telemetry fields are assembled in one centralized location.

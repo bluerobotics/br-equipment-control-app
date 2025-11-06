@@ -58,7 +58,7 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
     lines.append(f" * Generated from commands.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(" * ")
     lines.append(f" * This header file defines all commands that can be sent TO the {device_title} device.")
-    lines.append(" * For response message formats, see responses.h")
+    lines.append(" * For message prefixes and events, see events.h")
     lines.append(" * To modify commands, edit commands.json and regenerate this file.")
     lines.append(" */")
     lines.append("#pragma once")
@@ -96,34 +96,6 @@ def generate_command_header(commands: Dict[str, Any], device_name: str) -> str:
     lines.append("//==================================================================================================")
     lines.append("// Response Message Prefixes (Device → Host)")
     lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Status Message Prefixes")
-    lines.append(" * @brief Prefixes used for different types of status messages from the device.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define STATUS_PREFIX_INFO                  "{device_upper}_INFO: "          ///< Prefix for informational status messages.')
-    lines.append(f'#define STATUS_PREFIX_START                 "{device_upper}_START: "         ///< Prefix for messages indicating the start of an operation.')
-    lines.append(f'#define STATUS_PREFIX_DONE                  "{device_upper}_DONE: "          ///< Prefix for messages indicating the successful completion of an operation.')
-    lines.append(f'#define STATUS_PREFIX_ERROR                 "{device_upper}_ERROR: "         ///< Prefix for messages indicating an error or fault.')
-    lines.append(f'#define STATUS_PREFIX_DISCOVERY             "DISCOVERY_RESPONSE: "     ///< Prefix for the device discovery response.')
-    lines.append("/** @} */")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Telemetry Prefix")
-    lines.append(" * @brief Prefix for periodic telemetry data messages.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define TELEM_PREFIX                        "{device_upper}_TELEM: "         ///< Prefix for all telemetry messages.')
-    lines.append("/** @} */")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Event Prefix")
-    lines.append(" * @brief Prefix for event messages.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define EVENT_PREFIX                        "{device_upper}_EVENT: "         ///< Prefix for all event messages.')
-    lines.append("/** @} */")
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Command Enum")
@@ -302,11 +274,11 @@ def generate_telemetry_formatter(telemetry: Dict[str, Any], device_name: str) ->
     lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(" * ")
     lines.append(f" * This header provides utility functions to format telemetry messages for the {device_title}.")
-    lines.append(" * @see responses.h for response message definitions")
+    lines.append(" * @see events.h for message prefix definitions")
     lines.append(" */")
     lines.append("#pragma once")
     lines.append("")
-    lines.append('#include "responses.h"')
+    lines.append('#include "events.h"')
     lines.append('#include <stdio.h>')
     lines.append("")
     lines.append("//==================================================================================================")
@@ -565,6 +537,7 @@ def generate_variables_cpp(telemetry: Dict[str, Any], device_name: str) -> str:
     lines.append("")
     lines.append('#include "variables.h"')
     lines.append('#include "commands.h"')
+    lines.append('#include "events.h"')
     lines.append('#include <stdio.h>')
     lines.append('#include <string.h>')
     lines.append("")
@@ -674,13 +647,45 @@ def generate_events_header(events: Dict[str, Any], device_name: str) -> str:
     lines.append(f" * This header file defines all events sent FROM the {device_title} device TO the host.")
     lines.append(" * Events are asynchronous notifications that can trigger host-side actions.")
     lines.append(" * For command definitions (host → device), see commands.h")
-    lines.append(" * For response definitions, see responses.h")
     lines.append(" * To modify events, edit events.json and regenerate this file.")
     lines.append(" */")
     lines.append("#pragma once")
     lines.append("")
     lines.append('#include <stdint.h>')
     lines.append('#include <stdbool.h>')
+    lines.append("")
+    lines.append("//==================================================================================================")
+    lines.append("// Status Message Prefixes (Device → Host)")
+    lines.append("//==================================================================================================")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Status Message Prefixes")
+    lines.append(" * @brief Prefixes used for different types of status messages from the device.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define STATUS_PREFIX_INFO                  "{device_upper}_INFO: "          ///< Prefix for informational status messages.')
+    lines.append(f'#define STATUS_PREFIX_START                 "{device_upper}_START: "         ///< Prefix for messages indicating the start of an operation.')
+    lines.append(f'#define STATUS_PREFIX_DONE                  "{device_upper}_DONE: "          ///< Prefix for messages indicating the successful completion of an operation.')
+    lines.append(f'#define STATUS_PREFIX_ERROR                 "{device_upper}_ERROR: "         ///< Prefix for messages indicating an error or fault.')
+    lines.append(f'#define STATUS_PREFIX_RECOVERY              "{device_upper}_RECOVERY: "      ///< Prefix for watchdog recovery notifications.')
+    lines.append(f'#define STATUS_PREFIX_DISCOVERY             "DISCOVERY_RESPONSE: "     ///< Prefix for the device discovery response.')
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Telemetry Prefix")
+    lines.append(" * @brief Prefix for periodic telemetry data messages.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define TELEM_PREFIX                        "{device_upper}_TELEM: "         ///< Prefix for all telemetry messages.')
+    lines.append("/** @} */")
+    lines.append("")
+    lines.append("/**")
+    lines.append(" * @name Event Prefix")
+    lines.append(" * @brief Prefix for event messages.")
+    lines.append(" * @{")
+    lines.append(" */")
+    lines.append(f'#define EVENT_PREFIX                        "{device_upper}_EVENT: "         ///< Prefix for all event messages.')
+    lines.append("/** @} */")
     lines.append("")
     lines.append("//==================================================================================================")
     lines.append("// Event String Definitions")
@@ -887,80 +892,8 @@ def generate_events_cpp(events: Dict[str, Any], device_name: str) -> str:
     return '\n'.join(lines)
 
 
-def generate_responses_header(telemetry: Dict[str, Any], device_name: str) -> str:
-    """Generate responses.h content from telemetry.json."""
-    
-    device_upper = device_name.upper()
-    device_title = device_name.capitalize()
-    
-    lines = []
-    lines.append("/**")
-    lines.append(" * @file responses.h")
-    lines.append(f" * @brief Defines all response message formats for the {device_title} controller.")
-    lines.append(" * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY")
-    lines.append(f" * Generated from telemetry.json on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append(" * ")
-    lines.append(f" * This header file defines all messages sent FROM the {device_title} device TO the host.")
-    lines.append(" * This includes status messages, telemetry data, and discovery responses.")
-    lines.append(" * For command definitions (host → device), see commands.h")
-    lines.append(" * For telemetry structure, see telemetry.h")
-    lines.append(" * To modify response fields, edit telemetry.json and regenerate this file.")
-    lines.append(" */")
-    lines.append("#pragma once")
-    lines.append("")
-    lines.append("//==================================================================================================")
-    lines.append("// Response Message Prefixes (Device → Host)")
-    lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Status Message Prefixes")
-    lines.append(" * @brief Prefixes used for different types of status messages from the device.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define STATUS_PREFIX_INFO                  "{device_upper}_INFO: "          ///< Prefix for informational status messages.')
-    lines.append(f'#define STATUS_PREFIX_START                 "{device_upper}_START: "         ///< Prefix for messages indicating the start of an operation.')
-    lines.append(f'#define STATUS_PREFIX_DONE                  "{device_upper}_DONE: "          ///< Prefix for messages indicating the successful completion of an operation.')
-    lines.append(f'#define STATUS_PREFIX_ERROR                 "{device_upper}_ERROR: "         ///< Prefix for messages indicating an error or fault.')
-    lines.append(f'#define STATUS_PREFIX_DISCOVERY             "DISCOVERY_RESPONSE: "     ///< Prefix for the device discovery response.')
-    lines.append("/** @} */")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @name Telemetry Prefix")
-    lines.append(" * @brief Prefix for periodic telemetry data messages.")
-    lines.append(" * @{")
-    lines.append(" */")
-    lines.append(f'#define TELEM_PREFIX                        "{device_upper}_TELEM: "         ///< Prefix for all telemetry messages.')
-    lines.append("/** @} */")
-    lines.append("")
-    lines.append("//==================================================================================================")
-    lines.append("// Usage Examples")
-    lines.append("//==================================================================================================")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * @section Status Message Example")
-    lines.append(" * @code")
-    lines.append(" * // Send an info message")
-    lines.append(' * Serial.print(STATUS_PREFIX_INFO);')
-    lines.append(' * Serial.println("System initialized");')
-    lines.append(" * ")
-    lines.append(" * // Send a completion message")
-    lines.append(' * Serial.print(STATUS_PREFIX_DONE);')
-    lines.append(' * Serial.println("HEATER_ON");')
-    lines.append(" * @endcode")
-    lines.append(" * ")
-    lines.append(" * @section Telemetry Message Example")
-    lines.append(" * @code")
-    lines.append(" * // Use the telemetry.h interface for sending telemetry")
-    lines.append(" * #include \"telemetry.h\"")
-    lines.append(" * ")
-    lines.append(" * TelemetryData telem;")
-    lines.append(" * telemetry_init(&telem);")
-    lines.append(" * // ... update telem fields ...")
-    lines.append(" * telemetry_send(&telem);")
-    lines.append(" * @endcode")
-    lines.append(" */")
-    
-    return '\n'.join(lines)
+# DEPRECATED: responses.h has been decommissioned
+# All message prefixes are now in events.h
 
 
 class CodeGeneratorDialog(tk.Toplevel):
@@ -1008,7 +941,7 @@ class CodeGeneratorDialog(tk.Toplevel):
         # Description
         desc_label = tk.Label(
             main_frame,
-            text="Generate C++ files from device JSON schemas.\nFiles saved to: devices/{device}/generated/\nIncludes: commands.h, responses.h, commands.cpp, variables.h/cpp, events.h/cpp",
+            text="Generate C++ files from device JSON schemas.\nFiles saved to: devices/{device}/generated/\nIncludes: commands.h, commands.cpp, variables.h/cpp, events.h/cpp",
             bg=theme.BG_COLOR,
             fg=theme.COMMENT_COLOR,
             font=theme.FONT_NORMAL,
@@ -1093,19 +1026,6 @@ class CodeGeneratorDialog(tk.Toplevel):
         )
         self.commands_text.pack(fill=tk.BOTH, expand=True)
         self.notebook.add(commands_frame, text="commands.h")
-        
-        # Responses.h tab
-        responses_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
-        self.responses_text = scrolledtext.ScrolledText(
-            responses_frame,
-            bg=theme.WIDGET_BG,
-            fg=theme.FG_COLOR,
-            insertbackground=theme.FG_COLOR,
-            font=('Courier', 9),
-            wrap=tk.NONE
-        )
-        self.responses_text.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(responses_frame, text="responses.h")
         
         # Commands.cpp tab
         commands_cpp_frame = tk.Frame(self.notebook, bg=theme.WIDGET_BG)
@@ -1224,7 +1144,6 @@ class CodeGeneratorDialog(tk.Toplevel):
         # Initial message
         initial_msg = "Select a device and click 'Generate Headers' to begin..."
         self.commands_text.insert('1.0', initial_msg)
-        self.responses_text.insert('1.0', initial_msg)
         self.commands_cpp_text.insert('1.0', initial_msg)
         self.variables_h_text.insert('1.0', initial_msg)
         self.variables_cpp_text.insert('1.0', initial_msg)
@@ -1267,7 +1186,6 @@ class CodeGeneratorDialog(tk.Toplevel):
             
             # Generate all files
             commands_h = generate_command_header(commands, device_name)
-            responses_h = generate_responses_header(telemetry, device_name)
             commands_cpp = generate_commands_cpp(commands, device_name)
             variables_h = generate_variables_header(telemetry, device_name)
             variables_cpp = generate_variables_cpp(telemetry, device_name)
@@ -1277,9 +1195,6 @@ class CodeGeneratorDialog(tk.Toplevel):
             # Display in text widgets
             self.commands_text.delete('1.0', tk.END)
             self.commands_text.insert('1.0', commands_h)
-            
-            self.responses_text.delete('1.0', tk.END)
-            self.responses_text.insert('1.0', responses_h)
             
             self.commands_cpp_text.delete('1.0', tk.END)
             self.commands_cpp_text.insert('1.0', commands_cpp)
@@ -1298,7 +1213,6 @@ class CodeGeneratorDialog(tk.Toplevel):
             
             # Store generated content for saving
             self.generated_commands = commands_h
-            self.generated_responses = responses_h
             self.generated_commands_cpp = commands_cpp
             self.generated_variables_h = variables_h
             self.generated_variables_cpp = variables_cpp
@@ -1315,9 +1229,7 @@ class CodeGeneratorDialog(tk.Toplevel):
         
         if current_tab == 0:  # commands.h
             content = self.commands_text.get('1.0', tk.END)
-        elif current_tab == 1:  # responses.h
-            content = self.responses_text.get('1.0', tk.END)
-        elif current_tab == 2:  # commands.cpp
+        elif current_tab == 1:  # commands.cpp
             content = self.commands_cpp_text.get('1.0', tk.END)
         elif current_tab == 3:  # variables.h
             content = self.variables_h_text.get('1.0', tk.END)
@@ -1335,7 +1247,7 @@ class CodeGeneratorDialog(tk.Toplevel):
     
     def save_to_files(self):
         """Save generated files to the device directory."""
-        if not hasattr(self, 'generated_commands') or not hasattr(self, 'generated_responses'):
+        if not hasattr(self, 'generated_commands'):
             messagebox.showerror("Error", "Please generate the files first.")
             return
         
@@ -1349,7 +1261,6 @@ class CodeGeneratorDialog(tk.Toplevel):
             os.makedirs(gen_dir, exist_ok=True)
             
             commands_h_path = os.path.join(gen_dir, 'commands.h')
-            responses_h_path = os.path.join(gen_dir, 'responses.h')
             commands_cpp_path = os.path.join(gen_dir, 'commands.cpp')
             variables_h_path = os.path.join(gen_dir, 'variables.h')
             variables_cpp_path = os.path.join(gen_dir, 'variables.cpp')
@@ -1359,9 +1270,6 @@ class CodeGeneratorDialog(tk.Toplevel):
             # Save all files
             with open(commands_h_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_commands)
-            
-            with open(responses_h_path, 'w', encoding='utf-8') as f:
-                f.write(self.generated_responses)
             
             with open(commands_cpp_path, 'w', encoding='utf-8') as f:
                 f.write(self.generated_commands_cpp)
@@ -1382,7 +1290,6 @@ class CodeGeneratorDialog(tk.Toplevel):
                 "Success",
                 f"All files saved successfully to generated/ folder!\n\n"
                 f"generated/commands.h\n"
-                f"generated/responses.h\n"
                 f"generated/commands.cpp\n"
                 f"generated/variables.h\n"
                 f"generated/variables.cpp\n"

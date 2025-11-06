@@ -2,7 +2,7 @@
  * @file events.cpp
  * @brief Event sending implementation for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from events.json on 2025-11-04 12:18:51
+ * Generated from events.json on 2025-11-05 20:42:41
  */
 
 #include "events.h"

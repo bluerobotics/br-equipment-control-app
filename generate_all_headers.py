@@ -8,7 +8,6 @@ import sys
 from code_generator import (
     load_json, 
     generate_command_header, 
-    generate_responses_header,
     generate_commands_cpp,
     generate_variables_header,
     generate_variables_cpp,
@@ -46,7 +45,6 @@ def generate_headers_for_device(device_name):
         
         # Generate all files
         commands_h = generate_command_header(commands, device_name)
-        responses_h = generate_responses_header(telemetry, device_name)
         commands_cpp = generate_commands_cpp(commands, device_name)
         variables_h = generate_variables_header(telemetry, device_name)
         variables_cpp = generate_variables_cpp(telemetry, device_name)
@@ -59,7 +57,6 @@ def generate_headers_for_device(device_name):
         
         # Save all files to generated/ folder
         commands_h_path = os.path.join(gen_dir, 'commands.h')
-        responses_h_path = os.path.join(gen_dir, 'responses.h')
         commands_cpp_path = os.path.join(gen_dir, 'commands.cpp')
         variables_h_path = os.path.join(gen_dir, 'variables.h')
         variables_cpp_path = os.path.join(gen_dir, 'variables.cpp')
@@ -68,9 +65,6 @@ def generate_headers_for_device(device_name):
         
         with open(commands_h_path, 'w', encoding='utf-8') as f:
             f.write(commands_h)
-        
-        with open(responses_h_path, 'w', encoding='utf-8') as f:
-            f.write(responses_h)
         
         with open(commands_cpp_path, 'w', encoding='utf-8') as f:
             f.write(commands_cpp)
@@ -87,7 +81,7 @@ def generate_headers_for_device(device_name):
         with open(events_cpp_path, 'w', encoding='utf-8') as f:
             f.write(events_cpp)
         
-        print(f"  [OK] Generated 7 files for {device_name} in generated/ folder")
+        print(f"  [OK] Generated 6 files for {device_name} in generated/ folder")
         return True
         
     except Exception as e:

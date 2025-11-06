@@ -2,11 +2,12 @@
  * @file variables.cpp
  * @brief Telemetry construction implementation for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-04 12:18:51
+ * Generated from telemetry.json on 2025-11-05 20:42:41
  */
 
 #include "variables.h"
 #include "commands.h"
+#include "events.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -2,7 +2,7 @@
  * @file commands.cpp
  * @brief Command parsing implementation for the Pressboi controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-04 12:18:51
+ * Generated from commands.json on 2025-11-05 20:42:41
  * 
  * This file contains the command parser integrated into commands.cpp
  */
@@ -27,6 +27,7 @@ Command parseCommand(const char* cmdStr) {
     if (strncmp(cmdStr, CMD_STR_CANCEL, strlen(CMD_STR_CANCEL)) == 0) return CMD_CANCEL;
     if (strncmp(cmdStr, CMD_STR_ENABLE, strlen(CMD_STR_ENABLE)) == 0) return CMD_ENABLE;
     if (strncmp(cmdStr, CMD_STR_DISABLE, strlen(CMD_STR_DISABLE)) == 0) return CMD_DISABLE;
+    if (strncmp(cmdStr, CMD_STR_TEST_WATCHDOG, strlen(CMD_STR_TEST_WATCHDOG)) == 0) return CMD_TEST_WATCHDOG;
     return CMD_UNKNOWN;
 }
 

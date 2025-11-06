@@ -20,8 +20,9 @@
         "params": [
             { "parameter": "position", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
-            { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" }
+            { "parameter": "force", "unit": "kg", "type": "float", "help": "In motor_torque mode: 50-1000 kg (Torque = 0.0335*kg + 1.04). In load_cell mode: actual force limit." },
+            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" },
+            { "parameter": "force_mode", "type": "string", "enum": ["motor_torque", "load_cell"], "optional": true, "default": "motor_torque", "help": "motor_torque = use motor torque (no load cell needed), load_cell = use actual load cell" }
         ],
         "returns": ["done", "error"]
     },
@@ -32,8 +33,9 @@
         "params": [
             { "parameter": "distance", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
-            { "parameter": "force", "unit": "kg", "type": "float" },
-            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" }
+            { "parameter": "force", "unit": "kg", "type": "float", "help": "In motor_torque mode: 50-1000 kg (Torque = 0.0335*kg + 1.04). In load_cell mode: actual force limit." },
+            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip"], "optional": true, "default": "hold" },
+            { "parameter": "force_mode", "type": "string", "enum": ["motor_torque", "load_cell"], "optional": true, "default": "motor_torque", "help": "motor_torque = use motor torque (no load cell needed), load_cell = use actual load cell" }
         ],
         "returns": ["done", "error"]
     },
@@ -87,6 +89,13 @@
         "device": "pressboi",
         "target": "device",
         "description": "Disables power to the press motors.",
+        "params": [],
+        "returns": ["done", "error"]
+    },
+    "test_watchdog": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Test command that triggers the watchdog by blocking for 1 second.",
         "params": [],
         "returns": ["done", "error"]
     }

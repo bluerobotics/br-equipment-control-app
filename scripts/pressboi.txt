@@ -1,26 +1,66 @@
 ### pressboi test ###
 pressboi.enable
-
+pressboi.disable
 pressboi.home
-pressboi.set_retract 100 mm
-pressboi.retract 20 mm/s
-
-queue_for_logging pressboi.force pressboi.current_pos 
-start_logging test pressboi
-pressboi.move_abs 300 mm 0.5 mm/s 1000 kg retract     # press move
-stop_logging 
+pressboi.set_retract 112 mm
+pressboi.retract 25 mm/s
 
 
 
-pressboi.move_abs 60 mm 2 mm/s 1 kg retract       # search move
-wait 1 sec
+
+
+
+
+queue_for_logging pressboi.current_pos pressboi.force_load_cell pressboi.force_motor_torque pressboi.torque_avg
+start_logging "<date> <time> corellation 1000kg" pressboi
+pressboi.move_abs 300 mm 0.1 mm/s 30 kg retract action motor_torque mode    # press move
+stop_logging
+
+
+
 pressboi.move_abs 64 mm 1 mm/s 10 kg retract     # approach move
 wait 1 sec
 pressboi.move_abs 66 mm 0.5 mm/s 4 kg retract        # alignment move
 wait 1 sec
 pressboi.move_abs 68 mm 0.25 mm/s 320 kg retract     # press move
+
 wait 1 sec
 pressboi.retract 
+
+
+pressboi.test_watchdog 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

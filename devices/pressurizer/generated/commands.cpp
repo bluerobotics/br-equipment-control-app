@@ -2,7 +2,7 @@
  * @file commands.cpp
  * @brief Command parsing implementation for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-04 12:18:51
+ * Generated from commands.json on 2025-11-05 20:42:41
  * 
  * This file contains the command parser integrated into commands.cpp
  */

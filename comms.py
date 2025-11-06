@@ -57,6 +57,25 @@ def log_to_terminal(msg, gui_refs):
         # Fallback for when GUI elements aren't available
         print(full_msg)
 
+def show_recovery_warning(device_name, msg, gui_refs):
+    """Shows a critical warning dialog for watchdog recovery."""
+    from tkinter import messagebox
+    
+    # Extract the message after the prefix
+    message_text = msg.split(":", 1)[1].strip() if ":" in msg else msg
+    
+    messagebox.showerror(
+        f"{device_name} - WATCHDOG RECOVERY",
+        f"⚠️ CRITICAL SYSTEM RECOVERY ⚠️\n\n"
+        f"Device: {device_name}\n\n"
+        f"{message_text}\n\n"
+        f"The device's main loop was blocked for too long,\n"
+        f"causing the watchdog timer to trigger a reset.\n\n"
+        f"Motors have been disabled for safety.\n"
+        f"Send RESET command to clear this state.",
+        icon='error'
+    )
+
 
 def discover_devices(gui_refs):
     """Sends a generic discovery message."""
@@ -145,6 +164,10 @@ def monitor_connections(gui_refs, device_manager):
                 # Also queue the visibility update for the "searching" panel
                 if gui_queue:
                     gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+                
+                # If a script is running, abort it due to device disconnection
+                if gui_queue and 'abort_script_on_disconnect' in gui_refs:
+                    gui_queue.put((gui_refs['abort_script_on_disconnect'], (key,), {}))
 
         time.sleep(HEARTBEAT_INTERVAL)
 
@@ -223,7 +246,7 @@ def is_status_message(msg, device_manager):
     Checks if a message is a known status message, either generic or device-specific.
     This check is dynamic and uses the current state of the device_manager.
     """
-    if msg.startswith(("INFO:", "DONE:", "ERROR:")):
+    if msg.startswith(("INFO:", "DONE:", "ERROR:", "RECOVERY:")):
         return True
     
     device_modules = device_manager.get_device_modules()
@@ -410,6 +433,18 @@ def recv_loop(gui_refs, device_manager):
                 except Exception as e:
                     log_to_terminal(f"Error processing telemetry for {msg}: {e}", gui_refs)
 
+            elif "_RECOVERY:" in msg or msg.startswith("RECOVERY:"):
+                # Special handler for watchdog recovery messages
+                log_to_terminal(f"[RECOVERY @{source_ip}]: {msg}", gui_refs)
+                with devices_lock:
+                    for key, device_state in device_manager.get_all_device_states().items():
+                        if device_state["ip"] == source_ip:
+                            device_manager.update_device_state(key, {"last_rx": time.time()})
+                            # Queue a warning dialog to show on the main GUI thread
+                            device_name = key.upper()
+                            if gui_queue := gui_refs.get('gui_queue'):
+                                gui_queue.put((show_recovery_warning, (device_name, msg, gui_refs), {}))
+                            break
             elif is_status_message(msg, device_manager):
                 log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
                 with devices_lock:

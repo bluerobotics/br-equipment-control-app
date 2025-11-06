@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2025-11-06
+
+### Added
+- **Pressboi**: Device watchdog recovery state detection and warning
+- **Pressboi**: Added `test_watchdog` command to device definition
+- **Pressboi**: Added `force_mode` parameter to move commands (`motor_torque` or `load_cell`)
+- **Pressboi**: Force source indicator in GUI with visual badge (`motor_torque` or `load_cell`)
+- **Pressboi**: Added telemetry fields `force_load_cell` and `force_motor_torque`
+
+### Changed
+- **Pressboi**: GUI displays force based on active mode (`force_source` field)
+- **Pressboi**: Torque consolidated to single `torque_avg` field (replaces individual motor values)
+- **Scripts**: Auto-removes documentation labels (`action`, `mode`, `limit`, `source`) from command arguments
+
 ## [1.5.1] - 2025-11-05
 
 ### Added

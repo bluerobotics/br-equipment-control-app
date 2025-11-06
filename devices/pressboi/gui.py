@@ -132,11 +132,11 @@ def get_required_variables():
     """Returns a list of tkinter variable names required by this GUI module."""
     return [
         'pressboi_main_state_var', 'status_var_pressboi',
-        'pressboi_force_var', 'pressboi_force_limit_var',
+        'pressboi_force_load_cell_var', 'pressboi_force_motor_torque_var',
+        'pressboi_force_var', 'pressboi_force_limit_var', 'pressboi_force_source_var',
         'pressboi_current_pos_var', 'pressboi_retract_pos_var',
         'pressboi_target_pos_var', 'pressboi_homed_var',
         'pressboi_enabled0_var', 'pressboi_enabled1_var',
-        'pressboi_torque_m1_var', 'pressboi_torque_m2_var',
         'pressboi_torque_avg_var', 'pressboi_enabled_combined_var'
     ]
 
@@ -153,19 +153,6 @@ def create_gui_components(parent, shared_gui_refs):
             else:
                 shared_gui_refs.setdefault(var_name, tk.StringVar(value='---'))
     
-    # Setup tracer to average the two motor torques
-    def update_torque_average(*args):
-        try:
-            t1 = shared_gui_refs['pressboi_torque_m1_var'].get()
-            t2 = shared_gui_refs['pressboi_torque_m2_var'].get()
-            avg = (t1 + t2) / 2.0
-            shared_gui_refs['pressboi_torque_avg_var'].set(avg)
-        except:
-            shared_gui_refs['pressboi_torque_avg_var'].set(0.0)
-    
-    shared_gui_refs['pressboi_torque_m1_var'].trace_add('write', update_torque_average)
-    shared_gui_refs['pressboi_torque_m2_var'].trace_add('write', update_torque_average)
-    
     # Setup tracer to combine enabled states
     def update_enabled_combined(*args):
         try:
@@ -181,6 +168,27 @@ def create_gui_components(parent, shared_gui_refs):
     
     shared_gui_refs['pressboi_enabled0_var'].trace_add('write', update_enabled_combined)
     shared_gui_refs['pressboi_enabled1_var'].trace_add('write', update_enabled_combined)
+    
+    # Setup tracer to switch force display based on force_source
+    def update_force_display(*args):
+        try:
+            source = shared_gui_refs['pressboi_force_source_var'].get()
+            if source == "load_cell":
+                # Display load cell force
+                force_value = shared_gui_refs['pressboi_force_load_cell_var'].get()
+                shared_gui_refs['pressboi_force_var'].set(force_value)
+            elif source == "motor_torque":
+                # Display motor torque calculated force
+                force_value = shared_gui_refs['pressboi_force_motor_torque_var'].get()
+                shared_gui_refs['pressboi_force_var'].set(force_value)
+            else:
+                shared_gui_refs['pressboi_force_var'].set("---")
+        except:
+            shared_gui_refs['pressboi_force_var'].set("---")
+    
+    shared_gui_refs['pressboi_force_source_var'].trace_add('write', update_force_display)
+    shared_gui_refs['pressboi_force_load_cell_var'].trace_add('write', update_force_display)
+    shared_gui_refs['pressboi_force_motor_torque_var'].trace_add('write', update_force_display)
 
     font_large = ("JetBrains Mono", 16, "bold")
     font_medium = ("JetBrains Mono", 12, "bold")
@@ -217,6 +225,27 @@ def create_gui_components(parent, shared_gui_refs):
     ttk.Label(force_row, text=" / ", font=font_medium, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel').pack(side=tk.LEFT)
     ttk.Label(force_row, textvariable=shared_gui_refs['pressboi_force_limit_var'], 
               font=font_medium, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
+    
+    # Add force source indicator
+    force_source_label = ttk.Label(force_row, text="", font=("JetBrains Mono", 11, "bold"), 
+                                    foreground=theme.COMMENT_COLOR, style='Subtle.TLabel')
+    force_source_label.pack(side=tk.LEFT, padx=(10, 0))
+    
+    def update_force_source(*args):
+        try:
+            source = shared_gui_refs['pressboi_force_source_var'].get()
+            if source == "load_cell":
+                force_source_label.config(text="[Load Cell]", foreground=theme.SUCCESS_GREEN)
+            elif source == "motor_torque":
+                force_source_label.config(text="[Motor Torque]", foreground=theme.WARNING_YELLOW)
+            else:
+                # Default to showing waiting for data
+                force_source_label.config(text="[---]", foreground=theme.COMMENT_COLOR)
+        except Exception as e:
+            force_source_label.config(text="[---]", foreground=theme.COMMENT_COLOR)
+    
+    shared_gui_refs['pressboi_force_source_var'].trace_add('write', update_force_source)
+    update_force_source()
     
     # Add force color tracer
     force_tracer = make_force_tracer(shared_gui_refs['pressboi_force_var'], force_value_label)

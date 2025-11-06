@@ -281,6 +281,7 @@ class SyntaxHighlighter:
             'variable': {'foreground': '#C04848'},  # Burgundy for variables (device.variable)
             'parameter': {'foreground': theme.PARAMETER_COLOR},
             'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
+            'logging_session': {'foreground': theme.WARNING_YELLOW},  # Yellow for logging session names
             'comment': {'foreground': theme.COMMENT_COLOR},
             'colon': {'foreground': theme.SELECTION_FG, 'font': theme.FONT_BOLD} # SELECTION_FG is white
         }
@@ -406,7 +407,7 @@ class SyntaxHighlighter:
                 start, end = match.span()
                 self.text.tag_add("script_command", f"1.0+{start}c", f"1.0+{end}c")
                 
-                # For logging commands, highlight the parameters that follow
+                # For logging commands, highlight device names in purple
                 cmd = match.group(1).lower()
                 if cmd in ['start_logging', 'stop_logging', 'queue_for_logging', 'unqueue_for_logging']:
                     # Find the rest of the line after the command
@@ -417,13 +418,54 @@ class SyntaxHighlighter:
                     
                     params_text = content[end:line_end_pos].strip()
                     if params_text:
-                        # Highlight the parameters after the command in parameter color
+                        # Skip whitespace after command
                         params_start = end
-                        # Skip whitespace
                         while params_start < line_end_pos and content[params_start].isspace():
                             params_start += 1
-                        if params_start < line_end_pos:
-                            self.text.tag_add("parameter", f"1.0+{params_start}c", f"1.0+{line_end_pos}c")
+                        
+                        # For start_logging and stop_logging, first parameter is the session name (yellow)
+                        if cmd in ['start_logging', 'stop_logging']:
+                            # Look for quoted string or single word (session name)
+                            session_match = re.match(r'"([^"]*)"', content[params_start:line_end_pos])
+                            if session_match:
+                                # Found quoted string - highlight the entire quoted string including quotes
+                                session_end = params_start + len(session_match.group(0))
+                                self.text.tag_add("logging_session", f"1.0+{params_start}c", f"1.0+{session_end}c")
+                                # Move past the session name for device highlighting
+                                params_start = session_end
+                            else:
+                                # No quotes - look for first word (session name)
+                                session_match = re.match(r'(\w+)', content[params_start:line_end_pos])
+                                if session_match:
+                                    session_name = session_match.group(1)
+                                    session_end = params_start + len(session_name)
+                                    # Highlight session name in yellow
+                                    self.text.tag_add("logging_session", f"1.0+{params_start}c", f"1.0+{session_end}c")
+                                    # Move past the session name for device highlighting
+                                    params_start = session_end
+                        
+                        # Get all device names
+                        if self.device_manager:
+                            device_names = self.device_manager.get_all_device_names()
+                            
+                            # Parse the remaining parameters region
+                            params_region = content[params_start:line_end_pos]
+                            
+                            # Highlight device names (including in device.variable patterns)
+                            for device_name in device_names:
+                                # Look for device name followed by optional dot and variable name
+                                device_pattern = r'\b(' + re.escape(device_name) + r')(?:\.(\w+))?'
+                                for dev_match in re.finditer(device_pattern, params_region, re.IGNORECASE):
+                                    dev_start = params_start + dev_match.start(1)
+                                    dev_end = params_start + dev_match.end(1)
+                                    # Highlight device name in purple
+                                    self.text.tag_add("device", f"1.0+{dev_start}c", f"1.0+{dev_end}c")
+                                    
+                                    # If there's a variable part, highlight it in burgundy
+                                    if dev_match.group(2):
+                                        var_start = params_start + dev_match.start(2)
+                                        var_end = params_start + dev_match.end(2)
+                                        self.text.tag_add("variable", f"1.0+{var_start}c", f"1.0+{var_end}c")
 
         # Highlight colons
         for match in re.finditer(r':', content):
@@ -1135,6 +1177,16 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     # --- Script Execution Logic ---
     def handle_cycle_start():
         nonlocal feed_hold_line, is_held_by_user, last_block_end_line, paused_device
+        
+        # Check if script runner is in held state (ERROR occurred)
+        if script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held:
+            # Resume after error
+            print("[RESUME] Resuming script after ERROR hold")
+            script_runner.resume_after_error()
+            is_held_by_user = False
+            refresh_button_states()
+            return
+        
         is_held_by_user = False
 
         # Clear invalid feed_hold_line values
@@ -1321,7 +1373,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         """Refresh button states based on ACTUAL current state."""
         # Check the actual state right now
         is_running = script_runner is not None and script_runner.is_running
-        is_holding = feed_hold_line is not None
+        # Check both feed_hold_line and script_runner.is_held for holding state
+        is_holding = feed_hold_line is not None or (script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held)
         print(f"[refresh_button_states] Running: {is_running}, Holding: {is_holding}")
         
         if is_holding:
@@ -1349,7 +1402,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 is_held_by_user = True
                 feed_hold_line = line_num if line_num != -1 else last_exec_highlight
                 shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
-                script_runner.stop()  # Stop the script - on_run_finished will handle hold state
+                # Don't stop the runner - it will enter hold state and wait for resume
+                refresh_button_states()  # Update UI to show held state
             
             if last_exec_highlight != line_num:
                 if last_exec_highlight != -1:
@@ -1583,6 +1637,26 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             status_var.set("All motion stopped.")
             refresh_button_states()
 
+    def abort_script_on_disconnect(device_key):
+        """Called when a device disconnects during script execution."""
+        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight
+        
+        if script_runner and script_runner.is_running:
+            print(f"[DISCONNECT] {device_key} disconnected during script - aborting script")
+            script_runner.stop()
+            
+            # Clear hold state
+            is_held_by_user = False
+            feed_hold_line = None
+            
+            # Clear highlights
+            script_editor.tag_remove("exec_highlight", "1.0", tk.END)
+            last_exec_highlight = -1
+            
+            # Update status
+            status_var.set(f"Script aborted: {device_key.capitalize()} disconnected")
+            refresh_button_states()
+    
     def handle_reset():
         nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight, paused_device
         print(f"[RESET] Reset button pressed")
@@ -1778,6 +1852,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     
     # Schedule recovery check after GUI is fully loaded
     root.after(500, check_for_recovery)
+    
+    # Register the disconnect handler in shared_gui_refs
+    shared_gui_refs['abort_script_on_disconnect'] = abort_script_on_disconnect
     
     return {
         "file_commands": file_commands,

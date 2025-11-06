@@ -106,13 +106,14 @@ class DataLogger:
         
         return self.shared_gui_refs.get(gui_var_name)
     
-    def start_logging(self, filename: Optional[str], variables: List[str]) -> tuple:
+    def start_logging(self, filename: Optional[str], variables: List[str], frequency: Optional[float] = None) -> tuple:
         """
         Starts logging specified variables to a CSV file.
         
         Args:
             filename: CSV filename (without path). If None, generates default based on first device.
             variables: List of variable names in format "device.variable"
+            frequency: Optional logging frequency in Hz. If None, syncs with incoming telemetry messages.
         
         Returns:
             (success: bool, message: str, actual_filename: str)
@@ -188,25 +189,49 @@ class DataLogger:
                     'file_handle': None,  # Will be opened in write mode when needed
                     'csv_writer': None,
                     'start_time': datetime.datetime.now(),
-                    'callbacks': {}  # Store callback per device
+                    'callbacks': {},  # Store callback per device
+                    'frequency': frequency,  # Optional logging frequency in Hz
+                    'timer': None  # Timer object for frequency-based logging
                 }
                 
                 print(f"[TRACE] Registering telemetry callbacks...")
                 # Register telemetry callback for each device
                 device_manager = self.shared_gui_refs.get('device_manager')
                 if device_manager:
-                    for device_name in device_names:
-                        print(f"[TRACE] Registering callback for {device_name}")
-                        # Create a closure to capture the filepath
-                        callback = self._make_callback(filepath)
-                        device_manager.register_telemetry_callback(device_name, callback)
-                        # Store callback reference for later unregistration
-                        self.active_logs[filepath]['callbacks'][device_name] = callback
+                    if frequency is None:
+                        # Sync with telemetry - register callbacks
+                        for device_name in device_names:
+                            print(f"[TRACE] Registering callback for {device_name}")
+                            # Create a closure to capture the filepath
+                            callback = self._make_callback(filepath)
+                            device_manager.register_telemetry_callback(device_name, callback)
+                            # Store callback reference for later unregistration
+                            self.active_logs[filepath]['callbacks'][device_name] = callback
+                    else:
+                        # Use timer-based logging at specified frequency
+                        import threading
+                        interval = 1.0 / frequency  # Convert Hz to seconds
+                        
+                        def timer_callback():
+                            if filepath in self.active_logs:
+                                self._log_row_from_current_values(filepath)
+                                # Schedule next callback
+                                timer = threading.Timer(interval, timer_callback)
+                                timer.daemon = True
+                                timer.start()
+                                self.active_logs[filepath]['timer'] = timer
+                        
+                        # Start the timer
+                        timer = threading.Timer(interval, timer_callback)
+                        timer.daemon = True
+                        timer.start()
+                        self.active_logs[filepath]['timer'] = timer
                 
                 print(f"[TRACE] Logging to GUI terminal...")
                 # Log to GUI terminal
                 var_count = len(parsed_vars)
-                log_msg = f"Started logging {var_count} variable(s) to {os.path.basename(filepath)}"
+                freq_info = f" at {frequency} Hz" if frequency else " (synced with telemetry)"
+                log_msg = f"Started logging {var_count} variable(s){freq_info} to {os.path.basename(filepath)}"
                 log_to_terminal(log_msg, self.shared_gui_refs)
                 
                 print(f"[TRACE] start_logging complete, returning success")
@@ -278,6 +303,10 @@ class DataLogger:
             # Close file handle if open
             if log_info['file_handle']:
                 log_info['file_handle'].close()
+            
+            # Cancel timer if present
+            if log_info.get('timer'):
+                log_info['timer'].cancel()
             
             # Unregister callbacks
             device_manager = self.shared_gui_refs.get('device_manager')
@@ -351,6 +380,62 @@ class DataLogger:
                         print(f"[ERROR] Failed to write to log file {filepath}: {e}")
         except Exception as e:
             print(f"[ERROR] Exception in _on_telemetry_update: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _log_row_from_current_values(self, filepath: str):
+        """
+        Logs a row using current values from GUI variables (for timer-based logging).
+        """
+        try:
+            with self.lock:
+                log_info = self.active_logs.get(filepath)
+                if not log_info:
+                    return
+                
+                # Get timestamp with millisecond accuracy
+                now = datetime.datetime.now()
+                date_str = now.strftime("%Y-%m-%d")
+                time_str = now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}"
+                
+                # Calculate elapsed time from start in seconds with millisecond precision
+                elapsed = (now - log_info['start_time']).total_seconds()
+                elapsed_str = f"{elapsed:.3f}"
+                
+                # Collect current values for all variables
+                row_values = [date_str, time_str, elapsed_str]
+                
+                for var_info in log_info['variables']:
+                    gui_var = var_info.get('gui_var')
+                    if gui_var:
+                        try:
+                            # Get current value from GUI variable
+                            value = gui_var.get()
+                        except:
+                            # Default to 0.00 for numeric types, '---' for others
+                            var_type = var_info.get('type', 'float')
+                            if var_type in ['float', 'int', 'int8', 'int16', 'int32', 'uint8', 'uint16', 'uint32']:
+                                value = '0.00'
+                            else:
+                                value = '---'
+                    else:
+                        value = '---'
+                    row_values.append(value)
+                
+                # Write row to CSV
+                try:
+                    # Open file in append mode if not already open
+                    if log_info['file_handle'] is None or log_info['file_handle'].closed:
+                        log_info['file_handle'] = open(filepath, 'a', newline='')
+                        log_info['csv_writer'] = csv.writer(log_info['file_handle'])
+                    
+                    log_info['csv_writer'].writerow(row_values)
+                    log_info['file_handle'].flush()  # Ensure data is written immediately
+                    
+                except Exception as e:
+                    print(f"[ERROR] Failed to write to log file {filepath}: {e}")
+        except Exception as e:
+            print(f"[ERROR] Exception in _log_row_from_current_values: {e}")
             import traceback
             traceback.print_exc()
     

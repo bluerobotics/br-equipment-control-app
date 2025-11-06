@@ -5,13 +5,21 @@
         "help": "Overall press system state",
         "gui_var": "pressboi_main_state_var"
     },
-    "force": {
+    "force_load_cell": {
         "unit": "kg",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current force being applied by the press",
-        "gui_var": "pressboi_force_var"
+        "help": "Force from load cell sensor",
+        "gui_var": "pressboi_force_load_cell_var"
+    },
+    "force_motor_torque": {
+        "unit": "kg",
+        "type": "float",
+        "default": 0.0,
+        "precision": 1,
+        "help": "Force calculated from motor torque",
+        "gui_var": "pressboi_force_motor_torque_var"
     },
     "force_limit": {
         "unit": "kg",
@@ -20,6 +28,12 @@
         "precision": 1,
         "help": "Maximum force limit for current operation",
         "gui_var": "pressboi_force_limit_var"
+    },
+    "force_source": {
+        "type": "string",
+        "default": "load_cell",
+        "help": "Source of force reading: load_cell or motor_torque",
+        "gui_var": "pressboi_force_source_var"
     },
     "enabled0": {
         "type": "int",
@@ -65,21 +79,13 @@
         "help": "Target position for current move operation",
         "gui_var": "pressboi_target_pos_var"
     },
-    "torque_m1": {
+    "torque_avg": {
         "unit": "%",
         "type": "float",
         "default": 0.0,
         "precision": 1,
-        "help": "Current motor torque percentage for motor 1",
-        "gui_var": "pressboi_torque_m1_var"
-    },
-    "torque_m2": {
-        "unit": "%",
-        "type": "float",
-        "default": 0.0,
-        "precision": 1,
-        "help": "Current motor torque percentage for motor 2",
-        "gui_var": "pressboi_torque_m2_var"
+        "help": "Average motor torque percentage",
+        "gui_var": "pressboi_torque_avg_var"
     },
     "homed": {
         "type": "int",

@@ -40,10 +40,11 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "start_logging": {
-        "description": "Starts logging queued variables from specified devices to a CSV file. Use <date> and <time> tags for timestamps (e.g., start_logging '<date>-<time> data.csv' fillhead gantry).",
+        "description": "Starts logging queued variables from specified devices to a CSV file. Use <date> and <time> tags for timestamps. Optional frequency parameter in Hz (e.g., start_logging '<date>-<time> data.csv' pressboi 10 hz). If frequency not specified, syncs with incoming telemetry.",
         "params": [
             {"parameter": "filename", "type": "string"},
-            {"parameter": "devices", "type": "string", "variadic": True}
+            {"parameter": "devices", "type": "string", "variadic": True},
+            {"parameter": "frequency", "unit": "hz", "type": "float", "optional": True}
         ],
         "handler": "_handle_start_logging",
         "device": "script"
@@ -92,7 +93,9 @@ class ScriptRunner(threading.Thread):
         self.script_handlers = script_handlers # Store the handlers
         self.line_offset = line_offset
         self._stop_event = threading.Event()
+        self._resume_event = threading.Event()
         self.is_running = False
+        self.is_held = False
         self.runtime_defaults = {}
         # To map expanded lines back to original source lines
         try:
@@ -308,6 +311,11 @@ class ScriptRunner(threading.Thread):
         """Signals the script execution thread to stop."""
         self._stop_event.set()
         self.is_running = False
+    
+    def resume_after_error(self):
+        """Signals the script to resume after an error hold."""
+        self._resume_event.set()
+        self.is_held = False
     
     def _get_required_devices(self):
         """
@@ -526,8 +534,11 @@ class ScriptRunner(threading.Thread):
         # Second pass: assign remaining positional arguments
         positional_param_defs = [p for p in param_defs if p.get('parameter') not in resolved_params]
         
-        # Combine value and unit if they are separate words
+        # Combine value and unit if they are separate words, and strip label words
         combined_args = []
+        # Label words to skip (like "action", "mode", "limit", etc.)
+        label_words = {'action', 'mode', 'limit', 'source', 'value', 'parameter'}
+        
         i = 0
         while i < len(unassigned_args):
             arg = unassigned_args[i]
@@ -535,10 +546,18 @@ class ScriptRunner(threading.Thread):
             is_numeric = self._is_numeric(arg)
             
             if is_numeric and i + 1 < len(unassigned_args) and not self._is_numeric(unassigned_args[i+1]):
-                combined_args.append(f"{arg} {unassigned_args[i+1]}")
+                # Skip the unit word if it's a label word
+                next_word = unassigned_args[i+1].lower()
+                if next_word not in label_words:
+                    combined_args.append(f"{arg} {unassigned_args[i+1]}")
+                else:
+                    # Just the numeric value, skip the label
+                    combined_args.append(arg)
                 i += 2
             else:
-                combined_args.append(arg)
+                # Skip standalone label words
+                if arg.lower() not in label_words:
+                    combined_args.append(arg)
                 i += 1
         
         for i, param_def in enumerate(positional_param_defs):
@@ -694,16 +713,15 @@ class ScriptRunner(threading.Thread):
             
             filename = resolved_params.get('filename')
             devices_str = resolved_params.get('devices', '')
+            frequency = resolved_params.get('frequency', None)  # Optional frequency in Hz
             
-            
-            # Parse device names
+            # Parse device names (filter out frequency if it was included in devices)
             if isinstance(devices_str, str):
                 device_names = devices_str.split()
             elif isinstance(devices_str, list):
                 device_names = devices_str
             else:
                 device_names = []
-            
             
             if not filename:
                 self.status_cb(f"Error: Filename is required for start_logging", line_num)
@@ -721,16 +739,16 @@ class ScriptRunner(threading.Thread):
                     # Add full variable names (device.variable)
                     all_variables.extend([f"{device_name}.{var}" for var in queued_vars])
             
-            
             if not all_variables:
                 self.status_cb(f"Error: No queued variables found for specified devices: {', '.join(device_names)}", line_num)
                 return "error"
             
-            # Start logging all collected variables
-            success, message, actual_filename = data_logger.start_logging(filename, all_variables)
+            # Start logging all collected variables with optional frequency
+            success, message, actual_filename = data_logger.start_logging(filename, all_variables, frequency)
             
             if success:
-                self.status_cb(f"Started logging {len(all_variables)} variable(s): {message}", line_num)
+                freq_info = f" at {frequency} Hz" if frequency else " (synced with telemetry)"
+                self.status_cb(f"Started logging {len(all_variables)} variable(s){freq_info}: {message}", line_num)
                 return "continue"
             else:
                 self.status_cb(f"Error starting logging: {message}", line_num)
@@ -1038,10 +1056,25 @@ class ScriptRunner(threading.Thread):
             try:
                 msg = self.msg_q.get(timeout=0.1)
 
-                # Check for ERROR messages - stop and hold the script
+                # Check for ERROR messages - put script in hold state
                 if "_ERROR:" in msg:
-                    self.status_cb(f"ERROR: {msg}", line_num)
-                    # Stop execution - GUI will detect this and go into hold state
+                    self.is_held = True
+                    self.status_cb(f"ERROR: {msg} - Script held. Click Run to continue.", line_num)
+                    # Enter hold/pause state - wait for user to resume or stop
+                    while self.is_running and not self._stop_event.is_set():
+                        time.sleep(0.1)
+                        # Check if user clicked Run to resume
+                        if self._resume_event.is_set():
+                            self._resume_event.clear()
+                            self.is_held = False
+                            self.status_cb("Script resumed by user after error.", line_num)
+                            # Clear the wait list since we're resuming after error
+                            wait_list.clear()
+                            return True
+                    # User clicked Stop
+                    self.is_held = False
+                    if self._stop_event.is_set():
+                        return False
                     return False
 
                 # Check for failure messages first
