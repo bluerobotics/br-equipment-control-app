@@ -455,11 +455,47 @@ class MainApplication:
         left_bar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0), pady=10)
         left_bar_frame.pack_propagate(False)
 
-        # Main content area (scripting, console)
+        # Main content area (scripting, console) - use PanedWindow for resizable terminal
         main_content_frame = ttk.Frame(center_container, style='TFrame')
         main_content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Create vertical PanedWindow to allow resizing between scripting and terminal
+        content_paned = ttk.PanedWindow(main_content_frame, orient=tk.VERTICAL)
+        content_paned.pack(fill=tk.BOTH, expand=True)
+        
+        # Top pane for scripting area
+        scripting_pane = ttk.Frame(content_paned, style='TFrame')
+        
+        # Bottom pane for terminal
+        terminal_pane = ttk.Frame(content_paned, style='TFrame')
+        
+        # Add both panes
+        content_paned.add(scripting_pane, weight=1)
+        content_paned.add(terminal_pane, weight=0)
+        
+        # Store reference for sash positioning
+        self.content_paned = content_paned
+        
+        # Bind to window visibility to set terminal height once window is actually shown
+        def on_window_visible(event=None):
+            def force_terminal_compact():
+                try:
+                    total_height = content_paned.winfo_height()
+                    if total_height > 100:
+                        # Set sash so terminal is exactly 220px (about 13-14 lines)
+                        content_paned.sashpos(0, total_height - 220)
+                except Exception as e:
+                    pass
+            
+            # Try multiple times
+            content_paned.after(50, force_terminal_compact)
+            content_paned.after(200, force_terminal_compact)
+            content_paned.after(400, force_terminal_compact)
+        
+        # Bind to map event (when widget becomes visible)
+        content_paned.bind('<Map>', on_window_visible, add='+')
 
-        terminal_widgets = create_terminal_panel(main_content_frame, self.shared_gui_refs)
+        terminal_widgets = create_terminal_panel(terminal_pane, self.shared_gui_refs)
         self.shared_gui_refs.update(terminal_widgets)
 
         # --- Log device discovery messages to the GUI terminal ---
@@ -470,7 +506,7 @@ class MainApplication:
                 full_msg = f"{timestr} [SYSTEM] {log_msg}\n"
                 terminal_cb(full_msg)
 
-        terminal_widgets['terminal_frame'].pack(side=tk.BOTTOM, fill=tk.X, expand=False, pady=(0, 10))
+        terminal_widgets['terminal_frame'].pack(fill=tk.BOTH, expand=True)
 
 
         # --- Populate UI Components ---
@@ -505,9 +541,9 @@ class MainApplication:
         # Populate the collapsible panels' content frames
         cmd_ref_content = cmd_ref_collapsible.get_content_frame()
 
-        # Create scripting GUI in the main content area
+        # Create scripting GUI in the scripting pane
         self.scripting_gui_refs = create_scripting_interface(
-            main_content_frame, 
+            scripting_pane, 
             self.command_funcs, 
             self.shared_gui_refs, 
             self.autosave_var
@@ -521,6 +557,14 @@ class MainApplication:
         )
         self.command_reference_instance.pack(fill=tk.BOTH, expand=True)
         self.command_reference_instance.refresh()
+        
+        # Expand the devices panel by default (after content is created and laid out)
+        def expand_devices_panel():
+            if cmd_ref_collapsible.is_collapsed:
+                cmd_ref_collapsible.toggle_panel()
+        # Schedule with multiple attempts to ensure it works
+        self.root.after(150, expand_devices_panel)
+        self.root.after(400, expand_devices_panel)
         
         # --- Shared GUI References ---
         # This MUST be set AFTER the command_reference_instance is created.

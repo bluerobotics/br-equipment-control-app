@@ -137,7 +137,7 @@ def get_required_variables():
         'pressboi_current_pos_var', 'pressboi_retract_pos_var',
         'pressboi_target_pos_var', 'pressboi_homed_var',
         'pressboi_enabled0_var', 'pressboi_enabled1_var',
-        'pressboi_torque_avg_var', 'pressboi_enabled_combined_var'
+        'pressboi_torque_avg_var', 'pressboi_joules_var', 'pressboi_enabled_combined_var'
     ]
 
 # --- Main GUI Creation Function ---
@@ -286,20 +286,55 @@ def create_gui_components(parent, shared_gui_refs):
                                   font=font_large, foreground=theme.WARNING_YELLOW, style='Subtle.TLabel', anchor='e')
     target_pos_label.pack(side=tk.LEFT)
     
-    # Tracer to turn position red when not homed
-    def position_homed_tracer(*args):
-        homed_state = shared_gui_refs['pressboi_homed_var'].get()
-        if homed_state == 'Homed':
+    # Tracer to color position and target based on state
+    def position_color_tracer(*args):
+        try:
+            homed_state = shared_gui_refs['pressboi_homed_var'].get()
+            main_state = shared_gui_refs['pressboi_main_state_var'].get().upper()
+            
+            # If not homed, everything is red
+            if homed_state != 'Homed':
+                pos_label.config(foreground=theme.ERROR_RED)
+                current_pos_label.config(foreground=theme.ERROR_RED)
+                target_pos_label.config(foreground=theme.ERROR_RED)
+                return
+            
+            # Parse current and target positions
+            current_str = current_pos_display.get()
+            target_str = target_pos_display.get()
+            current_pos = float(current_str) if current_str not in ['---', ''] else 0.0
+            target_pos = float(target_str) if target_str not in ['---', ''] else 0.0
+            
+            # Check if at target (within 0.5mm tolerance)
+            at_target = abs(current_pos - target_pos) < 0.5
+            
+            # Check if moving
+            is_moving = 'MOVING' in main_state or 'HOMING' in main_state
+            
+            # Color logic
             pos_label.config(foreground=theme.FG_COLOR)
-            current_pos_label.config(foreground=theme.SUCCESS_GREEN)
-            target_pos_label.config(foreground=theme.WARNING_YELLOW)
-        else:
-            pos_label.config(foreground=theme.ERROR_RED)
-            current_pos_label.config(foreground=theme.ERROR_RED)
-            target_pos_label.config(foreground=theme.ERROR_RED)
+            
+            if is_moving:
+                # While moving: current is blue, target is yellow
+                current_pos_label.config(foreground=theme.BUSY_BLUE)
+                target_pos_label.config(foreground=theme.WARNING_YELLOW)
+            elif at_target:
+                # At target: both are green
+                current_pos_label.config(foreground=theme.SUCCESS_GREEN)
+                target_pos_label.config(foreground=theme.SUCCESS_GREEN)
+            else:
+                # Not moving, not at target: current green, target yellow
+                current_pos_label.config(foreground=theme.SUCCESS_GREEN)
+                target_pos_label.config(foreground=theme.WARNING_YELLOW)
+        except:
+            pass
     
-    shared_gui_refs['pressboi_homed_var'].trace_add('write', position_homed_tracer)
-    position_homed_tracer()
+    # Attach tracer to all relevant variables
+    shared_gui_refs['pressboi_homed_var'].trace_add('write', position_color_tracer)
+    shared_gui_refs['pressboi_main_state_var'].trace_add('write', position_color_tracer)
+    shared_gui_refs['pressboi_current_pos_var'].trace_add('write', position_color_tracer)
+    shared_gui_refs['pressboi_target_pos_var'].trace_add('write', position_color_tracer)
+    position_color_tracer()
     
     # Retract Position
     retract_row = ttk.Frame(pos_grid, style='Card.TFrame')
@@ -326,6 +361,22 @@ def create_gui_components(parent, shared_gui_refs):
     homed_tracer = make_homed_tracer(shared_gui_refs['pressboi_homed_var'], homed_value_label)
     shared_gui_refs['pressboi_homed_var'].trace_add('write', homed_tracer)
     homed_tracer()
+    
+    # Joules display (energy expended during move)
+    joules_row = ttk.Frame(pos_grid, style='Card.TFrame')
+    joules_row.grid(row=3, column=0, columnspan=4, sticky='w', pady=(5, 2))
+    
+    ttk.Label(joules_row, text="Energy:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
+    
+    # Create display variable that strips " J" from joules
+    joules_display = tk.StringVar(value='0.000')
+    joules_stripper = make_unit_stripper(shared_gui_refs['pressboi_joules_var'], joules_display, ' J')
+    shared_gui_refs['pressboi_joules_var'].trace_add('write', joules_stripper)
+    joules_stripper()
+    
+    ttk.Label(joules_row, textvariable=joules_display, 
+              font=font_small, foreground=theme.PRIMARY_ACCENT, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
+    ttk.Label(joules_row, text=" J", font=font_small, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel').pack(side=tk.LEFT)
     
     ttk.Label(status_row, text="Motors:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 5))
     enabled_value_label = ttk.Label(status_row, textvariable=shared_gui_refs['pressboi_enabled_combined_var'], 

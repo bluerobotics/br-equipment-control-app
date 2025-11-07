@@ -9,7 +9,7 @@
         "unit": "kg",
         "type": "float",
         "default": 0.0,
-        "precision": 1,
+        "precision": 2,
         "help": "Force from load cell sensor",
         "gui_var": "pressboi_force_load_cell_var"
     },
@@ -17,7 +17,7 @@
         "unit": "kg",
         "type": "float",
         "default": 0.0,
-        "precision": 1,
+        "precision": 2,
         "help": "Force calculated from motor torque",
         "gui_var": "pressboi_force_motor_torque_var"
     },
@@ -34,6 +34,19 @@
         "default": "load_cell",
         "help": "Source of force reading: load_cell or motor_torque",
         "gui_var": "pressboi_force_source_var"
+    },
+    "force_adc_raw": {
+        "type": "int",
+        "default": 0,
+        "help": "Raw ADC value from HX711 load cell amplifier (for calibration)"
+    },
+    "joules": {
+        "unit": "J",
+        "type": "float",
+        "default": 0.0,
+        "precision": 3,
+        "help": "Energy expended during current move (force × distance integrated at 50Hz)",
+        "gui_var": "pressboi_joules_var"
     },
     "enabled0": {
         "type": "int",

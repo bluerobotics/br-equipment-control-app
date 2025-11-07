@@ -2,7 +2,7 @@
  * @file variables.cpp
  * @brief Telemetry construction implementation for the Fillhead controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-05 20:42:41
+ * Generated from telemetry.json on 2025-11-06 20:49:14
  */
 
 #include "variables.h"

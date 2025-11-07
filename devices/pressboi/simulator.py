@@ -62,6 +62,7 @@ def simulate_homing(device_sim, duration, gui_address, command):
     device_sim.state['force_load_cell'] = 0.0
     device_sim.state['force_motor_torque'] = 0.0
     device_sim.state['force_source'] = "load_cell"
+    device_sim.state['joules'] = 0.0  # Reset joules on home
     device_sim.set_state('MAIN_STATE', 'STANDBY')
     # Send generic DONE message that includes the original command for the script runner
     print(f"[pressboi] Sending DONE: {command} to {gui_address}")
@@ -74,16 +75,31 @@ def simulate_move(device_sim, target, duration, gui_address, command):
     start_time = time.time()
     start_pos = device_sim.state.get('current_pos', 0.0)
     
+    # Reset joules at start of move
+    device_sim.state['joules'] = 0.0
+    prev_pos = start_pos
+    
     while time.time() - start_time < duration:
         elapsed = time.time() - start_time
         progress = elapsed / duration
         device_sim.state['current_pos'] = start_pos + (target - start_pos) * progress
+        current_pos = device_sim.state['current_pos']
+        
         # Simulate both force values during move (in kg)
-        device_sim.state['force_load_cell'] = random.uniform(0, 5)
-        device_sim.state['force_motor_torque'] = random.uniform(0, 5)
-        device_sim.state['force_source'] = "load_cell"  # Simulate using load cell
+        force_kg = random.uniform(50, 300)  # Simulate realistic pressing force
+        device_sim.state['force_load_cell'] = force_kg
+        device_sim.state['force_motor_torque'] = force_kg
+        device_sim.state['force_source'] = "load_cell"  # Default to load cell mode
         # Simulate average torque
         device_sim.state['torque_avg'] = random.uniform(20, 60)
+        
+        # Calculate joules: Energy = Force (N) × Distance (m)
+        # Force in kg → Newtons: kg × 9.81
+        # Distance in mm → meters: mm × 0.001
+        distance_mm = abs(current_pos - prev_pos)
+        device_sim.state['joules'] += force_kg * distance_mm * 0.00981
+        prev_pos = current_pos
+        
         time.sleep(0.1)
         if device_sim._stop_event.is_set():
             return
@@ -94,10 +110,11 @@ def simulate_move(device_sim, target, duration, gui_address, command):
     device_sim.state['force_source'] = "load_cell"
     device_sim.state['target_pos'] = target
     device_sim.state['torque_avg'] = 0
+    # Joules persists after move completes, showing total energy expended
     device_sim.set_state('MAIN_STATE', 'STANDBY')
     # Send generic DONE message that includes the original command for the script runner
     device_sim.sock.sendto(f"DONE: {command}".encode(), gui_address)
-    print(f"[pressboi] Move complete to {target}")
+    print(f"[pressboi] Move complete to {target}, Energy expended: {device_sim.state['joules']:.1f} J")
 
 
 def update_state(device_sim):

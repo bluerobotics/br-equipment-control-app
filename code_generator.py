@@ -449,7 +449,7 @@ def generate_variables_header(telemetry: Dict[str, Any], device_name: str) -> st
     
     for field, field_data in telemetry.items():
         field_help = field_data.get('help', 'No description available.')
-        lines.append(f'#define TELEM_KEY_{field.upper():<30} "{field:<25}"  ///< {field_help}')
+        lines.append(f'#define TELEM_KEY_{field.upper():<30} "{field}"  ///< {field_help}')
     
     lines.append("/** @} */")
     lines.append("")

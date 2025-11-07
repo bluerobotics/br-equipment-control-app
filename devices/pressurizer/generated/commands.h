@@ -2,7 +2,7 @@
  * @file commands.h
  * @brief Defines the command interface for the Pressurizer controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-05 20:42:41
+ * Generated from commands.json on 2025-11-06 20:49:14
  * 
  * This header file defines all commands that can be sent TO the Pressurizer device.
  * For message prefixes and events, see events.h

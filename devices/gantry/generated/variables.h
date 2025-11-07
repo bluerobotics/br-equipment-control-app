@@ -2,7 +2,7 @@
  * @file variables.h
  * @brief Telemetry structure and construction interface for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from telemetry.json on 2025-11-05 20:42:41
+ * Generated from telemetry.json on 2025-11-06 20:49:14
  * 
  * This header defines the complete telemetry data structure for the Gantry.
  * All telemetry fields are assembled in one centralized location.
@@ -24,22 +24,22 @@
  * Format: "GANTRY_TELEM: field1:value1,field2:value2,..."
  * @{
  */
-#define TELEM_KEY_MAIN_STATE                     "main_state               "  ///< Overall gantry system state
-#define TELEM_KEY_X_STATE                        "x_state                  "  ///< Current operational state of X-axis
-#define TELEM_KEY_Y_STATE                        "y_state                  "  ///< Current operational state of Y-axis
-#define TELEM_KEY_Z_STATE                        "z_state                  "  ///< Current operational state of Z-axis
-#define TELEM_KEY_X_POS                          "x_pos                    "  ///< Current position of X-axis
-#define TELEM_KEY_X_TORQUE                       "x_torque                 "  ///< Current motor torque percentage for X-axis
-#define TELEM_KEY_X_ENABLED                      "x_enabled                "  ///< Power enable status for X-axis motor
-#define TELEM_KEY_X_HOMED                        "x_homed                  "  ///< Indicates if X-axis has been homed
-#define TELEM_KEY_Y_POS                          "y_pos                    "  ///< Current position of Y-axis
-#define TELEM_KEY_Y_TORQUE                       "y_torque                 "  ///< Current motor torque percentage for Y-axis
-#define TELEM_KEY_Y_ENABLED                      "y_enabled                "  ///< Power enable status for Y-axis motor
-#define TELEM_KEY_Y_HOMED                        "y_homed                  "  ///< Indicates if Y-axis has been homed
-#define TELEM_KEY_Z_POS                          "z_pos                    "  ///< Current position of Z-axis
-#define TELEM_KEY_Z_TORQUE                       "z_torque                 "  ///< Current motor torque percentage for Z-axis
-#define TELEM_KEY_Z_ENABLED                      "z_enabled                "  ///< Power enable status for Z-axis motor
-#define TELEM_KEY_Z_HOMED                        "z_homed                  "  ///< Indicates if Z-axis has been homed
+#define TELEM_KEY_MAIN_STATE                     "main_state"  ///< Overall gantry system state
+#define TELEM_KEY_X_STATE                        "x_state"  ///< Current operational state of X-axis
+#define TELEM_KEY_Y_STATE                        "y_state"  ///< Current operational state of Y-axis
+#define TELEM_KEY_Z_STATE                        "z_state"  ///< Current operational state of Z-axis
+#define TELEM_KEY_X_POS                          "x_pos"  ///< Current position of X-axis
+#define TELEM_KEY_X_TORQUE                       "x_torque"  ///< Current motor torque percentage for X-axis
+#define TELEM_KEY_X_ENABLED                      "x_enabled"  ///< Power enable status for X-axis motor
+#define TELEM_KEY_X_HOMED                        "x_homed"  ///< Indicates if X-axis has been homed
+#define TELEM_KEY_Y_POS                          "y_pos"  ///< Current position of Y-axis
+#define TELEM_KEY_Y_TORQUE                       "y_torque"  ///< Current motor torque percentage for Y-axis
+#define TELEM_KEY_Y_ENABLED                      "y_enabled"  ///< Power enable status for Y-axis motor
+#define TELEM_KEY_Y_HOMED                        "y_homed"  ///< Indicates if Y-axis has been homed
+#define TELEM_KEY_Z_POS                          "z_pos"  ///< Current position of Z-axis
+#define TELEM_KEY_Z_TORQUE                       "z_torque"  ///< Current motor torque percentage for Z-axis
+#define TELEM_KEY_Z_ENABLED                      "z_enabled"  ///< Power enable status for Z-axis motor
+#define TELEM_KEY_Z_HOMED                        "z_homed"  ///< Indicates if Z-axis has been homed
 /** @} */
 
 //==================================================================================================
