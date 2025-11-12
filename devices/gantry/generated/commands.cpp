@@ -2,7 +2,7 @@
  * @file commands.cpp
  * @brief Command parsing implementation for the Gantry controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from commands.json on 2025-11-06 20:49:14
+ * Generated from commands.json on 2025-11-12 10:48:49
  * 
  * This file contains the command parser integrated into commands.cpp
  */

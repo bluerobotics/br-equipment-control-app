@@ -113,8 +113,8 @@ if sys.platform == 'darwin':
         info_plist={
             'NSPrincipalClass': 'NSApplication',
             'NSHighResolutionCapable': 'True',
-            'CFBundleShortVersionString': '1.3.1',
-            'CFBundleVersion': '1.3.1',
+            'CFBundleShortVersionString': '1.8.0',
+            'CFBundleVersion': '1.8.0',
         },
     )
 

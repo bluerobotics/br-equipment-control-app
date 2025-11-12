@@ -79,6 +79,16 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
     edit_menu.add_command(label="Replace", command=edit_commands['replace'], accelerator="Ctrl+H")
     menubar.add_cascade(label="Edit", menu=edit_menu)
 
+    # --- Devices Menu ---
+    devices_menu = Menu(menubar,
+                        tearoff=0,
+                        bg=theme.WIDGET_BG,
+                        fg=theme.FG_COLOR,
+                        activebackground=theme.PRIMARY_ACCENT,
+                        activeforeground=theme.FG_COLOR)
+    devices_menu.add_command(label="Firmware Manager...", command=device_commands['open_firmware_manager'])
+    menubar.add_cascade(label="Devices", menu=devices_menu)
+
     # --- Settings Menu ---
     settings_menu = Menu(menubar, tearoff=0, 
                          bg=theme.WIDGET_BG, 

@@ -6,6 +6,11 @@ import tkinter as tk
 import json
 from queue import Empty
 
+try:
+    from clearcore_firmware import schedule_version_check
+except ImportError:
+    schedule_version_check = None
+
 # --- Constants ---
 CLEARCORE_PORT = 8888
 CLIENT_PORT = 6272
@@ -240,6 +245,15 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
         if gui_queue:
             gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
 
+        if schedule_version_check:
+            with devices_lock:
+                state = device_manager.get_device_state(device_key)
+                already_scheduled = state.get('fw_check_scheduled') if state else True
+                if state and not already_scheduled:
+                    device_manager.update_device_state(device_key, {"fw_check_scheduled": True})
+            if not already_scheduled:
+                schedule_version_check(device_key, gui_refs, device_manager)
+
 
 def is_status_message(msg, device_manager):
     """
@@ -381,6 +395,7 @@ def recv_loop(gui_refs, device_manager):
                     parts = msg.split()
                     device_key = None
                     device_port = None
+                    device_fw = None
                     
                     for part in parts[1:]:  # Skip "DISCOVERY_RESPONSE:"
                         if "=" in part:
@@ -389,6 +404,8 @@ def recv_loop(gui_refs, device_manager):
                                 device_key = value.lower()
                             elif key == "PORT":
                                 device_port = int(value)
+                            elif key in ("FW", "FIRMWARE", "VERSION"):
+                                device_fw = value
                     
                     if device_key and device_key in device_modules:
                         # Store the port if provided, otherwise use default
@@ -397,6 +414,11 @@ def recv_loop(gui_refs, device_manager):
                                 device_state = device_manager.get_device_state(device_key)
                                 if device_state:
                                     device_state['port'] = device_port
+                        if device_fw:
+                            with devices_lock:
+                                device_state = device_manager.get_device_state(device_key)
+                                if device_state:
+                                    device_state['firmware_version'] = device_fw
                         
                         handle_connection(device_key, source_ip, gui_refs, device_manager)
                 except (IndexError, ValueError) as e:
@@ -445,6 +467,18 @@ def recv_loop(gui_refs, device_manager):
                             if gui_queue := gui_refs.get('gui_queue'):
                                 gui_queue.put((show_recovery_warning, (device_name, msg, gui_refs), {}))
                             break
+            elif msg.startswith("NVMDUMP:"):
+                try:
+                    _, device_key, payload = msg.split(":", 2)
+                except ValueError:
+                    log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
+                    continue
+
+                show_cb = gui_refs.get('show_nvm_dump_cb')
+                if show_cb:
+                    if gui_queue := gui_refs.get('gui_queue'):
+                        gui_queue.put((show_cb, (device_key.lower(), payload), {}))
+                log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
             elif is_status_message(msg, device_manager):
                 log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
                 with devices_lock:

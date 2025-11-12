@@ -461,12 +461,21 @@ class CommandReference(ttk.Frame):
                             # Add space before parameter
                             self.text.insert(f"{line_num}.end", " ", "folder_icon")
                             
-                            # Add brackets for optional parameters
-                            if optional:
+                            # Determine if we should suppress optional brackets for specific params
+                            suppress_optional_brackets = (
+                                (cmd_name == 'start_logging' and param_name == 'frequency') or
+                                (cmd_name == 'wait_for' and param_name == 'timeout')
+                            )
+
+                            # Add brackets for optional parameters (unless suppressed)
+                            if optional and not suppress_optional_brackets:
                                 self.text.insert(f"{line_num}.end", "[", "variable_info")
-                            
-                            # Add parameter name in orange/yellow
-                            self.text.insert(f"{line_num}.end", param_name, "parameter_name")
+
+                            # Add parameter name in orange/yellow (with special formatting for certain commands)
+                            param_display = param_name
+                            if param_name == 'filename' and cmd_name in ('start_logging', 'stop_logging'):
+                                param_display = f'"{param_name}"'
+                            self.text.insert(f"{line_num}.end", param_display, "parameter_name")
                             
                             # Add ... for variadic parameters
                             if variadic:
@@ -477,7 +486,7 @@ class CommandReference(ttk.Frame):
                                 self.text.insert(f"{line_num}.end", f"({unit})", "variable_info")
                             
                             # Close brackets for optional parameters
-                            if optional:
+                            if optional and not suppress_optional_brackets:
                                 self.text.insert(f"{line_num}.end", "]", "variable_info")
                     
                     self.text.insert(f"{line_num}.end", "\n")

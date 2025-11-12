@@ -9,8 +9,8 @@ This guide explains how to build standalone executables for Windows, macOS, and 
 Executables are automatically built when you push a git tag:
 
 ```bash
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
 GitHub Actions will build executables for all three platforms and create a release with downloadable files.
@@ -217,19 +217,19 @@ When releasing a new version:
 
 1. **Update `_version.py`:**
    ```python
-   __version__ = "1.3.1"
+   __version__ = "1.8.0"
    ```
 
 2. **Update `build.spec` (macOS section):**
    ```python
-   'CFBundleShortVersionString': '1.3.1',
-   'CFBundleVersion': '1.3.1',
+   'CFBundleShortVersionString': '1.8.0',
+   'CFBundleVersion': '1.8.0',
    ```
 
 3. **Tag the release:**
    ```bash
-   git tag v1.3.1
-   git push origin v1.3.1
+   git tag v1.8.0
+   git push origin v1.8.0
    ```
 
 GitHub Actions will automatically build and create a release.
@@ -287,8 +287,8 @@ To trigger manually: Go to Actions → Build Executables → Run workflow
 
 To trigger on tag push:
 ```bash
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
 The workflow runs on:

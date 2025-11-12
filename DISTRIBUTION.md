@@ -62,8 +62,8 @@ chmod +x build.sh
 ### Automated Release Process
 
 1. Update version in `_version.py` and `build.spec`
-2. Commit changes: `git commit -am "Bump version to v1.3.1"`
-3. Create and push tag: `git tag v1.3.1 && git push origin v1.3.1`
+2. Commit changes: `git commit -am "Bump version to v1.8.0"`
+3. Create and push tag: `git tag v1.8.0 && git push origin v1.8.0`
 4. GitHub Actions automatically builds for all platforms
 5. Check the [Actions tab](https://github.com/bluerobotics/br-equipment-control-app/actions) for build status
 6. Release appears automatically with all executables

@@ -120,6 +120,13 @@
         ],
         "returns": ["done", "error"]
     },
+    "set_force_zero": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Adjusts the current force calibration offset so the present force reading becomes zero.",
+        "params": [],
+        "returns": ["info", "done", "error"]
+    },
     "set_force_scale": {
         "device": "pressboi",
         "target": "device",
@@ -145,6 +152,27 @@
             { "parameter": "c",  "type": "float", "unit": "C",   "help": "Constant term" }
         ],
         "returns": ["done", "error"]
+    },
+    "reboot_bootloader": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Reboots the controller into ClearCore USB bootloader mode for firmware flashing.",
+        "params": [],
+        "returns": ["info", "error"]
+    },
+    "dump_nvm": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Dump Pressboi non-volatile memory contents to the GUI.",
+        "params": [],
+        "returns": ["info", "done", "error"]
+    },
+    "reset_nvm": {
+        "device": "pressboi",
+        "target": "device",
+        "description": "Restore Pressboi non-volatile memory to factory defaults.",
+        "params": [],
+        "returns": ["info", "done", "error"]
     }
 }
 

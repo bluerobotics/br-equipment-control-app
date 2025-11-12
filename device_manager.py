@@ -115,11 +115,15 @@ class DeviceManager:
                     }
                     # Initialize the state for this device
                     self.device_state[device_name] = {
-                        "ip": None, 
-                        "last_rx": 0, 
-                        "connected": False, 
+                        "ip": None,
+                        "last_rx": 0,
+                        "connected": False,
                         "last_discovery_attempt": 0,
-                        "simulated": False
+                        "simulated": False,
+                        "firmware_version": None,
+                        "fw_prompt_version": None,
+                        "fw_update_in_progress": False,
+                        "fw_check_scheduled": False
                     }
                     self.log(f"Successfully loaded device module: {device_name}")
 
@@ -194,7 +198,15 @@ class DeviceManager:
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
                     self.device_state[device_name] = {
-                        "ip": None, "last_rx": 0, "connected": False, "last_discovery_attempt": 0
+                        "ip": None,
+                        "last_rx": 0,
+                        "connected": False,
+                        "last_discovery_attempt": 0,
+                        "simulated": False,
+                        "firmware_version": None,
+                        "fw_prompt_version": None,
+                        "fw_update_in_progress": False,
+                        "fw_check_scheduled": False
                     }
                     self.log(f"Successfully loaded new device: {device_name}")
                     newly_loaded.append(device_name)

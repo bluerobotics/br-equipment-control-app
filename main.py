@@ -17,6 +17,7 @@ import device_actions # Import the new device actions
 from device_manager import DeviceManager # Import the new DeviceManager
 from data_logger import DataLogger # Import the data logger
 import datetime
+from pathlib import Path
 
 from _version import __version__
 
@@ -26,14 +27,41 @@ from command_reference import create_command_reference
 from device_actions import create_device_commands
 
 GUI_UPDATE_INTERVAL_MS = 100
-CONFIG_FILE = 'app_config.json'
+
+def _resolve_config_file():
+    """Determine a writable path for the app configuration file."""
+    fallback_dir = Path.home() / '.br-equipment-control-app'
+
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', fallback_dir))
+            config_dir = base_dir / 'BR Equipment Control'
+        elif sys.platform == 'darwin':
+            config_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control'
+        else:
+            base_dir = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+            config_dir = base_dir / 'br-equipment-control-app'
+    except Exception as e:
+        print(f"Warning determining config directory: {e}")
+        config_dir = fallback_dir
+
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating config directory at {config_dir}: {e}")
+        config_dir = fallback_dir
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+    return config_dir / 'app_config.json'
+
+CONFIG_FILE = _resolve_config_file()
 
 def get_devices_path():
     """Get the devices folder path from config, or prompt user if not set."""
     # Check if config file exists
-    if os.path.exists(CONFIG_FILE):
+    if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE, 'r') as f:
+            with CONFIG_FILE.open('r') as f:
                 config = json.load(f)
                 devices_path = config.get('devices_path')
                 if devices_path and os.path.isdir(devices_path):
@@ -100,32 +128,37 @@ def save_devices_path(devices_path):
     """Save devices path to config file."""
     try:
         config = {}
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
+        if CONFIG_FILE.exists():
+            with CONFIG_FILE.open('r') as f:
                 config = json.load(f)
         
         config['devices_path'] = devices_path
-        
-        with open(CONFIG_FILE, 'w') as f:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with CONFIG_FILE.open('w') as f:
             json.dump(config, f, indent=2)
     except Exception as e:
         print(f"Error saving config: {e}")
 
 class CollapsiblePanel(ttk.Frame):
     """A collapsible panel with a side trigger bar."""
-    def __init__(self, parent, text="Controls", width=350, **kwargs):
+    def __init__(self, parent, text="Controls", width=350, start_collapsed=True, **kwargs):
         super().__init__(parent, style='TFrame', **kwargs)
         self.text = text
         self.width = width
-        self.is_collapsed = True  # start collapsed by default
+        self.is_collapsed = start_collapsed
 
         self.trigger_canvas = tk.Canvas(self, width=30, bg=theme.SECONDARY_ACCENT, highlightthickness=0)
         self.trigger_canvas.pack(side=tk.LEFT, fill=tk.Y)
 
         self.content_panel = ttk.Frame(self, width=self.width, style='TFrame')
-        # Start collapsed: don't pack content
         self.content_panel.pack_propagate(False)
-        self.configure(width=int(self.trigger_canvas.cget('width')))
+        if self.is_collapsed:
+            # Start collapsed: don't pack content
+            self.configure(width=int(self.trigger_canvas.cget('width')))
+        else:
+            self.content_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            self.configure(width=self.width)
+            self.after(10, self._update_parent_sash)
 
         self.draw_trigger_text()
         self.trigger_canvas.bind("<Button-1>", self.toggle_panel)
@@ -511,7 +544,7 @@ class MainApplication:
 
         # --- Populate UI Components ---
         # Commands panel lives in the splitter (right pane), resizable
-        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=800)
+        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=800, start_collapsed=False)
         splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
 
@@ -522,11 +555,15 @@ class MainApplication:
 
             def position_sash():
                 """Calculates and sets the sash position."""
-                trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
                 splitter_width = splitter.winfo_width()
-                # Position sash so the right pane is only trigger_width wide,
-                # leaving a few pixels for the sash handle itself.
-                target_pos = splitter_width - (trigger_width + 5)
+                trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
+                if cmd_ref_collapsible.is_collapsed:
+                    # Position sash so the right pane is only trigger_width wide,
+                    # leaving a few pixels for the sash handle itself.
+                    target_pos = splitter_width - (trigger_width + 5)
+                else:
+                    # Keep sash wide enough to show the full panel width.
+                    target_pos = splitter_width - cmd_ref_collapsible.width
                 if target_pos > 0:
                     splitter.sashpos(0, target_pos)
 

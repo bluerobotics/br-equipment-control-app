@@ -2,19 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2025-11-12
+
+
+### Added
+- **ClearCore**: new ClearCore firmware updater tool
+- **Pressboi**: Device definition now includes a new `set_force_zero` command to tare the sensor
+
+### Fixed
+- **macOS**: Devices folder prompt now saves configuration outside the app bundle to prevent crashes when selecting the folder on first launch
+- **Command Reference**: Fixed script pane display bugs
+
 ## [1.7.0] - 2025-11-07
 
 ### Added
 - **Console**: Syntax highlighting for console lines and adjustable console height in the UI
-- **Pressboi**: Added `set_force_mode`, `set_force_offset`, `set_force_scale`, and `set_strain_cal` commands to device definition
 - **Pressboi**: Energy display in the telemetry panel aligns with new firmware Joule reporting
+- **Pressboi**: Added `set_force_mode`, `set_force_offset`, `set_force_scale`, and `set_strain_cal` commands to device definition
 - **Pressboi**: `set_retract` command documents optional speed argument with device-side defaulting to 25 mm/s
 - **Pressboi**: Strain calibration command accepts fifth coefficient for fourth-order machine compliance fits
 
 ### Changed
 - **Pressboi**: Command defaults updated to reflect the 25 mm/s retract baseline across UI metadata and JSON
-- **Pressboi**: Move commands drop inline `force_mode`; UI now relies on `set_force_mode` for sensor selection
-- **Pressboi**: Regenerated command/telemetry C++ so firmware headers match the latest schema
+- **Pressboi**: Move commands drop inline `force_mode`; use `set_force_mode` for sensor selection
+- **Pressboi**: Discovery parser now records firmware version for update comparisons and regenerated command/telemetry C++ so firmware headers match the latest schema
 
 ## [1.6.0] - 2025-11-06
 
