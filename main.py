@@ -586,7 +586,7 @@ class MainApplication:
         # --- Populate UI Components ---
         # Commands panel lives in the splitter (right pane), resizable
         # Use platform-appropriate default width (macOS needs smaller default)
-        device_pane_width = 600 if platform.system() == 'Darwin' else 800
+        device_pane_width = 500 if platform.system() == 'Darwin' else 800
         cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=device_pane_width, start_collapsed=False)
         splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
@@ -638,12 +638,31 @@ class MainApplication:
         self.command_reference_instance.pack(fill=tk.BOTH, expand=True)
         self.command_reference_instance.refresh()
         
+        # Dynamically adjust device pane width based on content
+        def adjust_device_pane_width():
+            try:
+                self.root.update_idletasks()
+                # Get the required width of the command reference content
+                req_width = self.command_reference_instance.winfo_reqwidth()
+                # Add some padding for scrollbar and margins
+                desired_width = req_width + 40
+                # Cap it at reasonable limits (350-700px)
+                desired_width = max(350, min(desired_width, 700))
+                # Update the collapsible panel width
+                cmd_ref_collapsible.width = desired_width
+                print(f"[DEBUG] Adjusted device pane width: {desired_width}px (content required: {req_width}px)")
+            except Exception as e:
+                print(f"[DEBUG] Error adjusting device pane width: {e}")
+        
         # Expand the devices panel by default (after content is created and laid out)
         def expand_devices_panel():
             if cmd_ref_collapsible.is_collapsed:
                 cmd_ref_collapsible.toggle_panel()
-        # Schedule with multiple attempts to ensure it works
+        
+        # Schedule width adjustment and expansion
+        self.root.after(100, adjust_device_pane_width)
         self.root.after(150, expand_devices_panel)
+        self.root.after(200, adjust_device_pane_width)  # Adjust again after expansion
         self.root.after(400, expand_devices_panel)
         
         # --- Shared GUI References ---
