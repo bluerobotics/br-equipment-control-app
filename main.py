@@ -56,18 +56,31 @@ def _resolve_config_file():
 
 CONFIG_FILE = _resolve_config_file()
 
-def get_devices_path():
-    """Get the devices folder path from config, or prompt user if not set."""
-    # Check if config file exists
+def load_config():
+    """Load the persisted application configuration."""
     if CONFIG_FILE.exists():
         try:
             with CONFIG_FILE.open('r') as f:
-                config = json.load(f)
-                devices_path = config.get('devices_path')
-                if devices_path and os.path.isdir(devices_path):
-                    return devices_path
+                return json.load(f)
         except Exception as e:
-            print(f"Error reading config: {e}")
+            print(f"Warning reading config file: {e}")
+    return {}
+
+def save_config(config):
+    """Persist the application configuration safely."""
+    try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with CONFIG_FILE.open('w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+def get_devices_path():
+    """Get the devices folder path from config, or prompt user if not set."""
+    config = load_config()
+    devices_path = config.get('devices_path')
+    if devices_path and os.path.isdir(devices_path):
+        return devices_path
     
     # Config doesn't exist or path is invalid - prompt user
     return prompt_for_devices_folder()
@@ -127,15 +140,9 @@ def prompt_for_devices_folder():
 def save_devices_path(devices_path):
     """Save devices path to config file."""
     try:
-        config = {}
-        if CONFIG_FILE.exists():
-            with CONFIG_FILE.open('r') as f:
-                config = json.load(f)
-        
+        config = load_config()
         config['devices_path'] = devices_path
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with CONFIG_FILE.open('w') as f:
-            json.dump(config, f, indent=2)
+        save_config(config)
     except Exception as e:
         print(f"Error saving config: {e}")
 
@@ -221,6 +228,20 @@ class MainApplication:
 
         # Thread-safe queue for GUI updates
         self.gui_queue = Queue()
+
+        # Load configuration and apply UI scaling as early as possible
+        self.config_data = load_config()
+        default_scaling = 1.2 if platform.system() == "Darwin" else 1.0
+        self.ui_scaling = float(self.config_data.get('ui_scaling', default_scaling))
+        try:
+            self.root.tk.call('tk', 'scaling', self.ui_scaling)
+        except Exception as e:
+            print(f"Warning applying UI scaling: {e}")
+        # Persist the default back to config if it was missing
+        if 'ui_scaling' not in self.config_data:
+            self.config_data['ui_scaling'] = self.ui_scaling
+            save_config(self.config_data)
+        self.ui_scale_var = tk.DoubleVar(value=self.ui_scaling)
 
         # Configure ttk styles to match the theme
         self.style = ttk.Style()
@@ -641,7 +662,17 @@ class MainApplication:
         settings_commands = {
             'change_device_folder': self.change_device_folder
         }
-        self.menubar, self.recent_files_menu = create_top_menu(self.root, file_commands, edit_commands, script_commands, device_commands, settings_commands, self.autosave_var)
+        self.menubar, self.recent_files_menu = create_top_menu(
+            self.root,
+            file_commands,
+            edit_commands,
+            script_commands,
+            device_commands,
+            settings_commands,
+            self.autosave_var,
+            self.ui_scale_var,
+            self.set_ui_scale
+        )
 
         # Pass the recent files menu reference to the scripting gui
         self.scripting_gui_refs['update_recent_menu_callback'](self.recent_files_menu)
@@ -908,6 +939,18 @@ class MainApplication:
             pass  # Queue is empty, do nothing
         finally:
             self.root.after(100, self.process_gui_queue)
+
+    def set_ui_scale(self, value: float):
+        """Adjust tk scaling, update the variable, and persist the choice."""
+        try:
+            self.root.tk.call('tk', 'scaling', value)
+            self.ui_scale_var.set(value)
+            config = load_config()
+            config['ui_scaling'] = float(value)
+            save_config(config)
+            self.root.update_idletasks()
+        except Exception as e:
+            print(f"Error setting UI scale: {e}")
 
 
 def main():

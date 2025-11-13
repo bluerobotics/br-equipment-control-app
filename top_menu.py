@@ -19,7 +19,7 @@ def open_documentation():
         messagebox.showerror("Documentation Not Found", f"Could not find README.md at:\n{filepath}")
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, settings_commands, autosave_var):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, settings_commands, autosave_var, ui_scale_var, set_ui_scale_callback):
     """
     Creates the main application menu bar.
     """
@@ -96,6 +96,29 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
                          activebackground=theme.PRIMARY_ACCENT,
                          activeforeground=theme.FG_COLOR)
     settings_menu.add_command(label="Change Device Folder...", command=settings_commands['change_device_folder'])
+
+    # UI Scale submenu
+    scale_menu = Menu(settings_menu, tearoff=0,
+                      bg=theme.WIDGET_BG,
+                      fg=theme.FG_COLOR,
+                      activebackground=theme.PRIMARY_ACCENT,
+                      activeforeground=theme.FG_COLOR)
+    scale_options = [
+        ("90%", 0.9),
+        ("100%", 1.0),
+        ("110%", 1.1),
+        ("120%", 1.2),
+        ("130%", 1.3),
+        ("140%", 1.4),
+    ]
+    for label, value in scale_options:
+        scale_menu.add_radiobutton(
+            label=label,
+            variable=ui_scale_var,
+            value=value,
+            command=lambda v=value: set_ui_scale_callback(v)
+        )
+    settings_menu.add_cascade(label="UI Scale", menu=scale_menu)
     menubar.add_cascade(label="Settings", menu=settings_menu)
 
     # --- Help Menu ---
