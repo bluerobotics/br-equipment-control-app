@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **macOS**: Devices folder prompt now saves configuration outside the app bundle to prevent crashes when selecting the folder on first launch
 - **Command Reference**: Fixed script pane display bugs
 - **macOS**: Log files are now written to Application Support so Finder launches no longer crash on read-only bundles
+- **macOS**: Bundled pyserial with the app so Firmware Manager USB detection works without requiring a separate install
 
 ## [1.7.0] - 2025-11-07
 

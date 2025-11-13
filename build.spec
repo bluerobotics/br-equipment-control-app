@@ -20,6 +20,12 @@ asset_datas = [
     ('assets', 'assets'),
 ]
 
+# Collect local third-party libraries (e.g., bundled pyserial)
+lib_datas = []
+libs_path = Path('libs')
+if libs_path.exists():
+    lib_datas.append((str(libs_path), 'libs'))
+
 # All Python files that need to be included
 python_files = [
     'main.py',
@@ -43,7 +49,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=device_datas + asset_datas,
+    datas=device_datas + asset_datas + lib_datas,
     hiddenimports=[
         'tkinter',
         'tkinter.ttk',
