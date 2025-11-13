@@ -231,16 +231,31 @@ class MainApplication:
 
         # Load configuration and apply UI scaling as early as possible
         self.config_data = load_config()
-        default_scaling = 1.2 if platform.system() == "Darwin" else 1.0
-        self.ui_scaling = float(self.config_data.get('ui_scaling', default_scaling))
-        try:
-            self.root.tk.call('tk', 'scaling', self.ui_scaling)
-        except Exception as e:
-            print(f"Warning applying UI scaling: {e}")
-        # Persist the default back to config if it was missing
-        if 'ui_scaling' not in self.config_data:
+        self.ui_scaling = self.config_data.get('ui_scaling')
+        current_scaling = float(self.root.tk.call('tk', 'scaling'))
+
+        desired_scaling = None
+        if self.ui_scaling is None:
+            if platform.system() == "Darwin":
+                desired_scaling = 1.2
+                self.ui_scaling = desired_scaling
+            else:
+                self.ui_scaling = current_scaling
+        else:
+            desired_scaling = float(self.ui_scaling)
+
+        if desired_scaling is not None and abs(desired_scaling - current_scaling) > 1e-6:
+            try:
+                self.root.tk.call('tk', 'scaling', desired_scaling)
+                current_scaling = desired_scaling
+            except Exception as e:
+                print(f"Warning applying UI scaling: {e}")
+                self.ui_scaling = current_scaling
+
+        if self.config_data.get('ui_scaling') != self.ui_scaling:
             self.config_data['ui_scaling'] = self.ui_scaling
             save_config(self.config_data)
+
         self.ui_scale_var = tk.DoubleVar(value=self.ui_scaling)
 
         # Configure ttk styles to match the theme
@@ -948,6 +963,7 @@ class MainApplication:
             config = load_config()
             config['ui_scaling'] = float(value)
             save_config(config)
+            self.ui_scaling = float(value)
             self.root.update_idletasks()
         except Exception as e:
             print(f"Error setting UI scale: {e}")

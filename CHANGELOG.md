@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **ClearCore**: new ClearCore firmware updater tool
 - **Pressboi**: Device definition now includes a new `set_force_zero` command to tare the sensor
-- **UI**: Added Settings → UI Scale menu (90%–140%) and default macOS scaling to 120%
+- **UI**: Added Settings → UI Scale menu (90%–160%) and default macOS scaling to 120%
 
 ### Fixed
 - **macOS**: Devices folder prompt now saves configuration outside the app bundle to prevent crashes when selecting the folder on first launch
@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - **macOS**: Log files are now written to Application Support so Finder launches no longer crash on read-only bundles
 - **macOS**: Bundled pyserial with the app so Firmware Manager USB detection works without requiring a separate install
 - **macOS**: Recent scripts list now saves to Application Support, fixing read-only errors when opening files from Finder launches
+- **Windows**: UI scale now honours the system default unless overridden in the menu, fixing shrunken widgets introduced in the first 1.8.0 build
 
 ## [1.7.0] - 2025-11-07
 
