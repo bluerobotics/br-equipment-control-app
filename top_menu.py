@@ -96,6 +96,9 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
                          activebackground=theme.PRIMARY_ACCENT,
                          activeforeground=theme.FG_COLOR)
     settings_menu.add_command(label="Change Device Folder...", command=settings_commands['change_device_folder'])
+    if 'show_paths' in settings_commands:
+        settings_menu.add_command(label="Show Application Paths...", command=settings_commands['show_paths'])
+        settings_menu.add_separator(background=theme.WIDGET_BORDER)
 
     # UI Scale submenu
     scale_menu = Menu(settings_menu, tearoff=0,

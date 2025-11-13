@@ -174,17 +174,12 @@ class CommandReference(ttk.Frame):
         self.current_hover_line = None
         
         # Add device button at bottom
-        add_device_btn = tk.Button(self,
-                                   text="+ Add Device...",
-                                   command=self.show_add_device_dialog,
-                                   bg=theme.SUCCESS_GREEN,
-                                   fg=theme.BG_COLOR,
-                                   font=theme.FONT_BOLD,
-                                   relief=tk.FLAT,
-                                   padx=10,
-                                   pady=5,
-                                   cursor='hand2')
-        add_device_btn.pack(fill=tk.X, pady=(5, 0))
+        add_device_btn = ttk.Button(self,
+                                    text="+ Add Device...",
+                                    command=self.show_add_device_dialog,
+                                    style='Green.TButton',
+                                    cursor='hand2')
+        add_device_btn.pack(fill=tk.X, pady=(5, 0), padx=10)
 
         self.refresh() # Initial population
 

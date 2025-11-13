@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - **ClearCore**: new ClearCore firmware updater tool
 - **Pressboi**: Device definition now includes a new `set_force_zero` command to tare the sensor
 - **UI**: Added Settings → UI Scale menu (90%–400%) and default application scaling to 200%
+- **UI**: Added “Show Application Paths…” window under Settings listing config, logs, recent files, and executable locations
 
 ### Fixed
 - **macOS**: Devices folder prompt now saves configuration outside the app bundle to prevent crashes when selecting the folder on first launch
@@ -17,6 +18,8 @@ All notable changes to this project will be documented in this file.
 - **macOS**: Bundled pyserial with the app so Firmware Manager USB detection works without requiring a separate install
 - **macOS**: Recent scripts list now saves to Application Support, fixing read-only errors when opening files from Finder launches
 - **Windows**: UI scale now honours the system default unless overridden in the menu, fixing shrunken widgets introduced in the first 1.8.0 build
+- **UI**: Device/status pane width auto-adjusts to content with a small margin, avoiding OS-specific hard-coded values
+- **UI**: Status pane now lives in its own splitter, so you can drag the handle to fine-tune its width
 
 ## [1.7.0] - 2025-11-07
 

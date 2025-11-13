@@ -4,7 +4,7 @@ import threading
 import sys
 import subprocess
 import comms
-from scripting_gui import create_scripting_interface, load_recent_files
+from scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
 from status_panel import create_status_bar
 from terminal import create_terminal_panel
 import json
@@ -487,6 +487,7 @@ class MainApplication:
         panel = self.shared_gui_refs.get(f'{device_key}_panel')
         if panel:
             panel.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+            self.root.after_idle(self.adjust_status_panel_width)
 
     def initialize_command_functions(self):
         # This method is now obsolete and can be removed.
@@ -511,20 +512,17 @@ class MainApplication:
         # Create a horizontal splitter for center content and commands (resizable)
         splitter = ttk.Panedwindow(main_frame, orient=tk.HORIZONTAL, style='TPanedwindow')
         splitter.pack(fill=tk.BOTH, expand=True, pady=10, padx=10)
+        self.splitter = splitter
 
-        # Central container for the main content (left pane of splitter)
-        center_container = ttk.Frame(splitter, style='TFrame')
-        splitter.add(center_container, weight=1)
-        
-        # Left-side container for the status bar
-        status_panel_width = 550 if platform.system() == "Windows" else 400
-        left_bar_frame = ttk.Frame(center_container, width=status_panel_width, style='TFrame')
-        left_bar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0), pady=10)
+        # Left-side container for the status bar (as a child of the top-level splitter)
+        left_bar_frame = ttk.Frame(splitter, style='TFrame')
         left_bar_frame.pack_propagate(False)
-
-        # Main content area (scripting, console) - use PanedWindow for resizable terminal
-        main_content_frame = ttk.Frame(center_container, style='TFrame')
-        main_content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.left_bar_frame = left_bar_frame
+        splitter.add(left_bar_frame, weight=0)
+        
+        # Central container for the main content (scripting + console)
+        main_content_frame = ttk.Frame(splitter, style='TFrame')
+        splitter.add(main_content_frame, weight=1)
         
         # Create vertical PanedWindow to allow resizing between scripting and terminal
         content_paned = ttk.PanedWindow(main_content_frame, orient=tk.VERTICAL)
@@ -664,6 +662,8 @@ class MainApplication:
             if panel:
                 panel.pack_forget()
 
+        self.root.after(150, self.adjust_status_panel_width)
+
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
         file_commands = self.scripting_gui_refs['file_commands']
@@ -673,7 +673,8 @@ class MainApplication:
         }
         device_commands = create_device_commands(self.root, self.shared_gui_refs)
         settings_commands = {
-            'change_device_folder': self.change_device_folder
+            'change_device_folder': self.change_device_folder,
+            'show_paths': self.show_paths_window
         }
         self.menubar, self.recent_files_menu = create_top_menu(
             self.root,
@@ -730,6 +731,7 @@ class MainApplication:
                     panel = modules['gui'].create_gui_components(device_panel_container, self.shared_gui_refs)
                     self.shared_gui_refs[f'{device_name}_panel'] = panel
                     panel.pack_forget() # Hide by default
+        self.root.after_idle(self.adjust_status_panel_width)
 
 
     def change_device_folder(self):
@@ -993,6 +995,85 @@ class MainApplication:
         self.root.quit()
         self.root.destroy()
         sys.exit(0)
+
+    def copy_to_clipboard(self, text: str):
+        """Utility to copy text to the system clipboard."""
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.root.update()  # Ensure clipboard is updated across platforms
+
+    def adjust_status_panel_width(self):
+        """Resize the status pane based on the required width of its contents."""
+        status_container = self.shared_gui_refs.get('status_bar_container')
+        if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
+            return
+        try:
+            self.root.update_idletasks()
+            required = status_container.winfo_reqwidth()
+            padding = 40
+            desired = max(220, required + padding)
+            root_width = self.root.winfo_width()
+            if root_width > 0:
+                desired = min(desired, int(root_width * 0.45))
+            self.left_bar_frame.config(width=desired)
+            self.splitter.sashpos(0, desired)
+        except Exception:
+            pass
+
+    def show_paths_window(self):
+        """Display a window listing key application file paths."""
+        if hasattr(self, '_paths_window') and self._paths_window and self._paths_window.winfo_exists():
+            self._paths_window.lift()
+            return
+
+        paths = [
+            ("Config File", CONFIG_FILE),
+            ("Config Directory", CONFIG_FILE.parent),
+            ("Recent Files", RECENT_FILES_PATH),
+            ("Logs Directory", getattr(self.data_logger, 'logs_path', 'Unknown')),
+            ("Devices Folder", Path(self.device_manager.devices_path) if self.device_manager else "Unknown"),
+            ("Executable", Path(sys.executable).resolve()),
+            ("Working Directory", Path.cwd()),
+        ]
+
+        self._paths_window = tk.Toplevel(self.root)
+        self._paths_window.title("Application Paths")
+        self._paths_window.configure(bg=theme.BG_COLOR)
+        self._paths_window.transient(self.root)
+        self._paths_window.resizable(True, False)
+
+        frame = ttk.Frame(self._paths_window, padding=20, style='TFrame')
+        frame.pack(fill=tk.BOTH, expand=True)
+        frame.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            frame,
+            text="Key application paths vary by operating system. Copy as needed.",
+            style='Subtle.TLabel'
+        ).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0, 10))
+
+        for idx, (label, path_obj) in enumerate(paths, start=1):
+            path_str = str(path_obj)
+            ttk.Label(frame, text=f"{label}:", style='Subtle.TLabel').grid(row=idx, column=0, sticky='nw', padx=(0, 8), pady=4)
+
+            entry = ttk.Entry(frame, width=80)
+            entry.insert(0, path_str)
+            entry.configure(state='readonly')
+            entry.grid(row=idx, column=1, sticky='we', pady=4)
+
+            ttk.Button(
+                frame,
+                text="Copy",
+                style='Blue.TButton',
+                command=lambda p=path_str: self.copy_to_clipboard(p)
+            ).grid(row=idx, column=2, sticky='e', padx=(8, 0), pady=4)
+
+        ttk.Button(
+            frame,
+            text="Close",
+            style='Ghost.TButton',
+            command=self._paths_window.destroy
+        ).grid(row=len(paths) + 1, column=2, sticky='e', pady=(12, 0))
 
 
 def main():
