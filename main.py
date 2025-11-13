@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import sys
 import comms
-from scripting_gui import create_scripting_interface
+from scripting_gui import create_scripting_interface, load_recent_files
 from status_panel import create_status_bar
 from terminal import create_terminal_panel
 import json
@@ -863,14 +863,13 @@ class MainApplication:
         Loads the most recently opened script on startup if one exists.
         """
         try:
-            with open("recent_files.json", 'r') as f:
-                recent_files = json.load(f)
+            recent_files = load_recent_files()
             if recent_files:
                 last_script_path = recent_files[0]
                 if os.path.exists(last_script_path):
                     # We need to call this after the main loop has started processing events
                     self.root.after(100, lambda: self.scripting_gui_refs['load_specific_script'](last_script_path))
-        except (FileNotFoundError, json.JSONDecodeError, IndexError):
+        except (IndexError, Exception):
             # No recent files, or file is corrupt. Do nothing.
             pass
 

@@ -2,7 +2,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import queue
 import os
+import sys
 import json
+from pathlib import Path
 from functools import partial
 import re
 import tkinter.font as tkfont
@@ -160,7 +162,34 @@ class EntryWithPlaceholder(ttk.Entry):
         return super().get()
 
 # --- Constants for Recent Files ---
-RECENT_FILES_CONFIG = "recent_files.json"
+def _resolve_recent_files_path() -> Path:
+    """Determine a writable path for the recent files list."""
+    fallback_dir = Path.home() / '.br-equipment-control-app'
+
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', fallback_dir))
+            recent_dir = base_dir / 'BR Equipment Control'
+        elif sys.platform == 'darwin':
+            recent_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control'
+        else:
+            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
+            recent_dir = base_dir / 'br-equipment-control-app'
+    except Exception as e:
+        print(f"Warning determining recent-files directory: {e}")
+        recent_dir = fallback_dir
+
+    try:
+        recent_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating recent-files directory at {recent_dir}: {e}")
+        recent_dir = fallback_dir
+        recent_dir.mkdir(parents=True, exist_ok=True)
+
+    return recent_dir / 'recent_files.json'
+
+
+RECENT_FILES_PATH = _resolve_recent_files_path()
 MAX_RECENT_FILES = 5
 
 
@@ -168,7 +197,7 @@ MAX_RECENT_FILES = 5
 def load_recent_files():
     """Loads the list of recent file paths from the config file."""
     try:
-        with open(RECENT_FILES_CONFIG, 'r') as f:
+        with RECENT_FILES_PATH.open('r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -176,7 +205,7 @@ def load_recent_files():
 
 def save_recent_files(filepaths):
     """Saves the list of recent file paths to the config file."""
-    with open(RECENT_FILES_CONFIG, 'w') as f:
+    with RECENT_FILES_PATH.open('w') as f:
         json.dump(filepaths, f)
 
 

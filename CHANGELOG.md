@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - **Command Reference**: Fixed script pane display bugs
 - **macOS**: Log files are now written to Application Support so Finder launches no longer crash on read-only bundles
 - **macOS**: Bundled pyserial with the app so Firmware Manager USB detection works without requiring a separate install
+- **macOS**: Recent scripts list now saves to Application Support, fixing read-only errors when opening files from Finder launches
 
 ## [1.7.0] - 2025-11-07
 
