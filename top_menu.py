@@ -5,6 +5,7 @@ from tkinter import Menu
 import theme
 import os
 import webbrowser
+import platform
 from _version import __version__
 
 
@@ -106,26 +107,37 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
                       fg=theme.FG_COLOR,
                       activebackground=theme.PRIMARY_ACCENT,
                       activeforeground=theme.FG_COLOR)
-    scale_options = [
-        ("90%", 0.9),
-        ("100%", 1.0),
-        ("110%", 1.1),
-        ("120%", 1.2),
-        ("130%", 1.3),
-        ("140%", 1.4),
-        ("150%", 1.5),
-        ("160%", 1.6),
-        ("175%", 1.75),
-        ("200%", 2.0),
-        ("225%", 2.25),
-        ("250%", 2.5),
-        ("275%", 2.75),
-        ("300%", 3.0),
-        ("325%", 3.25),
-        ("350%", 3.5),
-        ("375%", 3.75),
-        ("400%", 4.0),
-    ]
+    
+    if platform.system() == 'Darwin':  # macOS
+        # Use simple Small/Medium/Large options for macOS
+        scale_options = [
+            ("Small", 0.85),
+            ("Medium", 1.0),
+            ("Large", 1.2),
+        ]
+    else:  # Windows and others
+        # Use percentage scaling for Windows (where it works properly)
+        scale_options = [
+            ("90%", 0.9),
+            ("100%", 1.0),
+            ("110%", 1.1),
+            ("120%", 1.2),
+            ("130%", 1.3),
+            ("140%", 1.4),
+            ("150%", 1.5),
+            ("160%", 1.6),
+            ("175%", 1.75),
+            ("200%", 2.0),
+            ("225%", 2.25),
+            ("250%", 2.5),
+            ("275%", 2.75),
+            ("300%", 3.0),
+            ("325%", 3.25),
+            ("350%", 3.5),
+            ("375%", 3.75),
+            ("400%", 4.0),
+        ]
+    
     for label, value in scale_options:
         scale_menu.add_radiobutton(
             label=label,
@@ -133,7 +145,10 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
             value=value,
             command=lambda v=value: set_ui_scale_callback(v)
         )
-    settings_menu.add_cascade(label="UI Scale", menu=scale_menu)
+    
+    # Label changes based on platform
+    scale_label = "Text Size" if platform.system() == 'Darwin' else "UI Scale"
+    settings_menu.add_cascade(label=scale_label, menu=scale_menu)
     menubar.add_cascade(label="Settings", menu=settings_menu)
 
     # --- Help Menu ---

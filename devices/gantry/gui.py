@@ -69,7 +69,7 @@ def create_torque_widget(parent, torque_dv, height):
     torque_dv.trace_add('write', torque_frame.tracer)
     pbar = ttk.Progressbar(torque_frame, variable=torque_dv, maximum=100, orient=tk.VERTICAL, style='Card.Vertical.TProgressbar')
     pbar.pack(fill=tk.BOTH, expand=True)
-    label = ttk.Label(torque_frame, textvariable=torque_sv, font=("JetBrains Mono", 7, "bold"), anchor='center', style='Subtle.TLabel')
+    label = ttk.Label(torque_frame, textvariable=torque_sv, font=theme.FONT_SMALL, anchor='center', style='Subtle.TLabel')
     label.place(relx=0.5, rely=0.5, anchor='center')
     torque_frame.tracer()
     return torque_frame
@@ -81,11 +81,11 @@ def create_device_frame(parent, title, state_var, conn_var):
     container.pack(fill='x', expand=True)
     header_frame = ttk.Frame(container, style='Card.TFrame')
     header_frame.pack(fill='x', expand=True, anchor='n')
-    title_label = ttk.Label(header_frame, text=title.lower(), font=("JetBrains Mono", 14, "bold"), foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
+    title_label = ttk.Label(header_frame, text=title.lower(), font=theme.FONT_LARGE_BOLD, foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
     title_label.pack(side=tk.LEFT, padx=(0, 5))
-    ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
+    ip_label = ttk.Label(header_frame, text="", font=theme.FONT_SMALL, style='Subtle.TLabel')
     ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
-    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 12, "bold"), style='Subtle.TLabel')
+    state_label = ttk.Label(header_frame, textvariable=state_var, font=theme.FONT_BOLD, style='Subtle.TLabel')
     state_label.pack(side=tk.RIGHT)
     state_label.tracer = make_state_tracer(state_var, state_label)
     state_var.trace_add('write', state_label.tracer)
@@ -148,7 +148,7 @@ def create_gui_components(parent, shared_gui_refs):
         axis_label.grid(row=0, column=0, sticky='ns', padx=(0, 5))
         
         # Create and trace the state label
-        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=("JetBrains Mono", 10, "bold"), style='Subtle.TLabel')
+        state_label = ttk.Label(axis_frame, textvariable=shared_gui_refs[axis_info['state_var']], font=theme.FONT_NORMAL, style='Subtle.TLabel')
         state_label.grid(row=0, column=1, sticky='w', padx=(0, 10))
         state_label.tracer = make_state_tracer(shared_gui_refs[axis_info['state_var']], state_label)
         shared_gui_refs[axis_info['state_var']].trace_add('write', state_label.tracer)

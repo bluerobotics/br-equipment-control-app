@@ -14,6 +14,28 @@ import theme
 
 # --- GUI Helper Functions ---
 
+def draw_vertical_text(canvas, x, y, text, font, fill, anchor="center"):
+    """Draw text vertically without using the angle parameter (for compatibility with older Tk)."""
+    # Estimate character height based on font
+    # Try to extract font size from font tuple or use default
+    char_height = 12  # Default
+    if isinstance(font, tuple) and len(font) >= 2:
+        # Font tuple like ("Menlo", 8) or ("Arial", 12, "bold")
+        try:
+            font_size = int(font[1])
+            char_height = max(font_size + 2, 10)  # Add some spacing
+        except (ValueError, TypeError):
+            pass
+    
+    # Calculate starting position based on anchor
+    total_height = len(text) * char_height
+    start_y = y - total_height // 2 if anchor == "center" else y
+    
+    # Draw each character vertically
+    for i, char in enumerate(text):
+        char_y = start_y + (i * char_height)
+        canvas.create_text(x, char_y, text=char, font=font, fill=fill, anchor="center")
+
 def make_homed_tracer(var, label_to_color):
     """Changes a label's color based on 'Homed' status."""
     def tracer(*args):
@@ -91,7 +113,7 @@ def create_torque_widget(parent, torque_dv, height):
     torque_dv.trace_add('write', torque_frame.tracer)
     pbar = ttk.Progressbar(torque_frame, variable=torque_dv, maximum=100, orient=tk.VERTICAL, style='Card.Vertical.TProgressbar')
     pbar.pack(fill=tk.BOTH, expand=True)
-    label = ttk.Label(torque_frame, textvariable=torque_sv, font=("JetBrains Mono", 8, "bold"), anchor='center', style='Subtle.TLabel')
+    label = ttk.Label(torque_frame, textvariable=torque_sv, font=theme.FONT_SMALL, anchor='center', style='Subtle.TLabel')
     label.place(relx=0.5, rely=0.5, anchor='center')
     torque_frame.tracer()
     return torque_frame
@@ -103,11 +125,11 @@ def create_device_frame(parent, title, state_var, conn_var):
     container.pack(fill='x', expand=True)
     header_frame = ttk.Frame(container, style='Card.TFrame')
     header_frame.pack(fill='x', expand=True, anchor='n')
-    title_label = ttk.Label(header_frame, text=title.lower(), font=("JetBrains Mono", 14, "bold"), foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
+    title_label = ttk.Label(header_frame, text=title.lower(), font=theme.FONT_LARGE_BOLD, foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
     title_label.pack(side=tk.LEFT, padx=(0, 5))
-    ip_label = ttk.Label(header_frame, text="", font=("JetBrains Mono", 9), style='Subtle.TLabel')
+    ip_label = ttk.Label(header_frame, text="", font=theme.FONT_SMALL, style='Subtle.TLabel')
     ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
-    state_label = ttk.Label(header_frame, textvariable=state_var, font=("JetBrains Mono", 14, "bold"), style='Subtle.TLabel')
+    state_label = ttk.Label(header_frame, textvariable=state_var, font=theme.FONT_LARGE_BOLD, style='Subtle.TLabel')
     state_label.pack(side=tk.RIGHT)
     state_label.tracer = make_state_tracer(state_var, state_label)
     state_var.trace_add('write', state_label.tracer)
@@ -190,9 +212,10 @@ def create_gui_components(parent, shared_gui_refs):
     shared_gui_refs['pressboi_force_load_cell_var'].trace_add('write', update_force_display)
     shared_gui_refs['pressboi_force_motor_torque_var'].trace_add('write', update_force_display)
 
-    font_large = ("JetBrains Mono", 16, "bold")
-    font_medium = ("JetBrains Mono", 12, "bold")
-    font_small = ("JetBrains Mono", 10)
+    # Use theme fonts for proper scaling
+    font_large = theme.FONT_LARGE_BOLD
+    font_medium = theme.FONT_BOLD
+    font_small = theme.FONT_NORMAL
 
     outer_container, content_frame = create_device_frame(
         parent, 
@@ -215,7 +238,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Force row at top
     force_row = ttk.Frame(left_side, style='Card.TFrame')
-    force_row.pack(fill='x', pady=(0, 10))
+    force_row.pack(fill='x', pady=(0, 3))
     
     ttk.Label(force_row, text="Force:", font=font_medium, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
     force_value_label = ttk.Label(force_row, textvariable=shared_gui_refs['pressboi_force_var'], 
@@ -226,10 +249,13 @@ def create_gui_components(parent, shared_gui_refs):
     ttk.Label(force_row, textvariable=shared_gui_refs['pressboi_force_limit_var'], 
               font=font_medium, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
     
-    # Add force source indicator
-    force_source_label = ttk.Label(force_row, text="", font=("JetBrains Mono", 11, "bold"), 
+    # Force source indicator on new line
+    force_source_row = ttk.Frame(left_side, style='Card.TFrame')
+    force_source_row.pack(fill='x', pady=(0, 5))
+    
+    force_source_label = ttk.Label(force_source_row, text="", font=font_small, 
                                     foreground=theme.COMMENT_COLOR, style='Subtle.TLabel')
-    force_source_label.pack(side=tk.LEFT, padx=(10, 0))
+    force_source_label.pack(side=tk.LEFT)
     
     def update_force_source(*args):
         try:
@@ -259,7 +285,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Current and Target Position (inline, same size as force)
     pos_row = ttk.Frame(pos_grid, style='Card.TFrame')
-    pos_row.grid(row=0, column=0, columnspan=4, sticky='w', pady=2)
+    pos_row.grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 2))
     
     pos_label = ttk.Label(pos_row, text="Position:", font=font_medium, style='Subtle.TLabel')
     pos_label.pack(side=tk.LEFT, padx=(0, 10))
@@ -338,7 +364,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Retract Position
     retract_row = ttk.Frame(pos_grid, style='Card.TFrame')
-    retract_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(10, 2))
+    retract_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(0, 2))
     
     ttk.Label(retract_row, text="Retract Position:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
     
@@ -353,7 +379,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Homed and Enabled Status (inline, no "Homed:" label)
     status_row = ttk.Frame(pos_grid, style='Card.TFrame')
-    status_row.grid(row=2, column=0, columnspan=4, sticky='w', pady=(5, 2))
+    status_row.grid(row=2, column=0, columnspan=4, sticky='w', pady=(3, 2))
     
     homed_value_label = ttk.Label(status_row, textvariable=shared_gui_refs['pressboi_homed_var'], 
                                    font=font_small, style='Subtle.TLabel')
@@ -364,7 +390,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Joules display (energy expended during move)
     joules_row = ttk.Frame(pos_grid, style='Card.TFrame')
-    joules_row.grid(row=3, column=0, columnspan=4, sticky='w', pady=(5, 2))
+    joules_row.grid(row=3, column=0, columnspan=4, sticky='w', pady=(0, 2))
     
     ttk.Label(joules_row, text="Energy:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
     
@@ -395,9 +421,9 @@ def create_gui_components(parent, shared_gui_refs):
               font=font_medium, foreground=theme.PRIMARY_ACCENT, 
               style='Subtle.TLabel').pack(anchor='w', pady=(0, 5))
     
-    # Create canvas for graph
+    # Create canvas for graph (smaller default width)
     graph_canvas = tk.Canvas(graph_container, 
-                            width=400, height=200,
+                            width=300, height=180,
                             bg=theme.WIDGET_BG,
                             highlightthickness=1,
                             highlightbackground=theme.COMMENT_COLOR)
@@ -494,12 +520,13 @@ def create_gui_components(parent, shared_gui_refs):
         graph_canvas.create_text(width // 2, height - 10,
                                 text="Position (mm)",
                                 fill=theme.FG_COLOR,
-                                font=("Menlo", 8))
-        graph_canvas.create_text(15, height // 2,
-                                text="Force (kg)",
-                                fill=theme.FG_COLOR,
-                                font=("Menlo", 8),
-                                angle=90)
+                                font=theme.FONT_SMALL)
+        # Use helper function instead of angle parameter for macOS compatibility
+        draw_vertical_text(graph_canvas, 15, height // 2,
+                          "Force (kg)",
+                          theme.FONT_SMALL,
+                          theme.FG_COLOR,
+                          anchor="center")
         
         # Draw scale labels
         # Y-axis ticks
@@ -509,7 +536,7 @@ def create_gui_components(parent, shared_gui_refs):
             graph_canvas.create_text(margin_left - 5, y,
                                     text=f"{force_val:.0f}",
                                     fill=theme.COMMENT_COLOR,
-                                    font=("Menlo", 7),
+                                    font=theme.FONT_SMALL,
                                     anchor='e')
         
         # X-axis ticks
@@ -519,7 +546,7 @@ def create_gui_components(parent, shared_gui_refs):
             graph_canvas.create_text(x, height - margin_bottom + 5,
                                     text=f"{pos_val:.0f}",
                                     fill=theme.COMMENT_COLOR,
-                                    font=("Menlo", 7),
+                                    font=theme.FONT_SMALL,
                                     anchor='n')
         
         # Plot the data points as a line

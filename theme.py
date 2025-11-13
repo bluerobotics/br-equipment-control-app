@@ -88,8 +88,42 @@ def _get_monospace_font():
         return "Droid Sans Mono"  # VS Code default on Linux
 
 MONOSPACE_FONT = _get_monospace_font()
+
+# Base font sizes (will be scaled by UI scaling factor)
+_BASE_FONT_SMALL = 9
+_BASE_FONT_NORMAL = 11
+_BASE_FONT_LARGE = 13
+
+# Default fonts (these will be updated by set_font_scale)
 FONT_SMALL = (MONOSPACE_FONT, 9)
 FONT_NORMAL = (MONOSPACE_FONT, 11)
 FONT_BOLD = (MONOSPACE_FONT, 11, "bold")
 FONT_LARGE = (MONOSPACE_FONT, 13)
 FONT_LARGE_BOLD = (MONOSPACE_FONT, 13, "bold")
+
+def set_font_scale(scale_factor=1.0):
+    """
+    Update font sizes based on UI scale factor.
+    Should be called when UI scaling changes.
+    """
+    global FONT_SMALL, FONT_NORMAL, FONT_BOLD, FONT_LARGE, FONT_LARGE_BOLD
+    
+    # Calculate scaled font sizes
+    small_size = max(8, int(_BASE_FONT_SMALL * scale_factor))
+    normal_size = max(9, int(_BASE_FONT_NORMAL * scale_factor))
+    large_size = max(11, int(_BASE_FONT_LARGE * scale_factor))
+    
+    # Update font tuples
+    FONT_SMALL = (MONOSPACE_FONT, small_size)
+    FONT_NORMAL = (MONOSPACE_FONT, normal_size)
+    FONT_BOLD = (MONOSPACE_FONT, normal_size, "bold")
+    FONT_LARGE = (MONOSPACE_FONT, large_size)
+    FONT_LARGE_BOLD = (MONOSPACE_FONT, large_size, "bold")
+    
+    return {
+        'FONT_SMALL': FONT_SMALL,
+        'FONT_NORMAL': FONT_NORMAL,
+        'FONT_BOLD': FONT_BOLD,
+        'FONT_LARGE': FONT_LARGE,
+        'FONT_LARGE_BOLD': FONT_LARGE_BOLD
+    }

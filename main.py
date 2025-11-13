@@ -237,15 +237,24 @@ class MainApplication:
 
         desired_scaling = None
         if self.ui_scaling is None:
-            desired_scaling = 2.0
+            # Use platform-specific defaults
+            # macOS has good default scaling (1.33), Windows often needs 2.0
+            if platform.system() == 'Darwin':  # macOS
+                desired_scaling = current_scaling  # Use system default
+            else:  # Windows and others
+                desired_scaling = 2.0
             self.ui_scaling = desired_scaling
         else:
             desired_scaling = float(self.ui_scaling)
 
         if desired_scaling is not None and abs(desired_scaling - current_scaling) > 1e-6:
             try:
-                self.root.tk.call('tk', 'scaling', desired_scaling)
-                current_scaling = desired_scaling
+                # On macOS, scale fonts; on Windows/Linux, scale Tk
+                if platform.system() == 'Darwin':
+                    theme.set_font_scale(desired_scaling)
+                else:
+                    self.root.tk.call('tk', 'scaling', desired_scaling)
+                    current_scaling = desired_scaling
             except Exception as e:
                 print(f"Warning applying UI scaling: {e}")
                 self.ui_scaling = current_scaling
@@ -576,7 +585,9 @@ class MainApplication:
 
         # --- Populate UI Components ---
         # Commands panel lives in the splitter (right pane), resizable
-        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=800, start_collapsed=False)
+        # Use platform-appropriate default width (macOS needs smaller default)
+        device_pane_width = 600 if platform.system() == 'Darwin' else 800
+        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=device_pane_width, start_collapsed=False)
         splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
 
@@ -956,11 +967,17 @@ class MainApplication:
             self.root.after(100, self.process_gui_queue)
 
     def set_ui_scale(self, value: float):
-        """Adjust tk scaling, update the variable, and persist the choice."""
+        """Adjust tk scaling/font size, update the variable, and persist the choice."""
         if abs(float(value) - float(self.ui_scaling)) < 1e-6:
             return
         try:
-            self.root.tk.call('tk', 'scaling', value)
+            # On macOS, we scale fonts instead of Tk scaling
+            if platform.system() == 'Darwin':
+                theme.set_font_scale(value)
+            else:
+                # On Windows/Linux, use Tk scaling
+                self.root.tk.call('tk', 'scaling', value)
+            
             self.ui_scale_var.set(value)
             config = load_config()
             config['ui_scaling'] = float(value)
@@ -973,7 +990,7 @@ class MainApplication:
 
         response = messagebox.askyesno(
             "Restart Required",
-            "UI scaling changes take effect after restarting the application.\n\n"
+            "Font/UI size changes take effect after restarting the application.\n\n"
             "Restart now? Any unsaved changes will be lost."
         )
         if response:
