@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **ClearCore**: new ClearCore firmware updater tool
 - **Pressboi**: Device definition now includes a new `set_force_zero` command to tare the sensor
-- **UI**: Added Settings → UI Scale menu (90%–160%) and default macOS scaling to 120%
+- **UI**: Added Settings → UI Scale menu (90%–400%) and default application scaling to 200%
 
 ### Fixed
 - **macOS**: Devices folder prompt now saves configuration outside the app bundle to prevent crashes when selecting the folder on first launch

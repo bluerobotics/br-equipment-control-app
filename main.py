@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
 import sys
+import subprocess
 import comms
 from scripting_gui import create_scripting_interface, load_recent_files
 from status_panel import create_status_bar
@@ -236,11 +237,8 @@ class MainApplication:
 
         desired_scaling = None
         if self.ui_scaling is None:
-            if platform.system() == "Darwin":
-                desired_scaling = 1.2
-                self.ui_scaling = desired_scaling
-            else:
-                self.ui_scaling = current_scaling
+            desired_scaling = 2.0
+            self.ui_scaling = desired_scaling
         else:
             desired_scaling = float(self.ui_scaling)
 
@@ -957,6 +955,8 @@ class MainApplication:
 
     def set_ui_scale(self, value: float):
         """Adjust tk scaling, update the variable, and persist the choice."""
+        if abs(float(value) - float(self.ui_scaling)) < 1e-6:
+            return
         try:
             self.root.tk.call('tk', 'scaling', value)
             self.ui_scale_var.set(value)
@@ -967,6 +967,32 @@ class MainApplication:
             self.root.update_idletasks()
         except Exception as e:
             print(f"Error setting UI scale: {e}")
+            return
+
+        response = messagebox.askyesno(
+            "Restart Required",
+            "UI scaling changes take effect after restarting the application.\n\n"
+            "Restart now? Any unsaved changes will be lost."
+        )
+        if response:
+            self.restart_application()
+
+    def restart_application(self):
+        """Restart the application process safely."""
+        try:
+            if getattr(sys, 'frozen', False):
+                executable = sys.executable
+                args = sys.argv[1:]
+                subprocess.Popen([executable] + args)
+            else:
+                python = sys.executable
+                subprocess.Popen([python] + sys.argv)
+        except Exception as e:
+            messagebox.showerror("Restart Failed", f"Could not restart automatically:\n{e}")
+            return
+        self.root.quit()
+        self.root.destroy()
+        sys.exit(0)
 
 
 def main():

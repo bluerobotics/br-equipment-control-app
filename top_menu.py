@@ -112,6 +112,16 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
         ("140%", 1.4),
         ("150%", 1.5),
         ("160%", 1.6),
+        ("175%", 1.75),
+        ("200%", 2.0),
+        ("225%", 2.25),
+        ("250%", 2.5),
+        ("275%", 2.75),
+        ("300%", 3.0),
+        ("325%", 3.25),
+        ("350%", 3.5),
+        ("375%", 3.75),
+        ("400%", 4.0),
     ]
     for label, value in scale_options:
         scale_menu.add_radiobutton(
