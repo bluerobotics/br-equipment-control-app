@@ -1031,7 +1031,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             # Call the save_script function but without triggering the dialog
             try:
                 with open(current_filepath, 'w') as f:
-                    f.write(script_editor.get('1.0', tk.END))
+                    f.write(script_editor.get('1.0', 'end-1c'))
                 # Mark as unmodified to prevent the "unsaved" dialog
                 script_editor.edit_modified(False)
                 update_window_title() # Update title to remove '*'
@@ -1132,7 +1132,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             # Normal save to existing permanent file
             try:
                 with open(current_filepath, 'w') as f:
-                    f.write(script_editor.get('1.0', tk.END))
+                    f.write(script_editor.get('1.0', 'end-1c'))
                 script_editor.edit_modified(False);
                 update_window_title();
                 status_var.set(f"Saved to {os.path.basename(current_filepath)}");
