@@ -2,7 +2,7 @@
  * @file events.h
  * @brief Defines all event types that can be sent from the Pressboi controller.
  * @details AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
- * Generated from events.json on 2025-11-12 10:48:49
+ * Generated from events.json on 2025-11-13 10:44:58
  * 
  * This header file defines all events sent FROM the Pressboi device TO the host.
  * Events are asynchronous notifications that can trigger host-side actions.

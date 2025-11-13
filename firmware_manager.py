@@ -1,6 +1,6 @@
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 
 import os
 import sys
@@ -227,7 +227,15 @@ class FirmwareManagerWindow(tk.Toplevel):
                 command=lambda key=device_key: self.flash_selected(key),
                 style='Green.TButton'
             )
-            flash_button.grid(row=0, column=1)
+            flash_button.grid(row=0, column=1, padx=(0, 8))
+            
+            flash_file_button = ttk.Button(
+                button_row,
+                text="Flash from File…",
+                command=lambda key=device_key: self.flash_from_file(key),
+                style='Green.TButton'
+            )
+            flash_file_button.grid(row=0, column=2)
 
             nvm_row = ttk.Frame(frame, style='TFrame')
             nvm_row.grid(row=8, column=0, columnspan=2, sticky='w', pady=(6, 0))
@@ -402,6 +410,52 @@ class FirmwareManagerWindow(tk.Toplevel):
                 device_key,
                 on_complete=lambda _releases: self.flash_selected(device_key)
             )
+    
+    def flash_from_file(self, device_key):
+        """Flash firmware from a user-selected .uf2 file."""
+        row = self.rows.get(device_key)
+        if not row:
+            return
+        
+        # Open file dialog to select .uf2 file
+        file_path = filedialog.askopenfilename(
+            parent=self,
+            title=f"Select {device_key.capitalize()} Firmware File",
+            filetypes=[
+                ("UF2 Firmware Files", "*.uf2"),
+                ("All Files", "*.*")
+            ]
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
+        # Verify file exists and is readable
+        if not os.path.isfile(file_path):
+            messagebox.showerror("Invalid File", f"File not found: {file_path}", parent=self)
+            return
+        
+        # Create a minimal release_info dict with local file
+        release_info = {
+            'version': os.path.basename(file_path),
+            'local_file': file_path,
+            'notes': f'Custom firmware from: {os.path.basename(file_path)}'
+        }
+        
+        try:
+            row['status_var'].set(f"Flashing from file: {os.path.basename(file_path)}...")
+            self.update_in_progress = True
+            start_manual_update(
+                device_key,
+                self.gui_refs,
+                self.device_manager,
+                release_info=release_info,
+                status_callback=self._make_status_callback(device_key)
+            )
+        except Exception as exc:
+            row['status_var'].set(f"Failed to flash from file: {exc}")
+            self.update_in_progress = False
+            messagebox.showerror("Firmware Flash", str(exc), parent=self)
 
     def _make_status_callback(self, device_key):
         row = self.rows.get(device_key)

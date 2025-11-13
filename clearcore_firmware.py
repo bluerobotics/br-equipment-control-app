@@ -114,15 +114,25 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
     """Runs in a background thread to download and flash firmware over USB."""
     temp_path = None
     asset_name = config['asset_name']
-    asset_url = release_info['asset_url']
     success = False
+    
+    # Check if we're using a local file or downloading from URL
+    local_file = release_info.get('local_file')
 
     try:
-        _log(gui_refs, f"[{device_key}] Downloading firmware {release_info['version']}...")
-        _queue_status_callback(gui_refs, status_callback, f"Downloading {release_info['version']}...")
-        temp_path = _download_asset(asset_url)
-        if not temp_path:
-            raise RuntimeError("Failed to download firmware asset")
+        if local_file:
+            # Use local file directly
+            _log(gui_refs, f"[{device_key}] Using local firmware file {release_info['version']}...")
+            _queue_status_callback(gui_refs, status_callback, f"Preparing {release_info['version']}...")
+            temp_path = local_file
+        else:
+            # Download from GitHub
+            asset_url = release_info['asset_url']
+            _log(gui_refs, f"[{device_key}] Downloading firmware {release_info['version']}...")
+            _queue_status_callback(gui_refs, status_callback, f"Downloading {release_info['version']}...")
+            temp_path = _download_asset(asset_url)
+            if not temp_path:
+                raise RuntimeError("Failed to download firmware asset")
 
         initial_drives = set(_list_available_drives())
 
@@ -159,7 +169,8 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
         ))
         _queue_status_callback(gui_refs, status_callback, f"Update failed: {exc}")
     finally:
-        if temp_path and os.path.exists(temp_path):
+        # Only delete temp file if it was downloaded (not a local file)
+        if temp_path and not local_file and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except OSError:

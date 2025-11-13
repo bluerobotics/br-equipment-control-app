@@ -56,8 +56,6 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
     file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_command(label="Validate Script", command=script_commands['validate'], accelerator="Ctrl+Shift+V")
     file_menu.add_separator(background=theme.WIDGET_BORDER)
-    file_menu.add_command(label="Generate C++ Code...", command=device_commands['generate_cpp_code'])
-    file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_command(label="Exit", command=parent.quit)
     
     menubar.add_cascade(label="File", menu=file_menu)
@@ -87,6 +85,8 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
                         activebackground=theme.PRIMARY_ACCENT,
                         activeforeground=theme.FG_COLOR)
     devices_menu.add_command(label="Firmware Manager...", command=device_commands['open_firmware_manager'])
+    devices_menu.add_separator(background=theme.WIDGET_BORDER)
+    devices_menu.add_command(label="C++ Code Generator...", command=device_commands['generate_cpp_code'])
     menubar.add_cascade(label="Devices", menu=devices_menu)
 
     # --- Settings Menu ---

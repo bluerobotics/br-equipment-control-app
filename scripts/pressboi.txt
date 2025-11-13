@@ -14,6 +14,21 @@ stop_logging
 
 
 
+pressboi.reset_nvm 
+pressboi.dump_nvm 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
