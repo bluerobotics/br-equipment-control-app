@@ -7,11 +7,44 @@ Handles CSV file creation, writing, and management.
 
 import csv
 import os
+import sys
 import threading
 import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Set
 import tkinter as tk
 from comms import log_to_terminal
+
+
+def _resolve_logs_directory() -> Path:
+    """
+    Determine a writable location for log files across platforms.
+    Mirrors the logic used for config storage so Finder/DMG launches
+    (which run from a read-only bundle) can still create log files.
+    """
+    fallback_dir = Path.home() / '.br-equipment-control-app' / 'logs'
+
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', fallback_dir.parent))
+            logs_dir = base_dir / 'BR Equipment Control' / 'logs'
+        elif sys.platform == 'darwin':
+            logs_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control' / 'logs'
+        else:
+            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
+            logs_dir = base_dir / 'br-equipment-control-app' / 'logs'
+    except Exception as e:
+        print(f"Warning determining log directory: {e}")
+        logs_dir = fallback_dir
+
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating log directory at {logs_dir}: {e}")
+        logs_dir = fallback_dir
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+    return logs_dir
 
 class DataLogger:
     """
@@ -24,11 +57,8 @@ class DataLogger:
         self.active_logs: Dict[str, dict] = {}  # filename -> log_info
         self.queued_variables: Dict[str, Set[str]] = {}  # device_name -> set of variable names
         self.lock = threading.Lock()
-        self.logs_dir = "logs"
-        
-        # Create logs directory if it doesn't exist
-        if not os.path.exists(self.logs_dir):
-            os.makedirs(self.logs_dir)
+        self.logs_path: Path = _resolve_logs_directory()
+        self.logs_dir = str(self.logs_path)
     
     def _get_unique_filename(self, base_filename: str) -> str:
         """
