@@ -988,7 +988,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                     script_runner.is_held = True
                 root.after(0, refresh_button_states)  # Update UI to show held state
 
-        if "DONE:" in message: message_queue.put(message)
+        if "DONE:" in message:
+            print(f"[DEBUG] terminal_wrapper adding to queue: {message}")
+            message_queue.put(message)
         if original_terminal_cb: original_terminal_cb(message)
 
     shared_gui_refs['terminal_cb'] = terminal_wrapper

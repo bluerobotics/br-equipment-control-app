@@ -1055,6 +1055,8 @@ class ScriptRunner(threading.Thread):
 
             try:
                 msg = self.msg_q.get(timeout=0.1)
+                print(f"[DEBUG] script_processor received: {msg}")
+                print(f"[DEBUG] waiting for: {wait_list}")
 
                 # Check for ERROR messages - put script in hold state
                 if "_ERROR:" in msg:
