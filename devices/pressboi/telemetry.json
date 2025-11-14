@@ -52,8 +52,8 @@
         "type": "int",
         "default": 1,
         "map": {
-            "0": "disabled",
-            "1": "enabled"
+            "0": "Disabled",
+            "1": "Enabled"
         },
         "help": "Power enable status for motor 1",
         "gui_var": "pressboi_enabled0_var"
@@ -62,8 +62,8 @@
         "type": "int",
         "default": 1,
         "map": {
-            "0": "disabled",
-            "1": "enabled"
+            "0": "Disabled",
+            "1": "Enabled"
         },
         "help": "Power enable status for motor 2",
         "gui_var": "pressboi_enabled1_var"
@@ -104,8 +104,8 @@
         "type": "int",
         "default": 0,
         "map": {
-            "0": "not homed",
-            "1": "homed"
+            "0": "Not Homed",
+            "1": "Homed"
         },
         "help": "Indicates if press has been homed to zero position",
         "gui_var": "pressboi_homed_var"
