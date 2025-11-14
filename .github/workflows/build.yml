@@ -1,4 +1,6 @@
-name: Release ${{ github.ref_name }}
+name: Build Executables
+
+run-name: Release ${{ github.ref_name }}
 
 on:
   push:
