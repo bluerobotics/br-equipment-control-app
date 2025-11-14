@@ -249,13 +249,12 @@ def create_gui_components(parent, shared_gui_refs):
             full_status = shared_gui_refs['status_var_pressboi'].get()
             if '(' in full_status and ')' in full_status:
                 try:
-                    ip_address = full_status.split('(')[1].split(')')[0]
+                    address = full_status.split('(')[1].split(')')[0]
                     if 'SIM' in full_status.upper() or 'SIMULATOR' in full_status.upper():
                         ip_label.config(text="[Simulator]", foreground=theme.WARNING_YELLOW)
-                    elif ip_address.startswith('COM') or ip_address.startswith('/dev/'):
-                        ip_label.config(text=f"[{ip_address}]", foreground=theme.SUCCESS_GREEN)
                     else:
-                        ip_label.config(text=f"@ {ip_address}", foreground=theme.SUCCESS_GREEN)
+                        # Show @ for both IP addresses and COM ports
+                        ip_label.config(text=f"@ {address}", foreground=theme.SUCCESS_GREEN)
                 except (IndexError, AttributeError):
                     ip_label.config(text="", foreground=theme.COMMENT_COLOR)
             else:
@@ -263,6 +262,11 @@ def create_gui_components(parent, shared_gui_refs):
         
         shared_gui_refs['status_var_pressboi'].trace_add('write', pressboi_conn_tracer)
         pressboi_conn_tracer()
+        
+        # Also schedule a delayed update to catch any timing issues
+        def delayed_update():
+            pressboi_conn_tracer()
+        parent.after(100, delayed_update)
     
     # === Single Container for ALL data ===
     data_container = ttk.Frame(content_frame, style='Card.TFrame', padding=10)

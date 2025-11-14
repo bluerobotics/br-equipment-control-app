@@ -136,8 +136,20 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
 
         initial_drives = set(_list_available_drives())
 
+        # Send reboot command
         sender = device_manager.get_device_sender(device_key)
         sender(config['bootloader_command'])
+        
+        # Close serial connection if device is using USB
+        device_state = device_manager.get_device_state(device_key)
+        if device_state and device_state.get('connection_method') == 'usb':
+            serial_port = device_state.get('serial_port')
+            if serial_port:
+                import serial_comms
+                _log(gui_refs, f"[{device_key}] Closing serial connection on {serial_port}...")
+                serial_comms.disconnect_serial_device(serial_port)
+                time.sleep(0.5)  # Give time for device to reboot and port to close
+
         _log(gui_refs, f"[{device_key}] Waiting for bootloader to appear...")
         _queue_status_callback(gui_refs, status_callback, "Waiting for bootloader...")
 
@@ -159,6 +171,29 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
             f"{config.get('label', device_key.capitalize())} firmware installed. Device will reconnect shortly."
         ))
         _queue_status_callback(gui_refs, status_callback, "Firmware update complete. Waiting for reconnection...")
+        
+        # Reconnect USB serial if device was using USB before flashing
+        if device_state and device_state.get('connection_method') == 'usb' and serial_port:
+            _log(gui_refs, f"[{device_key}] Reconnecting USB serial on {serial_port}...")
+            time.sleep(2.0)  # Give device time to fully reboot
+            
+            try:
+                import serial_comms
+                import comms
+                success_reconnect = serial_comms.connect_serial_device(
+                    serial_port,
+                    device_key,
+                    comms.handle_serial_message,
+                    gui_refs,
+                    device_manager
+                )
+                if success_reconnect:
+                    _log(gui_refs, f"[{device_key}] USB serial reconnected successfully")
+                else:
+                    _log(gui_refs, f"[{device_key}] Failed to reconnect USB serial")
+            except Exception as e:
+                _log(gui_refs, f"[{device_key}] Error reconnecting USB: {e}")
+        
         success = True
 
     except Exception as exc:

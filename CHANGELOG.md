@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2025-11-14
+
+### Added
+- **USB serial communication**: Alternative to network communication for all devices
+- **Connection method switching**: Right-click devices in Command Reference to switch between Network (UDP) and USB Serial
+- **Persistent connection preferences**: Connection method remembered across app restarts (saved per device)
+- **USB simulator**: Virtual USB serial simulation option alongside network simulation (`@ VIRTUAL_COM`)
+- **Connection status display**: All device panels show `@ IP_ADDRESS` or `@ COM_PORT` inline with device name
+- **Firmware Manager**: Automatic USB reconnection after firmware flash (no app restart required)
+- **Firmware Manager**: "Flash from File…" button to flash local .uf2 files
+
+### Changed
+- **Connection status messages**: Consistent format for network ("Connected via Ethernet on 192.168.x.x") and USB ("Connected via USB on COM10")
+- **Firmware Manager UI**: Left-justified button layout, removed LAN connection row and update check text
+- **Device status refresh**: Immediate update when switching connection methods (no expand/collapse needed)
+
+### Fixed
+- **Script autosave**: No longer adds blank lines over time (Tkinter Text widget trailing newline issue)
+- **Device panels**: Connection status correctly displays for all devices (Pressboi, Fillhead, Gantry, Pressurizer)
+- **Command Reference**: Refreshes immediately when devices connect
+- **USB serial commands**: Use existing connection instead of attempting to reopen port
+- **Firmware flash**: Properly closes and reopens USB serial connection during update process
+- **Network discovery**: No longer overrides USB connection method when device configured for USB
+
 ## [1.8.0] - 2025-11-12
 
 

@@ -124,6 +124,7 @@ def create_device_frame(parent, title, state_var, conn_var):
     header_frame.conn_tracer = conn_tracer
     conn_var.trace_add("write", header_frame.conn_tracer)
     header_frame.conn_tracer()
+    outer_container.ip_label = ip_label
     content_frame = ttk.Frame(container, style='Card.TFrame')
     content_frame.pack(fill='x', expand=True, pady=(5,0))
     return outer_container, content_frame
@@ -212,6 +213,48 @@ def create_gui_components(parent, shared_gui_refs):
     small_bar_height = 20
     
     fillhead_outer_container, fillhead_content = create_device_frame(parent, "Fillhead", shared_gui_refs['fillhead_main_state_var'], shared_gui_refs['status_var_fillhead'])
+    
+    # Override the IP label tracer for fillhead to show "@ IP" or "@ COM"
+    ip_label = getattr(fillhead_outer_container, 'ip_label', None)
+    print(f"[DEBUG fillhead] ip_label = {ip_label}")
+    if ip_label is not None:
+        print(f"[DEBUG fillhead] ip_label exists, setting up tracer")
+        # Remove all existing tracers on this variable to avoid conflicts
+        trace_info = shared_gui_refs['status_var_fillhead'].trace_info()
+        for trace in trace_info:
+            if 'write' in trace[0]:
+                try:
+                    shared_gui_refs['status_var_fillhead'].trace_remove('write', trace[1])
+                except Exception as e:
+                    pass
+        
+        def fillhead_conn_tracer(*args):
+            full_status = shared_gui_refs['status_var_fillhead'].get()
+            print(f"[DEBUG fillhead_conn_tracer] status = '{full_status}'")
+            if '(' in full_status and ')' in full_status:
+                try:
+                    address = full_status.split('(')[1].split(')')[0]
+                    print(f"[DEBUG fillhead_conn_tracer] address = '{address}'")
+                    if 'SIM' in full_status.upper() or 'SIMULATOR' in full_status.upper():
+                        ip_label.config(text="[Simulator]", foreground=theme.WARNING_YELLOW)
+                    else:
+                        # Show @ for both IP addresses and COM ports
+                        ip_label.config(text=f"@ {address}", foreground=theme.SUCCESS_GREEN)
+                        print(f"[DEBUG fillhead_conn_tracer] Set label to '@ {address}'")
+                except (IndexError, AttributeError) as e:
+                    print(f"[DEBUG fillhead_conn_tracer] Error: {e}")
+                    ip_label.config(text="", foreground=theme.COMMENT_COLOR)
+            else:
+                print(f"[DEBUG fillhead_conn_tracer] No parentheses found, clearing label")
+                ip_label.config(text="", foreground=theme.COMMENT_COLOR)
+        
+        shared_gui_refs['status_var_fillhead'].trace_add('write', fillhead_conn_tracer)
+        fillhead_conn_tracer()
+        
+        # Also schedule a delayed update to catch any timing issues
+        def delayed_update():
+            fillhead_conn_tracer()
+        parent.after(100, delayed_update)
     
     injector_container = ttk.Frame(fillhead_content, style='CardBorder.TFrame')
     injector_container.pack(anchor='w', pady=(10, 5), fill='x')

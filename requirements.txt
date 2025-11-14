@@ -1,5 +1,5 @@
-# This project currently uses only Python's standard libraries.
-# No external packages are required to run the application.
+# Runtime dependencies
+pyserial>=3.5  # For USB serial communication
 
 # Development dependencies (for building executables)
 # Uncomment if you need to build locally:

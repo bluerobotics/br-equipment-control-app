@@ -5,6 +5,7 @@ import datetime
 import tkinter as tk
 import json
 from queue import Empty
+import serial_comms
 
 try:
     from clearcore_firmware import schedule_version_check
@@ -113,29 +114,170 @@ def discovery_loop(gui_refs):
 
 
 def send_to_device(device_key, msg, gui_refs):
-    """Sends a message to a specific device if its IP is known."""
+    """Sends a message to a specific device via network or USB based on connection method."""
     device_manager = gui_refs.get('device_manager')
     if not device_manager: return
     
     with devices_lock:
         device_state = device_manager.get_device_state(device_key)
-
-    if device_state and device_state.get("ip"):
-        device_ip = device_state.get("ip")
-        # Use the device's specific port if stored, otherwise use default
-        device_port = device_state.get("port", CLEARCORE_PORT)
-        # MODIFIED: Added a lock to ensure thread-safe socket access.
-        with socket_lock:
+        if not device_state:
+            return
+        
+        connection_method = device_state.get('connection_method', 'network')
+    
+    # Route based on connection method
+    if connection_method == 'usb':
+        # Send via USB serial
+        serial_port = device_state.get('serial_port')
+        if serial_port:
             try:
-                log_to_terminal(f"[CMD SENT to {device_key.upper()}]: {msg}", gui_refs)
-                sock.sendto(msg.encode(), (device_ip, device_port))
+                import serial_comms
+                log_to_terminal(f"[CMD SENT to {device_key.upper()} via USB]: {msg}", gui_refs)
+                serial_comms.send_serial_command(serial_port, msg)
             except Exception as e:
-                log_to_terminal(f"Error sending to {device_key}: {e}", gui_refs)
+                log_to_terminal(f"Error sending to {device_key} via USB: {e}", gui_refs)
+        else:
+            if msg not in ["cancel", "reset"]:
+                log_to_terminal(f"Cannot send to {device_key}: No serial port configured.", gui_refs)
+    else:
+        # Send via network (original behavior)
+        if device_state and device_state.get("ip"):
+            device_ip = device_state.get("ip")
+            # Use the device's specific port if stored, otherwise use default
+            device_port = device_state.get("port", CLEARCORE_PORT)
+            # MODIFIED: Added a lock to ensure thread-safe socket access.
+            with socket_lock:
+                try:
+                    log_to_terminal(f"[CMD SENT to {device_key.upper()}]: {msg}", gui_refs)
+                    sock.sendto(msg.encode(), (device_ip, device_port))
+                except Exception as e:
+                    log_to_terminal(f"Error sending to {device_key}: {e}", gui_refs)
 
-    elif "DISCOVER" not in msg:
-        # Only log if it's not a cancel or reset command (which are sent to all devices)
-        if msg not in ["cancel", "reset"]:
-            log_to_terminal(f"Cannot send to {device_key}: IP unknown.", gui_refs)
+        elif "DISCOVER" not in msg:
+            # Only log if it's not a cancel or reset command (which are sent to all devices)
+            if msg not in ["cancel", "reset"]:
+                log_to_terminal(f"Cannot send to {device_key}: IP unknown.", gui_refs)
+
+
+def handle_serial_message(device_key, message, gui_refs, device_manager):
+    """
+    Handles incoming messages from USB serial connections.
+    Processes them the same way as UDP messages.
+    
+    Args:
+        device_key (str): The device key (e.g. 'pressboi')
+        message (str): The message received
+        gui_refs (dict): GUI references
+        device_manager: The device manager instance
+    """
+    msg = message.strip()
+    if not msg:
+        return
+    
+    # Mark device as connected via USB
+    is_new_connection = False
+    with devices_lock:
+        device_state = device_manager.get_device_state(device_key)
+        if device_state:
+            if not device_state.get("connected"):
+                is_new_connection = True
+            device_manager.update_device_state(device_key, {
+                "connected": True,
+                "last_rx": time.time()
+            })
+    
+    # Update status variable for GUI on first connection
+    if is_new_connection:
+        serial_port = device_state.get('serial_port', 'USB')
+        status_text = f"{device_key.capitalize()} ({serial_port})"
+        log_to_terminal(f"{device_key.capitalize()} connected ({serial_port})", gui_refs)
+        
+        gui_queue = gui_refs.get('gui_queue')
+        
+        # Queue showing the panel first
+        if gui_queue and 'show_panel' in gui_refs:
+            gui_queue.put((gui_refs['show_panel'], (device_key,), {}))
+        
+        # Then update the status variable
+        status_var = gui_refs.get(f'status_var_{device_key}')
+        if gui_queue and status_var:
+            gui_queue.put((status_var.set, (status_text,), {}))
+        
+        # Queue the visibility update for the "searching" panel
+        if gui_queue:
+            gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+        
+        # Refresh the command reference to update the device tree after a small delay
+        # This ensures the status variable has been updated before refresh
+        command_ref = gui_refs.get('command_reference')
+        root = gui_refs.get('root')
+        if command_ref and root:
+            root.after(100, command_ref.refresh)
+    
+    # Process the message (same logic as recv_loop, but without IP)
+    log_telemetry = gui_refs.get('show_telemetry_var', tk.BooleanVar(value=False)).get()
+    log_events = gui_refs.get('show_events_var', tk.BooleanVar(value=False)).get()
+    device_modules = device_manager.devices
+    
+    try:
+        # Handle discovery responses (these are mirrored from network responses, just ignore them)
+        if msg.startswith("DISCOVERY_RESPONSE:"):
+            # Already connected via USB, no need to process discovery
+            return
+        
+        # Handle telemetry
+        if "_TELEM:" in msg:
+            try:
+                if device_key in device_modules:
+                    if log_telemetry:
+                        log_to_terminal(f"[TELEM via USB]: {msg}", gui_refs)
+                    
+                    device_info = device_modules[device_key]
+                    parser_module = device_info.get('parser')
+                    telemetry_data = device_info.get('telemetry_data', {})
+                    
+                    parsed_data = {}
+                    if parser_module and hasattr(parser_module, 'parse_telemetry'):
+                        # Use module-level queue_ui_update function
+                        parser_module.parse_telemetry(msg, telemetry_data, gui_refs, queue_ui_update, safe_float)
+                    else:
+                        # Use module-level queue_ui_update function
+                        parsed_data = parse_dynamic_telemetry(msg, device_key, telemetry_data, gui_refs, queue_ui_update, safe_float)
+                    
+                    if parsed_data:
+                        device_manager.notify_telemetry_callbacks(device_key, parsed_data)
+            except Exception as e:
+                log_to_terminal(f"Error processing USB telemetry: {e}", gui_refs)
+        
+        # Handle recovery messages
+        elif "_RECOVERY:" in msg or msg.startswith("RECOVERY:"):
+            log_to_terminal(f"[RECOVERY via USB]: {msg}", gui_refs)
+            device_name = device_key.upper()
+            gui_queue = gui_refs.get('gui_queue')
+            if gui_queue:
+                gui_queue.put((show_recovery_warning, (device_name, msg, gui_refs), {}))
+        
+        # Handle NVM dump messages
+        elif msg.startswith("NVMDUMP:"):
+            show_cb = gui_refs.get('show_nvm_dump_cb')
+            gui_queue = gui_refs.get('gui_queue')
+            if show_cb and gui_queue:
+                try:
+                    _, dev_key, payload = msg.split(":", 2)
+                    gui_queue.put((show_cb, (dev_key.lower(), payload), {}))
+                except ValueError:
+                    pass
+            log_to_terminal(f"[STATUS via USB]: {msg}", gui_refs)
+        
+        # Handle other status messages
+        elif is_status_message(msg, device_manager):
+            log_to_terminal(f"[STATUS via USB]: {msg}", gui_refs)
+        
+        else:
+            log_to_terminal(f"[UNHANDLED via USB]: {msg}", gui_refs)
+            
+    except Exception as e:
+        log_to_terminal(f"Error processing USB message: {e}", gui_refs)
 
 
 def monitor_connections(gui_refs, device_manager):
@@ -219,6 +361,10 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
         device_state = device_manager.get_device_state(device_key)
         if not device_state: return # Should not happen if discovery is working
         
+        # Don't handle network connection if device is configured for USB
+        if device_state.get('connection_method') == 'usb':
+            return
+        
         if not device_state["connected"]:
             is_new_connection = True
         
@@ -230,7 +376,7 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
 
     if is_new_connection:
         status_text = f"{device_key.capitalize()} ({source_ip})"
-        log_to_terminal(f"{device_key.capitalize()} connected ({source_ip})", gui_refs)
+        log_to_terminal(f"{device_key}: Connected via Ethernet on {source_ip}", gui_refs)
         
         status_var = gui_refs.get(f'status_var_{device_key}')
         if gui_queue and status_var:
@@ -244,6 +390,13 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
         # Queue the visibility update for the "searching" panel
         if gui_queue:
             gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+        
+        # Refresh the command reference to update the device tree after a small delay
+        # This ensures the status variable has been updated before refresh
+        command_ref = gui_refs.get('command_reference')
+        root = gui_refs.get('root')
+        if command_ref and root:
+            root.after(100, command_ref.refresh)
 
         if schedule_version_check:
             with devices_lock:

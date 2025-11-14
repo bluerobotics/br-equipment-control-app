@@ -162,6 +162,7 @@ class CommandReference(ttk.Frame):
         self.text.tag_configure('connected_status', foreground=theme.SUCCESS_GREEN)  # Green for connected
         self.text.tag_configure('simulated_status', foreground=theme.WARNING_YELLOW)  # Yellow for [simulated]
         self.text.tag_configure('disconnected_status', foreground=theme.COMMENT_COLOR)  # Grey for disconnected
+        self.text.tag_configure('usb_indicator', foreground='#61AFEF')  # Blue for USB connection
         self.text.tag_configure('hover', background=theme.SECONDARY_ACCENT)
         
         # Track which lines map to which items (line_num -> item_data)
@@ -518,11 +519,20 @@ class CommandReference(ttk.Frame):
                 self.text.insert(f"{line_num}.0", device_icon, "folder_icon")
                 self.text.insert(f"{line_num}.end", f"{device_name}", "device")
                 
-                # Add connection status with IP address
-                device_ip = device_state.get('ip', '')
+                # Get connection method
+                connection_method = device_state.get('connection_method', 'network')
+                
+                # Add connection status with IP address or COM port
                 if is_connected or is_simulated:
-                    if device_ip:
-                        self.text.insert(f"{line_num}.end", f" connected @ {device_ip}", "connected_status")
+                    if connection_method == 'usb':
+                        serial_port = device_state.get('serial_port', 'USB')
+                        self.text.insert(f"{line_num}.end", f" connected @ {serial_port}", "connected_status")
+                    elif connection_method == 'network':
+                        device_ip = device_state.get('ip', '')
+                        if device_ip:
+                            self.text.insert(f"{line_num}.end", f" connected @ {device_ip}", "connected_status")
+                        else:
+                            self.text.insert(f"{line_num}.end", " connected", "connected_status")
                     else:
                         self.text.insert(f"{line_num}.end", " connected", "connected_status")
                     if is_simulated:
@@ -830,6 +840,9 @@ class CommandReference(ttk.Frame):
             device_name = item_data.get('name', '')
             is_simulated = device_name in self.device_manager.simulator_threads
             
+            # Get connection method
+            connection_method = self.device_manager.get_connection_method(device_name)
+            
             # Get logging info
             data_logger = self.device_manager.shared_gui_refs.get('data_logger')
             queued_vars = data_logger.get_queued_variables(device_name) if data_logger else []
@@ -840,11 +853,69 @@ class CommandReference(ttk.Frame):
                         has_active_logs = True
                         break
             
+            # Add connection method submenu
+            connection_submenu = tk.Menu(self.context_menu, tearoff=0,
+                                        bg=theme.WIDGET_BG,
+                                        fg=theme.FG_COLOR,
+                                        activebackground=theme.PRIMARY_ACCENT,
+                                        activeforeground=theme.FG_COLOR)
+            
+            # Network connection option
+            connection_submenu.add_radiobutton(
+                label="Network (UDP)",
+                command=lambda: self.set_connection_network(device_name),
+                variable=tk.StringVar(value=connection_method),
+                value='network'
+            )
+            
+            # USB connection option with port selection
+            usb_submenu = tk.Menu(connection_submenu, tearoff=0,
+                                 bg=theme.WIDGET_BG,
+                                 fg=theme.FG_COLOR,
+                                 activebackground=theme.PRIMARY_ACCENT,
+                                 activeforeground=theme.FG_COLOR)
+            
+            # List available serial ports
+            import serial_comms
+            ports = serial_comms.list_serial_ports()
+            if ports:
+                for port, description in ports:
+                    usb_submenu.add_command(
+                        label=f"{port} - {description}",
+                        command=lambda p=port, d=device_name: self.set_connection_usb(d, p)
+                    )
+            else:
+                usb_submenu.add_command(label="No serial ports found", state='disabled')
+            
+            connection_submenu.add_cascade(label="USB Serial", menu=usb_submenu)
+            
+            # Add the connection submenu
+            self.context_menu.add_cascade(label=f"Connection [{connection_method.upper()}]", menu=connection_submenu)
+            
+            self.context_menu.add_separator()
+            
             # Add simulate/stop simulate option
             if is_simulated:
                 self.context_menu.add_command(label="Stop Simulate", command=lambda: self.stop_simulate_device(device_name))
             else:
-                self.context_menu.add_command(label="Start Simulate", command=lambda: self.start_simulate_device(device_name))
+                # Create simulate submenu
+                simulate_submenu = tk.Menu(self.context_menu, tearoff=0,
+                                          bg=theme.WIDGET_BG,
+                                          fg=theme.FG_COLOR,
+                                          activebackground=theme.PRIMARY_ACCENT,
+                                          activeforeground=theme.FG_COLOR)
+                
+                simulate_submenu.add_command(
+                    label="Local Network (127.0.0.1)",
+                    command=lambda: self.start_simulate_device(device_name, connection_type='network')
+                )
+                
+                simulate_submenu.add_command(
+                    label="USB Serial (Virtual)",
+                    command=lambda: self.start_simulate_device(device_name, connection_type='usb')
+                )
+                
+                self.context_menu.add_cascade(label="Start Simulate", menu=simulate_submenu)
             
             self.context_menu.add_separator()
             
@@ -2426,9 +2497,80 @@ class CommandReference(ttk.Frame):
             return item_data.get('name')
         return None
     
-    def start_simulate_device(self, device_name):
-        """Start the simulator for a specific device."""
-        self.device_manager.start_simulator(device_name)
+    def set_connection_network(self, device_name):
+        """Switch device to network (UDP) connection."""
+        import serial_comms
+        import comms
+        
+        # Disconnect any USB connection
+        device_state = self.device_manager.get_device_state(device_name)
+        if device_state and device_state.get('serial_port'):
+            serial_comms.disconnect_serial_device(device_state['serial_port'])
+        
+        # Set connection method to network
+        self.device_manager.set_connection_method(device_name, 'network')
+        
+        # Log the change
+        gui_refs = self.device_manager.shared_gui_refs
+        comms.log_to_terminal(f"{device_name}: Switched to network connection", gui_refs)
+        
+        # Update status variable if device is connected
+        device_state = self.device_manager.get_device_state(device_name)
+        if device_state and device_state.get('connected') and device_state.get('ip'):
+            status_var = gui_refs.get(f'status_var_{device_name}')
+            if status_var:
+                status_text = f"{device_name.capitalize()} ({device_state['ip']})"
+                status_var.set(status_text)
+        
+        # Refresh display
+        self.refresh()
+    
+    def set_connection_usb(self, device_name, port):
+        """Switch device to USB serial connection."""
+        import serial_comms
+        import comms
+        
+        gui_refs = self.device_manager.shared_gui_refs
+        
+        # Disconnect from any previous USB port
+        device_state = self.device_manager.get_device_state(device_name)
+        if device_state and device_state.get('serial_port'):
+            serial_comms.disconnect_serial_device(device_state['serial_port'])
+        
+        # Set connection method to USB
+        self.device_manager.set_connection_method(device_name, 'usb', port)
+        
+        # Update the status variable for GUI
+        status_text = f"{device_name.capitalize()} ({port})"
+        status_var = gui_refs.get(f'status_var_{device_name}')
+        if status_var:
+            status_var.set(status_text)
+        
+        # Start USB listener
+        success = serial_comms.connect_serial_device(
+            port, 
+            device_name, 
+            comms.handle_serial_message, 
+            gui_refs, 
+            self.device_manager
+        )
+        
+        if success:
+            comms.log_to_terminal(f"{device_name}: Connected via USB on {port}", gui_refs)
+        else:
+            comms.log_to_terminal(f"{device_name}: Failed to connect to {port}", gui_refs)
+        
+        # Refresh display
+        self.refresh()
+    
+    def start_simulate_device(self, device_name, connection_type='network'):
+        """Start the simulator for a specific device.
+        
+        Args:
+            device_name (str): Name of the device to simulate
+            connection_type (str): 'network' for local network (127.0.0.1) or 'usb' for virtual USB
+        """
+        self.device_manager.start_simulator(device_name, connection_type=connection_type)
         # Refresh after a delay to let discovery complete
         self.after(1000, self.refresh)
     

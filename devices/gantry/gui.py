@@ -103,6 +103,7 @@ def create_device_frame(parent, title, state_var, conn_var):
     header_frame.conn_tracer = conn_tracer
     conn_var.trace_add("write", header_frame.conn_tracer)
     header_frame.conn_tracer()
+    outer_container.ip_label = ip_label
     content_frame = ttk.Frame(container, style='Card.TFrame')
     content_frame.pack(fill='x', expand=True, pady=(5,0))
     return outer_container, content_frame
@@ -134,6 +135,43 @@ def create_gui_components(parent, shared_gui_refs):
 
     device_frame, content_frame = create_device_frame(parent, "Gantry", shared_gui_refs['gantry_main_state_var'], shared_gui_refs['status_var_gantry'])
     shared_gui_refs['gantry_panel'] = device_frame
+    
+    # Override the IP label tracer for gantry to show "@ IP" or "@ COM"
+    ip_label = getattr(device_frame, 'ip_label', None)
+    print(f"[DEBUG gantry] ip_label = {ip_label}")
+    if ip_label is not None:
+        print(f"[DEBUG gantry] ip_label exists, setting up tracer")
+        # Remove all existing tracers on this variable to avoid conflicts
+        trace_info = shared_gui_refs['status_var_gantry'].trace_info()
+        for trace in trace_info:
+            if 'write' in trace[0]:
+                try:
+                    shared_gui_refs['status_var_gantry'].trace_remove('write', trace[1])
+                except Exception as e:
+                    pass
+        
+        def gantry_conn_tracer(*args):
+            full_status = shared_gui_refs['status_var_gantry'].get()
+            if '(' in full_status and ')' in full_status:
+                try:
+                    address = full_status.split('(')[1].split(')')[0]
+                    if 'SIM' in full_status.upper() or 'SIMULATOR' in full_status.upper():
+                        ip_label.config(text="[Simulator]", foreground=theme.WARNING_YELLOW)
+                    else:
+                        # Show @ for both IP addresses and COM ports
+                        ip_label.config(text=f"@ {address}", foreground=theme.SUCCESS_GREEN)
+                except (IndexError, AttributeError):
+                    ip_label.config(text="", foreground=theme.COMMENT_COLOR)
+            else:
+                ip_label.config(text="", foreground=theme.COMMENT_COLOR)
+        
+        shared_gui_refs['status_var_gantry'].trace_add('write', gantry_conn_tracer)
+        gantry_conn_tracer()
+        
+        # Also schedule a delayed update to catch any timing issues
+        def delayed_update():
+            gantry_conn_tracer()
+        parent.after(100, delayed_update)
 
     gantry_axes_data = [
         {'label': 'X', 'pos_var': 'gantry_x_pos_var', 'homed_var': 'gantry_x_homed_var', 'torque_var': 'gantry_x_torque_var', 'state_var': 'gantry_x_state_var'},

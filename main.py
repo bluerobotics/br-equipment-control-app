@@ -638,6 +638,9 @@ class MainApplication:
         self.command_reference_instance.pack(fill=tk.BOTH, expand=True)
         self.command_reference_instance.refresh()
         
+        # Add command reference to shared_gui_refs so it can be accessed by comms
+        self.shared_gui_refs['command_reference'] = self.command_reference_instance
+        
         # Dynamically adjust device pane width based on content
         def adjust_device_pane_width():
             try:
@@ -957,6 +960,10 @@ class MainApplication:
         threading.Thread(target=comms.recv_loop, args=(self.shared_gui_refs, self.device_manager), daemon=True).start()
         threading.Thread(target=comms.monitor_connections, args=(self.shared_gui_refs, self.device_manager), daemon=True).start()
         threading.Thread(target=comms.discovery_loop, args=(self.shared_gui_refs,), daemon=True).start()
+        
+        # Auto-connect to devices that were last connected via USB
+        self.root.after(1000, self.device_manager.auto_connect_usb_devices)
+        
         self.animate_searching_text()
         self.process_gui_queue()
         self.root.mainloop()

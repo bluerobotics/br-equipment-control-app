@@ -7,6 +7,7 @@ import json
 import threading
 import socket
 import time
+import connection_config
 
 class DeviceManager:
     def __init__(self, shared_gui_refs, devices_path=None):
@@ -113,10 +114,20 @@ class DeviceManager:
                         'config': {}, # Keep the key for consistent structure, but it's now unused
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
+                    # Load saved connection config
+                    saved_config = connection_config.load_connection_config(device_name)
+                    connection_method = 'network'
+                    serial_port = None
+                    if saved_config:
+                        connection_method = saved_config.get('connection_method', 'network')
+                        serial_port = saved_config.get('serial_port')
+                    
                     # Initialize the state for this device
                     self.device_state[device_name] = {
                         "ip": None,
                         "last_rx": 0,
+                        "connection_method": connection_method,
+                        "serial_port": serial_port,
                         "connected": False,
                         "last_discovery_attempt": 0,
                         "simulated": False,
@@ -126,6 +137,11 @@ class DeviceManager:
                         "fw_check_scheduled": False
                     }
                     self.log(f"Successfully loaded device module: {device_name}")
+                    
+                    # Auto-connect to USB if that was the saved preference
+                    if connection_method == 'usb' and serial_port:
+                        self.log(f"{device_name}: Will attempt USB connection on {serial_port}")
+                        # Connection will be attempted when GUI is ready
 
                 except ImportError as e:
                     self.log(f"Failed to load device modules for '{device_name}': {e}")
@@ -200,6 +216,8 @@ class DeviceManager:
                     self.device_state[device_name] = {
                         "ip": None,
                         "last_rx": 0,
+                        "connection_method": "network",  # 'network' or 'usb'
+                        "serial_port": None,
                         "connected": False,
                         "last_discovery_attempt": 0,
                         "simulated": False,
@@ -281,8 +299,13 @@ class DeviceManager:
         print(message) # Also print to console for immediate feedback
         self.discovery_logs.append(message)
     
-    def start_simulator(self, device_name):
-        """Start a simulator thread for a specific device."""
+    def start_simulator(self, device_name, connection_type='network'):
+        """Start a simulator thread for a specific device.
+        
+        Args:
+            device_name (str): Name of the device to simulate
+            connection_type (str): 'network' for local network (127.0.0.1) or 'usb' for virtual USB
+        """
         if device_name in self.simulator_threads:
             # Already running
             return
@@ -317,7 +340,7 @@ class DeviceManager:
         # Start simulator thread
         thread = threading.Thread(
             target=self._simulator_worker,
-            args=(device_name, sim_socket, initial_state, stop_flag, device_port),
+            args=(device_name, sim_socket, initial_state, stop_flag, device_port, connection_type),
             daemon=True
         )
         thread.start()
@@ -326,17 +349,29 @@ class DeviceManager:
             'thread': thread,
             'stop_flag': stop_flag,
             'socket': sim_socket,
-            'port': device_port
+            'port': device_port,
+            'connection_type': connection_type
         }
         
         # Mark as simulated, but let discovery handle the connection
         self.device_state[device_name]['simulated'] = True
         
-        self.log(f"Started simulator for {device_name} on port {device_port}")
-        
-        # Trigger a discovery to connect to the newly started simulator
-        import comms
-        comms.discover_devices(self.shared_gui_refs)
+        # If USB simulation, set connection method to USB with virtual port
+        if connection_type == 'usb':
+            virtual_port = "VIRTUAL_COM"
+            self.set_connection_method(device_name, 'usb', virtual_port)
+            self.log(f"Started USB simulator for {device_name} (virtual port: {virtual_port})")
+            
+            # Start virtual USB listener
+            import comms
+            import serial_comms
+            # For USB simulation, we'll inject messages directly via handle_serial_message
+            # No need for actual serial connection
+        else:
+            self.log(f"Started network simulator for {device_name} on 127.0.0.1:{device_port}")
+            # Trigger a discovery to connect to the newly started simulator
+            import comms
+            comms.discover_devices(self.shared_gui_refs)
     
     def stop_simulator(self, device_name):
         """Stop the simulator thread for a specific device."""
@@ -356,8 +391,12 @@ class DeviceManager:
         
         self.log(f"Stopped simulator for {device_name}")
     
-    def _simulator_worker(self, device_name, sim_socket, state, stop_flag, port):
-        """Worker thread for device simulator."""
+    def _simulator_worker(self, device_name, sim_socket, state, stop_flag, port, connection_type='network'):
+        """Worker thread for device simulator.
+        
+        Args:
+            connection_type (str): 'network' for UDP or 'usb' for simulated serial
+        """
         gui_port = 6272
         telemetry_interval = 0.1  # 10 Hz (100ms)
         last_telemetry = 0
@@ -367,10 +406,20 @@ class DeviceManager:
             current_time = time.time()
             if current_time - last_telemetry >= telemetry_interval:
                 telemetry_msg = f"{device_name}_TELEM:" + ";".join([f"{k}={v}" for k, v in state.items()])
-                try:
-                    sim_socket.sendto(telemetry_msg.encode(), ('127.0.0.1', gui_port))
-                except:
-                    pass
+                
+                if connection_type == 'usb':
+                    # For USB simulation, send directly via handle_serial_message
+                    try:
+                        import comms
+                        comms.handle_serial_message(device_name, telemetry_msg, self.shared_gui_refs, self)
+                    except:
+                        pass
+                else:
+                    # For network simulation, send via UDP
+                    try:
+                        sim_socket.sendto(telemetry_msg.encode(), ('127.0.0.1', gui_port))
+                    except:
+                        pass
                 last_telemetry = current_time
             
             # Receive commands
@@ -381,12 +430,30 @@ class DeviceManager:
                 # Handle discovery messages
                 if message.startswith("DISCOVER_DEVICE"):
                     # Send discovery response (format: DISCOVERY_RESPONSE: DEVICE_ID=devicename PORT=port)
-                    response = f"DISCOVERY_RESPONSE: DEVICE_ID={device_name} PORT={port}"
-                    sim_socket.sendto(response.encode(), addr)
+                    response = f"DISCOVERY_RESPONSE: DEVICE_ID={device_name} PORT={port} FW=SIM"
+                    
+                    if connection_type == 'usb':
+                        # For USB, inject response directly
+                        try:
+                            import comms
+                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, self)
+                        except:
+                            pass
+                    else:
+                        sim_socket.sendto(response.encode(), addr)
                 else:
                     # Send acknowledgment for other commands
-                    response = f"{device_name.upper()}_STATUS:{message}:DONE"
-                    sim_socket.sendto(response.encode(), addr)
+                    response = f"{device_name.upper()}_DONE: {message}"
+                    
+                    if connection_type == 'usb':
+                        # For USB, inject response directly
+                        try:
+                            import comms
+                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, self)
+                        except:
+                            pass
+                    else:
+                        sim_socket.sendto(response.encode(), addr)
                     
                     # Update state based on command (simplified)
                     # You can enhance this with device-specific simulators
@@ -485,6 +552,70 @@ class DeviceManager:
         """Updates the connection state for a specific device."""
         if device_name in self.device_state:
             self.device_state[device_name].update(new_state)
+    
+    def set_connection_method(self, device_name, method, serial_port=None):
+        """
+        Sets the connection method for a device.
+        
+        Args:
+            device_name (str): Name of the device
+            method (str): 'network' or 'usb'
+            serial_port (str): Serial port name if method is 'usb', None otherwise
+        """
+        if device_name in self.device_state:
+            self.device_state[device_name]['connection_method'] = method
+            if method == 'usb':
+                self.device_state[device_name]['serial_port'] = serial_port
+            else:
+                self.device_state[device_name]['serial_port'] = None
+            
+            # Save to persistent config
+            connection_config.save_connection_config(device_name, method, serial_port)
+            
+            self.log(f"{device_name}: Connection method set to {method}" + 
+                    (f" ({serial_port})" if serial_port else ""))
+    
+    def get_connection_method(self, device_name):
+        """Returns the connection method for a device ('network' or 'usb')."""
+        if device_name in self.device_state:
+            return self.device_state[device_name].get('connection_method', 'network')
+        return 'network'
+    
+    def auto_connect_usb_devices(self):
+        """Automatically connects to devices that were last connected via USB."""
+        import serial_comms
+        import comms
+        
+        any_usb_connected = False
+        
+        for device_name, device_state in self.device_state.items():
+            if device_state.get('connection_method') == 'usb' and device_state.get('serial_port'):
+                port = device_state['serial_port']
+                self.log(f"{device_name}: Auto-connecting to USB on {port}")
+                
+                # Update status variable
+                status_text = f"{device_name.capitalize()} ({port})"
+                status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
+                if status_var:
+                    status_var.set(status_text)
+                
+                # Start USB listener
+                try:
+                    success = serial_comms.connect_serial_device(
+                        port,
+                        device_name,
+                        comms.handle_serial_message,
+                        self.shared_gui_refs,
+                        self
+                    )
+                    
+                    if success:
+                        comms.log_to_terminal(f"{device_name}: Auto-connected via USB on {port}", self.shared_gui_refs)
+                        any_usb_connected = True
+                    else:
+                        comms.log_to_terminal(f"{device_name}: Failed to auto-connect to {port}", self.shared_gui_refs)
+                except Exception as e:
+                    comms.log_to_terminal(f"{device_name}: Error auto-connecting to {port}: {e}", self.shared_gui_refs)
 
     def get_all_scripting_commands(self):
         """

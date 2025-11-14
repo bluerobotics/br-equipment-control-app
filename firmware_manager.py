@@ -125,16 +125,7 @@ class FirmwareManagerWindow(tk.Toplevel):
             text="Manage firmware for supported ClearCore devices.",
             style='Header.TLabel'
         )
-        header.grid(row=0, column=0, sticky='w')
-
-        note = ttk.Label(
-            container,
-            text="Check for updates to compare with GitHub releases, or flash the latest firmware directly.",
-            style='Subtle.TLabel',
-            wraplength=420,
-            justify='left'
-        )
-        note.grid(row=1, column=0, sticky='w', pady=(4, 16))
+        header.grid(row=0, column=0, sticky='w', pady=(0, 16))
 
         devices = sorted(CLEARCORE_DEVICE_CONFIG.items(), key=lambda item: item[0])
         if not devices:
@@ -150,7 +141,7 @@ class FirmwareManagerWindow(tk.Toplevel):
             )
             frame.grid(row=idx, column=0, sticky='nsew', pady=(0, 12))
             frame.columnconfigure(1, weight=1)
-            frame.rowconfigure(5, weight=1)
+            frame.rowconfigure(4, weight=1)
             container.rowconfigure(idx, weight=1)
 
             connection_var = tk.StringVar(value="Disconnected")
@@ -164,19 +155,15 @@ class FirmwareManagerWindow(tk.Toplevel):
             usb_label = ttk.Label(frame, textvariable=usb_var, style='TLabel')
             usb_label.grid(row=0, column=1, sticky='w')
 
-            ttk.Label(frame, text="LAN Connection:", style='Subtle.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
-            lan_label = ttk.Label(frame, textvariable=connection_var, style='TLabel')
-            lan_label.grid(row=1, column=1, sticky='w', pady=(4, 0))
-
-            ttk.Label(frame, text="Current Version:", style='Subtle.TLabel').grid(row=2, column=0, sticky='w', pady=(4, 0))
+            ttk.Label(frame, text="Current Version:", style='Subtle.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
             current_label = ttk.Label(frame, textvariable=current_var, style='TLabel')
-            current_label.grid(row=2, column=1, sticky='w', pady=(4, 0))
+            current_label.grid(row=1, column=1, sticky='w', pady=(4, 0))
 
-            ttk.Label(frame, text="Latest Release:", style='Subtle.TLabel').grid(row=3, column=0, sticky='w', pady=(4, 0))
+            ttk.Label(frame, text="Latest Release:", style='Subtle.TLabel').grid(row=2, column=0, sticky='w', pady=(4, 0))
             latest_label = ttk.Label(frame, textvariable=latest_var, style='TLabel')
-            latest_label.grid(row=3, column=1, sticky='w', pady=(4, 0))
+            latest_label.grid(row=2, column=1, sticky='w', pady=(4, 0))
 
-            ttk.Label(frame, text="Available Releases:", style='Subtle.TLabel').grid(row=4, column=0, sticky='nw', pady=(6, 0))
+            ttk.Label(frame, text="Available Releases:", style='Subtle.TLabel').grid(row=3, column=0, sticky='nw', pady=(6, 0))
             release_combo = ttk.Combobox(
                 frame,
                 textvariable=release_var,
@@ -184,11 +171,11 @@ class FirmwareManagerWindow(tk.Toplevel):
                 width=28,
                 style='Firmware.TCombobox'
             )
-            release_combo.grid(row=4, column=1, sticky='we', pady=(6, 0))
+            release_combo.grid(row=3, column=1, sticky='we', pady=(6, 0))
             release_combo.bind("<<ComboboxSelected>>", lambda _evt, key=device_key: self.on_release_selected(key))
 
             notes_label = ttk.Label(frame, text="Release Notes:", style='Subtle.TLabel')
-            notes_label.grid(row=5, column=0, sticky='nw', pady=(6, 0))
+            notes_label.grid(row=4, column=0, sticky='nw', pady=(6, 0))
             notes_widget = scrolledtext.ScrolledText(
                 frame,
                 height=6,
@@ -199,7 +186,7 @@ class FirmwareManagerWindow(tk.Toplevel):
                 borderwidth=0,
                 font=getattr(theme, "FONT_SMALL", theme.FONT_NORMAL),
             )
-            notes_widget.grid(row=5, column=1, sticky='nsew', pady=(6, 0))
+            notes_widget.grid(row=4, column=1, sticky='nsew', pady=(6, 0))
             notes_widget.configure(
                 state='disabled',
                 cursor='arrow',
@@ -208,10 +195,10 @@ class FirmwareManagerWindow(tk.Toplevel):
             )
 
             status_label = ttk.Label(frame, textvariable=status_var, style='Status.TLabel', wraplength=520, justify='left')
-            status_label.grid(row=6, column=0, columnspan=2, sticky='we', pady=(10, 8))
+            status_label.grid(row=5, column=0, columnspan=2, sticky='we', pady=(10, 8))
 
             button_row = ttk.Frame(frame, style='TFrame')
-            button_row.grid(row=7, column=0, columnspan=2, sticky='e')
+            button_row.grid(row=6, column=0, columnspan=2, sticky='w')
 
             check_button = ttk.Button(
                 button_row,
@@ -265,7 +252,6 @@ class FirmwareManagerWindow(tk.Toplevel):
             clear_button.pack(side=tk.LEFT)
 
             self.rows[device_key] = {
-                'lan_var': connection_var,
                 'current_var': current_var,
                 'latest_var': latest_var,
                 'status_var': status_var,
@@ -275,7 +261,6 @@ class FirmwareManagerWindow(tk.Toplevel):
                 'release_combo': release_combo,
                 'release_notes': notes_widget,
                 'current_label': current_label,
-                'lan_label': lan_label,
                 'usb_var': usb_var,
                 'usb_label': usb_label,
                 'latest_label': latest_label,
@@ -293,15 +278,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         for device_key, row in self.rows.items():
             state = self.device_manager.get_device_state(device_key) or {}
             connected = bool(state.get('connected'))
-            ip = state.get('ip')
-            if connected and ip:
-                lan_text = f"Connected (LAN @ {ip})"
-            elif connected:
-                lan_text = "Connected"
-            else:
-                lan_text = "Disconnected"
-            row['lan_var'].set(lan_text)
-            self._update_lan_style(row, connected)
             self._update_usb_info(device_key)
 
             firmware_version = state.get('firmware_version') or "Unknown"
@@ -816,6 +792,8 @@ class FirmwareManagerWindow(tk.Toplevel):
             pass
 
     def _update_lan_style(self, row, connected):
+        # Removed - LAN connection display no longer shown
+        return
         label = row.get('lan_label')
         if not label:
             return
