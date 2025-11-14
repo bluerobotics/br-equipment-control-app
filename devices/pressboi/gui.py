@@ -126,23 +126,15 @@ def create_device_frame(parent, title, state_var, conn_var):
 
     header_frame = ttk.Frame(container, style='Card.TFrame')
     header_frame.pack(fill='x', expand=True, anchor='n')
-
-    # Top row: title and state
-    top_row = ttk.Frame(header_frame, style='Card.TFrame')
-    top_row.pack(fill='x', expand=True)
     
-    title_label = ttk.Label(top_row, text=title.lower(), font=theme.FONT_LARGE_BOLD, foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
-    title_label.pack(side=tk.LEFT)
-
-    state_label = ttk.Label(top_row, textvariable=state_var, font=theme.FONT_LARGE_BOLD, style='Subtle.TLabel')
+    title_label = ttk.Label(header_frame, text=title.lower(), font=theme.FONT_LARGE_BOLD, foreground=theme.DEVICE_COLOR, style='Subtle.TLabel')
+    title_label.pack(side=tk.LEFT, padx=(0, 5))
+    
+    ip_label = ttk.Label(header_frame, text="", font=theme.FONT_SMALL, style='Subtle.TLabel')
+    ip_label.pack(side=tk.LEFT, anchor='sw', pady=(0, 2))
+    
+    state_label = ttk.Label(header_frame, textvariable=state_var, font=theme.FONT_BOLD, style='Subtle.TLabel')
     state_label.pack(side=tk.RIGHT)
-    
-    # Bottom row: IP/connection info
-    # Use tk.Label instead of ttk.Label for better control on macOS
-    ip_label = tk.Label(header_frame, text="", font=theme.FONT_SMALL, 
-                        bg=theme.CARD_BG, fg=theme.FG_COLOR,
-                        anchor='w')
-    ip_label.pack(fill='x', pady=(2, 0))
     state_label.tracer = make_state_tracer(state_var, state_label)
     state_var.trace_add('write', state_label.tracer)
     state_label.tracer()
@@ -239,45 +231,38 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Override the IP label tracer for pressboi to show "Connected @ IP"
     ip_label = getattr(outer_container, 'ip_label', None)
-    print(f"[PRESSBOI] IP label retrieved: {ip_label}")
     if ip_label is not None:
+        # Find and remove the default tracer from create_device_frame
+        container = outer_container.winfo_children()[0]
+        header_frame = container.winfo_children()[0]
+        
+        # Remove all existing tracers on this variable to avoid conflicts
+        trace_info = shared_gui_refs['status_var_pressboi'].trace_info()
+        for trace in trace_info:
+            if 'write' in trace[0]:
+                try:
+                    shared_gui_refs['status_var_pressboi'].trace_remove('write', trace[1])
+                except Exception as e:
+                    pass
+        
         def pressboi_conn_tracer(*args):
             full_status = shared_gui_refs['status_var_pressboi'].get()
-            print(f"[PRESSBOI] Custom tracer called with status: '{full_status}'")
-            print(f"[PRESSBOI] Current ip_label text: '{ip_label.cget('text')}'")
             if '(' in full_status and ')' in full_status:
                 try:
                     ip_address = full_status.split('(')[1].split(')')[0]
                     if 'SIM' in full_status.upper() or 'SIMULATOR' in full_status.upper():
                         ip_label.config(text="[Simulator]", foreground=theme.WARNING_YELLOW)
-                        print(f"[PRESSBOI] Set to [Simulator]")
                     elif ip_address.startswith('COM') or ip_address.startswith('/dev/'):
                         ip_label.config(text=f"[{ip_address}]", foreground=theme.SUCCESS_GREEN)
-                        print(f"[PRESSBOI] Set to [{ip_address}]")
                     else:
-                        ip_label.config(text=f"Connected @ {ip_address}", foreground=theme.SUCCESS_GREEN)
-                        print(f"[PRESSBOI] Set to 'Connected @ {ip_address}'")
-                        print(f"[PRESSBOI] After setting, text is: '{ip_label.cget('text')}'")
-                        ip_label.update_idletasks()
-                        print(f"[PRESSBOI] Label width: {ip_label.winfo_width()}, height: {ip_label.winfo_height()}")
-                        print(f"[PRESSBOI] Label visible: {ip_label.winfo_viewable()}, mapped: {ip_label.winfo_ismapped()}")
-                        print(f"[PRESSBOI] Label foreground: {ip_label.cget('foreground')}")
-                        print(f"[PRESSBOI] Label font: {ip_label.cget('font')}")
-                except (IndexError, AttributeError) as e:
+                        ip_label.config(text=f"@ {ip_address}", foreground=theme.SUCCESS_GREEN)
+                except (IndexError, AttributeError):
                     ip_label.config(text="", foreground=theme.COMMENT_COLOR)
-                    print(f"[PRESSBOI] Error: {e}")
             else:
                 ip_label.config(text="", foreground=theme.COMMENT_COLOR)
-                print(f"[PRESSBOI] No IP found, clearing")
+        
         shared_gui_refs['status_var_pressboi'].trace_add('write', pressboi_conn_tracer)
         pressboi_conn_tracer()
-        print(f"[PRESSBOI] Custom tracer installed and called once")
-        
-        # Force update after a delay to ensure widget is mapped
-        def delayed_update():
-            pressboi_conn_tracer()
-            print(f"[PRESSBOI] Delayed update - width: {ip_label.winfo_width()}, visible: {ip_label.winfo_viewable()}")
-        outer_container.after(500, delayed_update)
     
     # === Single Container for ALL data ===
     data_container = ttk.Frame(content_frame, style='Card.TFrame', padding=10)
