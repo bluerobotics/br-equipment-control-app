@@ -1417,11 +1417,19 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         is_running = script_runner is not None and script_runner.is_running
         # Check both feed_hold_line and script_runner.is_held for holding state
         is_holding = feed_hold_line is not None or (script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held)
-        print(f"[refresh_button_states] Running: {is_running}, Holding: {is_holding}")
+        # Check if we're in error hold state (vs normal hold)
+        is_error_hold = is_holding and script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held
+        print(f"[refresh_button_states] Running: {is_running}, Holding: {is_holding}, Error hold: {is_error_hold}")
         
         if is_holding:
-            run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
-            hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Holding')
+            # If error hold, disable Run button and show "Resume" in Hold button
+            if is_error_hold:
+                run_button.config(state=tk.DISABLED, style='Green.TButton', text='Run')
+                hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Resume')
+            else:
+                # Normal hold (user clicked Hold)
+                run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
+                hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Holding')
         elif is_running:
             run_button.config(state=tk.DISABLED, style='Running.Green.TButton', text='Running...')
             hold_button.config(state=tk.NORMAL, style='Red.TButton', text='Hold')
@@ -1799,11 +1807,28 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     status_label.pack(side=tk.LEFT, padx=10, pady=(5, 5), fill=tk.X, expand=True)
     update_window_title()
 
-    # --- Callback to reset status color ---
-    def reset_status_color(*args):
-        status_label.config(foreground=theme.PRIMARY_ACCENT)
+    # --- Callback to update status color based on message type ---
+    def update_status_color(*args):
+        message = status_var.get().upper()
+        
+        # Set color based on message content (like terminal)
+        if any(keyword in message for keyword in ["ERROR", "_ERROR:", "FAILED", "FAULT", "EXCEPTION"]):
+            status_label.config(foreground=theme.ERROR_RED)
+            control_frame.config(style='Error.TFrame')  # Red tint
+        elif any(keyword in message for keyword in ["WARNING", "WARN"]):
+            status_label.config(foreground=theme.WARNING_YELLOW)
+            control_frame.config(style='TFrame')  # Normal background
+        elif any(keyword in message for keyword in ["DONE", "SUCCESS", "COMPLETE", "PASSED"]):
+            status_label.config(foreground=theme.SUCCESS_GREEN)
+            control_frame.config(style='TFrame')  # Normal background
+        elif any(keyword in message for keyword in ["INFO", "START", "RUNNING"]):
+            status_label.config(foreground=theme.PRIMARY_ACCENT)
+            control_frame.config(style='TFrame')  # Normal background
+        else:
+            status_label.config(foreground=theme.PRIMARY_ACCENT)
+            control_frame.config(style='TFrame')  # Normal background
 
-    status_var.trace_add("write", reset_status_color)
+    status_var.trace_add("write", update_status_color)
 
 
     # --- Return file commands and menu update callback ---
