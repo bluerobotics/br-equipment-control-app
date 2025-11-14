@@ -1715,14 +1715,25 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             print(f"[RESET] Stopping running script")
             script_runner.stop()
         
+        # Clear error hold state
+        if script_runner and hasattr(script_runner, 'is_held'):
+            script_runner.is_held = False
+        
         is_held_by_user = False # Ensure reset clears any hold state
         paused_device = None # Clear paused device
+        feed_hold_line = None # Clear feed hold line
         shared_gui_refs['command_funcs']['abort']()
 
         # Explicitly clear any lingering execution and error highlights immediately.
         script_editor.tag_remove("exec_highlight", "1.0", tk.END)
         script_editor.tag_remove("error_highlight", "1.0", tk.END)
         last_exec_highlight = -1 # Reset the tracker
+        
+        # Refresh button states to restore normal state
+        refresh_button_states()
+        
+        # Reset status message and clear error background
+        status_var.set("Reset complete.")
 
         # Send reset to all devices that are currently connected.
         device_manager = shared_gui_refs.get('device_manager')
