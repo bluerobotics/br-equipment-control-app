@@ -976,6 +976,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             # The root.after is crucial to prevent threading issues with Tkinter
             root.after(0, lambda: status_label.config(foreground=theme.ERROR_RED)) # Bright Red
             root.after(0, lambda: status_var.set(message))
+            
+            # Trigger script hold if script is running
+            nonlocal script_runner, is_held_by_user, feed_hold_line, last_exec_highlight
+            if script_runner and script_runner.is_running:
+                is_held_by_user = True
+                feed_hold_line = last_exec_highlight
+                shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
+                root.after(0, refresh_button_states)  # Update UI to show held state
 
         if "DONE:" in message: message_queue.put(message)
         if original_terminal_cb: original_terminal_cb(message)
