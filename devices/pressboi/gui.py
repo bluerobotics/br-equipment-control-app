@@ -37,10 +37,10 @@ def draw_vertical_text(canvas, x, y, text, font, fill, anchor="center"):
         canvas.create_text(x, char_y, text=char, font=font, fill=fill, anchor="center")
 
 def make_homed_tracer(var, label_to_color):
-    """Changes a label's color based on 'Homed' status."""
+    """Changes a label's color based on 'homed' status."""
     def tracer(*args):
         state = var.get()
-        if state == 'Homed':
+        if state == 'homed':
             label_to_color.config(foreground=theme.SUCCESS_GREEN)
         else:
             label_to_color.config(foreground=theme.ERROR_RED)
@@ -186,10 +186,10 @@ def create_gui_components(parent, shared_gui_refs):
             e0 = shared_gui_refs['pressboi_enabled0_var'].get()
             e1 = shared_gui_refs['pressboi_enabled1_var'].get()
             # Both should be enabled for combined to show enabled
-            if e0 == "Enabled" and e1 == "Enabled":
-                shared_gui_refs['pressboi_enabled_combined_var'].set("Enabled")
+            if e0 == "enabled" and e1 == "enabled":
+                shared_gui_refs['pressboi_enabled_combined_var'].set("enabled")
             else:
-                shared_gui_refs['pressboi_enabled_combined_var'].set("Disabled")
+                shared_gui_refs['pressboi_enabled_combined_var'].set("disabled")
         except:
             shared_gui_refs['pressboi_enabled_combined_var'].set("---")
     
@@ -363,7 +363,7 @@ def create_gui_components(parent, shared_gui_refs):
             main_state = shared_gui_refs['pressboi_main_state_var'].get().upper()
             
             # If not homed, everything is red
-            if homed_state != 'Homed':
+            if homed_state != 'homed':
                 pos_label.config(foreground=theme.ERROR_RED)
                 current_pos_label.config(foreground=theme.ERROR_RED)
                 target_pos_label.config(foreground=theme.ERROR_RED)
