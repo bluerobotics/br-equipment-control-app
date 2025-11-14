@@ -1427,7 +1427,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             status_var.set(message)
             
             # If we received an ERROR message during script execution, trigger hold (same as Hold button)
-            if "ERROR:" in message and script_runner and script_runner.is_running:
+            if "_ERROR:" in message and script_runner and script_runner.is_running:
                 is_held_by_user = True
                 feed_hold_line = line_num if line_num != -1 else last_exec_highlight
                 shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
