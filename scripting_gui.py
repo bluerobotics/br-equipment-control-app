@@ -977,12 +977,15 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             root.after(0, lambda: status_label.config(foreground=theme.ERROR_RED)) # Bright Red
             root.after(0, lambda: status_var.set(message))
             
-            # Trigger script hold if script is running
+            # Trigger script hold if script is running (but don't send cancel - device is already handling the error)
             nonlocal script_runner, is_held_by_user, feed_hold_line, last_exec_highlight
             if script_runner and script_runner.is_running:
                 is_held_by_user = True
                 feed_hold_line = last_exec_highlight
-                shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
+                # Don't call abort() - it would interrupt the device's error handling (e.g. retract)
+                # Just put the script runner into hold state
+                if hasattr(script_runner, 'is_held'):
+                    script_runner.is_held = True
                 root.after(0, refresh_button_states)  # Update UI to show held state
 
         if "DONE:" in message: message_queue.put(message)
