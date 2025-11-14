@@ -330,6 +330,21 @@ class MainApplication:
             background=[('pressed', theme.PRESSED_HOLDING_RED), ('active', theme.ACTIVE_HOLDING_RED)],
             foreground=[('pressed', 'white'), ('active', 'white')],
             relief=[('pressed', 'sunken'), ('active', 'raised')],
+        )
+        
+        # Error hold style - no mouseover highlight
+        self.style.configure('ErrorHold.Red.TButton', background=theme.HOLDING_RED, foreground='white', font=theme.FONT_BOLD, borderwidth=1, bordercolor=theme.HOLDING_RED)
+        self.style.map('ErrorHold.Red.TButton', 
+            background=[('pressed', theme.PRESSED_HOLDING_RED)],  # No 'active' state
+            foreground=[('pressed', 'white')],
+            relief=[('pressed', 'sunken')],
+        )
+        
+        # Disabled green button (grey)
+        self.style.configure('Disabled.Green.TButton', background='#4a4a4a', foreground='#808080', font=theme.FONT_BOLD, borderwidth=1, bordercolor='#4a4a4a')
+        self.style.map('Disabled.Green.TButton', 
+            background=[('disabled', '#4a4a4a')],
+            foreground=[('disabled', '#808080')],
             bordercolor=[('active', theme.FG_COLOR), ('!active', theme.HOLDING_RED)]
         )
         

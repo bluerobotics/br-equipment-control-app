@@ -1424,8 +1424,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if is_holding:
             # Always show "Holding" and keep Run button disabled for error hold
             if is_error_hold:
-                run_button.config(state=tk.DISABLED, style='Green.TButton', text='Run')
-                hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Holding')
+                run_button.config(state=tk.DISABLED, style='Disabled.Green.TButton', text='Run')
+                hold_button.config(state=tk.NORMAL, style='ErrorHold.Red.TButton', text='Holding')
             else:
                 # Normal hold (user clicked Hold)
                 run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
