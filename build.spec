@@ -95,7 +95,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico' if sys.platform == 'win32' else None,
+    icon='assets/icon.ico' if sys.platform == 'win32' else 'assets/icon.icns',
 )
 
 coll = COLLECT(
@@ -114,7 +114,7 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='br-equipment-control-app.app',
-        icon=None,  # Icon can be set manually later if needed
+        icon='assets/icon.icns',
         bundle_identifier='com.bluerobotics.equipment-control',
         info_plist={
             'NSPrincipalClass': 'NSApplication',
