@@ -561,6 +561,12 @@ def recv_loop(gui_refs, device_manager):
                                 device_fw = value
                     
                     if device_key and device_key in device_modules:
+                        # Check if device is configured for USB - if so, ignore network discovery
+                        with devices_lock:
+                            device_state = device_manager.get_device_state(device_key)
+                            if device_state and device_state.get('connection_method') == 'usb':
+                                continue  # Ignore network discovery for USB devices
+                        
                         # Store the port if provided, otherwise use default
                         if device_port:
                             with devices_lock:
@@ -582,6 +588,12 @@ def recv_loop(gui_refs, device_manager):
                 try:
                     device_key = msg.split("_TELEM:")[0].lower()
                     if device_key in device_modules:
+                        # Check if device is configured for USB - if so, ignore network telemetry
+                        with devices_lock:
+                            device_state = device_manager.get_device_state(device_key)
+                            if device_state and device_state.get('connection_method') == 'usb':
+                                continue  # Ignore network telemetry for USB devices
+                        
                         handle_connection(device_key, source_ip, gui_refs, device_manager)
                         if log_telemetry:
                             log_to_terminal(f"[TELEM @{source_ip}]: {msg}", gui_refs)
@@ -614,6 +626,9 @@ def recv_loop(gui_refs, device_manager):
                 with devices_lock:
                     for key, device_state in device_manager.get_all_device_states().items():
                         if device_state["ip"] == source_ip:
+                            # Ignore if device is configured for USB
+                            if device_state.get('connection_method') == 'usb':
+                                continue
                             device_manager.update_device_state(key, {"last_rx": time.time()})
                             # Queue a warning dialog to show on the main GUI thread
                             device_name = key.upper()
@@ -627,18 +642,36 @@ def recv_loop(gui_refs, device_manager):
                     log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
                     continue
 
+                # Check if device is configured for USB - if so, ignore network messages
+                with devices_lock:
+                    device_state = device_manager.get_device_state(device_key.lower())
+                    if device_state and device_state.get('connection_method') == 'usb':
+                        continue
+
                 show_cb = gui_refs.get('show_nvm_dump_cb')
                 if show_cb:
                     if gui_queue := gui_refs.get('gui_queue'):
                         gui_queue.put((show_cb, (device_key.lower(), payload), {}))
                 log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
             elif is_status_message(msg, device_manager):
-                log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
+                # Check which device this message is from
+                device_key_for_msg = None
                 with devices_lock:
                     for key, device_state in device_manager.get_all_device_states().items():
                         if device_state["ip"] == source_ip:
+                            device_key_for_msg = key
+                            # Ignore if device is configured for USB
+                            if device_state.get('connection_method') == 'usb':
+                                continue
                             device_manager.update_device_state(key, {"last_rx": time.time()})
                             break
+                
+                # Only log if device is not configured for USB
+                if device_key_for_msg:
+                    with devices_lock:
+                        device_state = device_manager.get_device_state(device_key_for_msg)
+                        if device_state and device_state.get('connection_method') != 'usb':
+                            log_to_terminal(f"[STATUS @{source_ip}]: {msg}", gui_refs)
             else:
                 log_to_terminal(f"[UNHANDLED @{source_ip}]: {msg}", gui_refs)
 
