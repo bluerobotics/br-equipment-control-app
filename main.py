@@ -375,7 +375,7 @@ class MainApplication:
         self.style.configure('Card.TFrame', background=theme.CARD_BG)
         self.style.configure('Subtle.TLabel', background=theme.CARD_BG, foreground=theme.COMMENT_COLOR, font=theme.FONT_NORMAL)
         self.style.configure('CardBorder.TFrame', background=theme.SECONDARY_ACCENT)
-        self.style.configure('Error.TFrame', background='#3d1a1a')  # Dark red tint for error state
+        self.style.configure('Error.TFrame', background='#2d0f0f')  # Darker red background for error state
 
         # Custom Progress Bar (for torque meters)
         self.style.configure('Card.Vertical.TProgressbar', background=theme.PRIMARY_ACCENT, troughcolor=theme.CARD_BG)
