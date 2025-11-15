@@ -965,19 +965,24 @@ class ScriptRunner(threading.Thread):
                 elif token == 'throw':
                     # Stop processing at 'throw' - that's the action
                     break
-                elif '.' in token:
-                    # It's a variable - resolve it
-                    value = self._get_variable_value(token)
-                    if value is None:
-                        self.status_cb(f"Error: Variable {token} not found or has no value", line_num)
-                        return None
-                    resolved.append(float(value))
                 else:
-                    # It's a number
+                    # Try to parse as a number first
                     try:
                         resolved.append(float(token))
+                        continue
                     except ValueError:
-                        # Skip unknown tokens (like 'throw', 'action', etc.)
+                        pass
+                    
+                    # If it's not a number, check if it's a variable (device.variable format)
+                    if '.' in token:
+                        # It's a variable - resolve it
+                        value = self._get_variable_value(token)
+                        if value is None:
+                            self.status_cb(f"Error: Variable {token} not found or has no value", line_num)
+                            return None
+                        resolved.append(float(value))
+                    else:
+                        # Skip unknown tokens (like 'action', etc.)
                         continue
             
             # Debug output
