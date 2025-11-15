@@ -476,10 +476,10 @@ class ScriptRunner(threading.Thread):
                 # Log to both status line and terminal
                 self.status_cb(f"Cycle {iteration_num}", original_line_num)
                 
-                # Also log to terminal
+                # Also log to terminal as a system message
                 try:
                     import comms
-                    comms.log_to_terminal(f"Cycle {iteration_num}", self.gui_refs)
+                    comms.log_to_terminal(f"[SYSTEM] Cycle {iteration_num}", self.gui_refs)
                 except Exception:
                     pass  # Ignore if logging fails
                 
