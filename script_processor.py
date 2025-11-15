@@ -471,7 +471,8 @@ class ScriptRunner(threading.Thread):
             # Check for cycle iteration markers and log them
             if line.startswith('# CYCLE ITERATION '):
                 iteration_info = line.replace('# CYCLE ITERATION ', '')
-                self.status_cb(f"[CYCLE {iteration_info}] Starting iteration", original_line_num)
+                iteration_num = iteration_info.split('/')[0]  # Extract just the iteration number
+                self.status_cb(f"Cycle {iteration_num}", original_line_num)
                 continue
             
             if not line or line.startswith('#'):
