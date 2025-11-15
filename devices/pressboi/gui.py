@@ -164,7 +164,7 @@ def get_required_variables():
         'pressboi_current_pos_var', 'pressboi_retract_pos_var',
         'pressboi_target_pos_var', 'pressboi_homed_var',
         'pressboi_enabled0_var', 'pressboi_enabled1_var',
-        'pressboi_torque_avg_var', 'pressboi_joules_var', 'pressboi_enabled_combined_var'
+        'pressboi_torque_avg_var', 'pressboi_joules_var', 'pressboi_endpoint_var', 'pressboi_enabled_combined_var'
     ]
 
 # --- Main GUI Creation Function ---
@@ -447,6 +447,22 @@ def create_gui_components(parent, shared_gui_refs):
     ttk.Label(joules_row, textvariable=joules_display, 
               font=font_small, foreground=theme.PRIMARY_ACCENT, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
     ttk.Label(joules_row, text=" J", font=font_small, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel').pack(side=tk.LEFT)
+    
+    # Endpoint display (position where last move ended)
+    endpoint_row = ttk.Frame(pos_grid, style='Card.TFrame')
+    endpoint_row.grid(row=4, column=0, columnspan=4, sticky='w', pady=(0, 2))
+    
+    ttk.Label(endpoint_row, text="Endpoint:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 10))
+    
+    # Create display variable that strips " mm" from endpoint
+    endpoint_display = tk.StringVar(value='0.00')
+    endpoint_stripper = make_unit_stripper(shared_gui_refs['pressboi_endpoint_var'], endpoint_display, ' mm')
+    shared_gui_refs['pressboi_endpoint_var'].trace_add('write', endpoint_stripper)
+    endpoint_stripper()
+    
+    ttk.Label(endpoint_row, textvariable=endpoint_display, 
+              font=font_small, foreground=theme.PRIMARY_ACCENT, style='Subtle.TLabel', anchor='e').pack(side=tk.LEFT)
+    ttk.Label(endpoint_row, text=" mm", font=font_small, foreground=theme.COMMENT_COLOR, style='Subtle.TLabel').pack(side=tk.LEFT)
     
     ttk.Label(status_row, text="Motors:", font=font_small, style='Subtle.TLabel').pack(side=tk.LEFT, padx=(0, 5))
     enabled_value_label = ttk.Label(status_row, textvariable=shared_gui_refs['pressboi_enabled_combined_var'], 
