@@ -275,20 +275,26 @@ class ScriptRunner(threading.Thread):
                     print(f"[DEBUG] CYCLE found: line='{line.strip()}', parts={parts}, count={count}")
                     
                     line_indent = len(line) - len(line.lstrip(' '))
+                    print(f"[DEBUG] CYCLE line_indent={line_indent}, total lines in block={len(block_with_nums)}, current i={i}")
 
                     # Find the first non-empty, indented line to start the block
                     body_start_index = -1
                     block_indent = -1
                     for j in range(i + 1, len(block_with_nums)):
-                        if block_with_nums[j][0].strip():
-                            body_indent = len(block_with_nums[j][0]) - len(block_with_nums[j][0].lstrip(' '))
+                        peek_line = block_with_nums[j][0]
+                        print(f"[DEBUG] CYCLE scanning j={j}: '{peek_line}' (stripped: '{peek_line.strip()}')")
+                        if peek_line.strip():
+                            body_indent = len(peek_line) - len(peek_line.lstrip(' '))
+                            print(f"[DEBUG] CYCLE found non-empty line at j={j}, body_indent={body_indent}, line_indent={line_indent}")
                             if body_indent > line_indent:
                                 body_start_index = j
                                 block_indent = body_indent
+                                print(f"[DEBUG] CYCLE body starts at j={j}, block_indent={block_indent}")
                             break # Found first non-empty line, stop searching
 
                     # If no indented block was found, just skip the CYCLE line
                     if body_start_index == -1:
+                        print(f"[DEBUG] CYCLE: No indented block found, skipping")
                         i += 1
                         continue
 
