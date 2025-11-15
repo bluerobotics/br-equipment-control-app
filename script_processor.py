@@ -1345,10 +1345,11 @@ class ScriptRunner(threading.Thread):
                 print(f"[DEBUG] script_processor received: {msg}")
                 print(f"[DEBUG] waiting for: {wait_list}")
 
-                # Check for ERROR messages - put script in hold state
-                if "_ERROR:" in msg:
+                # Check for ERROR messages - put script in permanent hold state (requires reset)
+                if "_ERROR:" in msg or "_WARNING:" in msg:
                     self.is_held = True
-                    self.status_cb(f"ERROR: {msg} - Script held. Click Run to continue.", line_num)
+                    error_type = "ERROR" if "_ERROR:" in msg else "WARNING"
+                    self.status_cb(f"{error_type}: {msg} - Script held. Click Reset to clear.", line_num)
                     
                     # Check if an automatic retract was triggered (abort action)
                     # Continue processing messages to see if START: retract appears
@@ -1360,12 +1361,12 @@ class ScriptRunner(threading.Thread):
                             print(f"[DEBUG] During error hold, received: {next_msg}")
                             if "START" in next_msg and "retract" in next_msg.lower():
                                 retract_in_progress = True
-                                self.status_cb("Auto-retract triggered. Waiting for completion before allowing resume...", line_num)
+                                self.status_cb("Auto-retract triggered. Waiting for completion...", line_num)
                                 break
                         except queue.Empty:
                             continue
                     
-                    # If retract is in progress, wait for DONE: retract before allowing resume
+                    # If retract is in progress, wait for DONE: retract
                     if retract_in_progress:
                         retract_timeout = time.time() + 60  # 60 second timeout for retract
                         while self.is_running and time.time() < retract_timeout:
@@ -1373,26 +1374,21 @@ class ScriptRunner(threading.Thread):
                                 retract_msg = self.msg_q.get(timeout=0.1)
                                 print(f"[DEBUG] Waiting for retract completion: {retract_msg}")
                                 if "DONE" in retract_msg and "retract" in retract_msg.lower():
-                                    self.status_cb("Auto-retract complete. Ready to resume.", line_num)
+                                    self.status_cb("Auto-retract complete. Click Reset to clear error.", line_num)
                                     break
                             except queue.Empty:
                                 continue
                     
-                    # Enter hold/pause state - wait for user to resume or stop
+                    # Enter permanent hold state - only reset or stop can exit
+                    # Do NOT allow resume with Run button
                     while self.is_running and not self._stop_event.is_set():
                         time.sleep(0.1)
-                        # Check if user clicked Run to resume
+                        # Ignore resume events - errors require reset, not resume
                         if self._resume_event.is_set():
-                            self._resume_event.clear()
-                            self.is_held = False
-                            self.status_cb("Script resumed by user after error.", line_num)
-                            # Clear the wait list since we're resuming after error
-                            wait_list.clear()
-                            return True
-                    # User clicked Stop
+                            self._resume_event.clear()  # Clear the event but don't resume
+                    
+                    # User clicked Stop (or script was stopped externally)
                     self.is_held = False
-                    if self._stop_event.is_set():
-                        return False
                     return False
 
                 # Check for failure messages first
