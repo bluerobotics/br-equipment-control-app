@@ -48,7 +48,7 @@ COMMAND_COLOR = "#61AFEF"        # Blue for commands (after the dot)
 PARAMETER_COLOR = "#E5C07B"      # Orange for parameters
 COMMENT_COLOR = "#7F848E"        # A lighter grey for comments
 SCRIPT_COMMAND_COLOR = "#56B6C2" # A teal/cyan for script-control commands (e.g., REPEAT, WAIT)
-VARIABLE_COLOR = "#98C379"       # Green for variables (device.variable format) - distinct from parameters
+VARIABLE_COLOR = "#D4A5F4"       # Light lavender/purple for variables (device.variable format) - distinct from parameters
 
 # --- Selection Colors ---
 SELECTION_BG = "#4B6E9C"      # A subtle blue for selection, with good contrast.
