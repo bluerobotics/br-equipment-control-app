@@ -21,7 +21,7 @@
             { "parameter": "position", "unit": "mm", "type": "float" },
             { "parameter": "speed", "unit": "mm/s", "type": "float" },
             { "parameter": "force", "unit": "kg", "type": "float", "help": "In motor_torque mode: 50-2000 kg. In load_cell mode: 0.2-1000 kg." },
-            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip", "abort"], "optional": true, "default": "hold", "help": "Action when force limit reached OR move completes: retract (always retracts to retract position and returns done), hold (stops and waits), skip (ignores limit), abort (always retracts and throws error to halt script)" }
+            { "parameter": "force_action", "type": "string", "enum": ["retract", "hold", "skip", "abort"], "optional": true, "default": "hold", "help": "Action when force limit reached: retract (retracts to retract position on ANY completion and returns done), hold (stops and waits), skip (ignores limit), abort (retracts ONLY if force limit hit, throws error to halt script)" }
         ],
         "returns": ["done", "error"]
     },

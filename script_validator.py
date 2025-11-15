@@ -299,8 +299,10 @@ def validate_script(script_content, scripting_commands):
 
         errors.extend(_validate_line(line, line_num, scripting_commands))
 
-    if len(indent_stack) > 1:
-        errors.append({"line": len(lines), "error": "Unexpected end of file: missing dedent for a CYCLE block."})
+    # Allow CYCLE blocks to be implicitly closed at EOF
+    # Only error if we're still in a logging block (which needs explicit closure)
+    if len(indent_stack) > 1 and in_logging_block:
+        errors.append({"line": len(lines), "error": "Unexpected end of file: missing dedent for a logging block."})
 
     return errors
 

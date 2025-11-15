@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2025-11-15
+
+### Changed
+- Updated `force_action` parameter documentation in command reference to match firmware v1.6.0 behavior clarifications.
+
+### Fixed
+- **Script processor**: Fixed cycle block parsing to correctly detect end of indented cycle blocks, preventing "Unexpected end of file" errors.
+
+### Notes
+- This release primarily updates documentation and fixes script parsing. Core functionality already compatible with firmware v1.6.0 fixes.
+- Compatible with Pressboi firmware v1.6.0+
+
 ## [1.9.0] - 2025-11-14
 
 ### Added
