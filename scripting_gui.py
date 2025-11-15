@@ -1858,14 +1858,10 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         message = status_var.get().upper()
         
         # Set color based on message content (like terminal)
-        if any(keyword in message for keyword in ["ERROR", "_ERROR:", "FAILED", "FAULT", "EXCEPTION"]):
+        if any(keyword in message for keyword in ["ERROR", "_ERROR:", "FAILED", "FAULT", "EXCEPTION", "WARNING", "_WARNING:", "WARN"]):
             status_label.config(foreground=theme.ERROR_RED, background='#2d0f0f')
             control_frame.config(style='Error.TFrame')  # Red background
             btn_container.config(style='Error.TFrame')  # Red background for button area too
-        elif any(keyword in message for keyword in ["WARNING", "WARN"]):
-            status_label.config(foreground=theme.WARNING_YELLOW, background=theme.BG_COLOR)
-            control_frame.config(style='TFrame')  # Normal background
-            btn_container.config(style='TFrame')
         elif any(keyword in message for keyword in ["DONE", "SUCCESS", "COMPLETE", "PASSED"]):
             status_label.config(foreground=theme.SUCCESS_GREEN, background=theme.BG_COLOR)
             control_frame.config(style='TFrame')  # Normal background

@@ -1,6 +1,6 @@
 ### pressboi test ###
 pressboi.home
-pressboi.set_retract 110 mm 25 mm/s
+pressboi.set_retract 120 mm 25 mm/s
 pressboi.retract
 
 queue_for_logging pressboi.current_pos pressboi.force_load_cell
