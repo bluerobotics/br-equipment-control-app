@@ -274,7 +274,8 @@ class ScriptRunner(threading.Thread):
                     
                     print(f"[DEBUG] CYCLE found: line='{line.strip()}', parts={parts}, count={count}")
                     
-                    line_indent = len(line) - len(line.lstrip(' '))
+                    # Use _get_indent_level helper to handle both tabs and spaces
+                    line_indent = self._get_indent_level(line)
                     print(f"[DEBUG] CYCLE line_indent={line_indent}, total lines in block={len(block_with_nums)}, current i={i}")
 
                     # Find the first non-empty, indented line to start the block
@@ -284,7 +285,7 @@ class ScriptRunner(threading.Thread):
                         peek_line = block_with_nums[j][0]
                         print(f"[DEBUG] CYCLE scanning j={j}: '{peek_line}' (stripped: '{peek_line.strip()}')")
                         if peek_line.strip():
-                            body_indent = len(peek_line) - len(peek_line.lstrip(' '))
+                            body_indent = self._get_indent_level(peek_line)
                             print(f"[DEBUG] CYCLE found non-empty line at j={j}, body_indent={body_indent}, line_indent={line_indent}")
                             if body_indent > line_indent:
                                 body_start_index = j
@@ -304,7 +305,7 @@ class ScriptRunner(threading.Thread):
                         line_content = block_with_nums[j][0]
                         # A non-empty line with less or equal indent ends the block
                         if line_content.strip():
-                            current_line_indent = len(line_content) - len(line_content.lstrip(' '))
+                            current_line_indent = self._get_indent_level(line_content)
                             if current_line_indent < block_indent:
                                 body_end_index = j - 1 # The block ended on the previous line
                                 break
