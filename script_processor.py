@@ -322,7 +322,10 @@ class ScriptRunner(threading.Thread):
                     expanded_body = _expand_recursive(loop_body_with_nums)
                     
                     print(f"[DEBUG] Expanding cycle {count} times, body has {len(expanded_body)} lines")
-                    for _ in range(count):
+                    for iteration in range(1, count + 1):
+                        # Add iteration marker comment at the start of each iteration
+                        marker_line = f"# CYCLE ITERATION {iteration}/{count}"
+                        expanded_list.append((marker_line, line_num))  # Use the cycle line number
                         expanded_list.extend(expanded_body)
                     print(f"[DEBUG] After expansion, expanded_list has {len(expanded_list)} lines total")
                     
@@ -462,11 +465,19 @@ class ScriptRunner(threading.Thread):
                 break
 
             original_line_num = self.line_map.get(i, i + self.line_offset + 1)
-            self.status_cb(f"Executing line {original_line_num}...", original_line_num)
             
             line = line.strip()
+            
+            # Check for cycle iteration markers and log them
+            if line.startswith('# CYCLE ITERATION '):
+                iteration_info = line.replace('# CYCLE ITERATION ', '')
+                self.status_cb(f"[CYCLE {iteration_info}] Starting iteration", original_line_num)
+                continue
+            
             if not line or line.startswith('#'):
                 continue
+            
+            self.status_cb(f"Executing line {original_line_num}...", original_line_num)
 
             try:
                 # Pass the correct, current line number to the processing method
