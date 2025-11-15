@@ -952,7 +952,7 @@ class ScriptRunner(threading.Thread):
             return "error"
 
     def _evaluate_condition(self, tokens, line_num):
-        """Evaluate a chained comparison like '3 > pressboi.joules < 1.5'"""
+        """Evaluate a chained comparison like '3 > pressboi.joules < 1.5' or 'pressboi.joules > 3'"""
         try:
             # Resolve variables to their values
             resolved = []
@@ -966,7 +966,7 @@ class ScriptRunner(threading.Thread):
                     # It's a variable - resolve it
                     value = self._get_variable_value(token)
                     if value is None:
-                        self.status_cb(f"Error: Variable {token} not found", line_num)
+                        self.status_cb(f"Error: Variable {token} not found or has no value", line_num)
                         return None
                     resolved.append(float(value))
                 else:
@@ -974,43 +974,63 @@ class ScriptRunner(threading.Thread):
                     try:
                         resolved.append(float(token))
                     except ValueError:
-                        # Skip unknown tokens
+                        # Skip unknown tokens (like 'throw', 'action', etc.)
                         continue
+            
+            # Debug output
+            print(f"[DEBUG] _evaluate_condition resolved tokens: {resolved}")
             
             # Now evaluate the chain: e.g., [3.0, '>', 1.5, '<', 1.5]
             # becomes: (3.0 > 1.5) and (1.5 < 1.5)
+            # Or simple: [18.02, '<', 1.5] becomes: (18.02 < 1.5)
             if len(resolved) < 3:
+                self.status_cb(f"Error: Invalid condition - need at least 3 tokens (value operator value), got {len(resolved)}", line_num)
                 return None
             
             # Process comparison chain
+            # Pattern is: value1 op1 value2 [op2 value3 ...]
             result = True
-            for i in range(0, len(resolved) - 2, 2):
+            i = 0
+            while i < len(resolved) - 2:
                 left = resolved[i]
                 op = resolved[i + 1]
                 right = resolved[i + 2]
                 
+                print(f"[DEBUG] Evaluating: {left} {op} {right}")
+                
                 if op == '>':
-                    result = result and (left > right)
+                    comparison_result = (left > right)
                 elif op == '<':
-                    result = result and (left < right)
+                    comparison_result = (left < right)
                 elif op == '>=':
-                    result = result and (left >= right)
+                    comparison_result = (left >= right)
                 elif op == '<=':
-                    result = result and (left <= right)
+                    comparison_result = (left <= right)
                 elif op == '==':
-                    result = result and (left == right)
+                    comparison_result = (left == right)
                 elif op == '!=':
-                    result = result and (left != right)
+                    comparison_result = (left != right)
                 else:
+                    self.status_cb(f"Error: Unknown operator '{op}'", line_num)
                     return None
+                
+                print(f"[DEBUG] Result: {comparison_result}")
+                result = result and comparison_result
                 
                 if not result:
                     break
+                
+                # For chained comparisons, move by 2 (reuse the right value as the next left)
+                i += 2
             
+            print(f"[DEBUG] Final condition result: {result}")
             return result
             
         except Exception as e:
             self.status_cb(f"Error evaluating condition: {e}", line_num)
+            print(f"[DEBUG] Exception in _evaluate_condition: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _get_variable_value(self, var_name):
