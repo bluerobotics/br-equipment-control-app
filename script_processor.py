@@ -1192,6 +1192,16 @@ class ScriptRunner(threading.Thread):
                     if result == "error" or result == "stop":
                         self.is_running = False
                         return False
+                elif cmd_lower == "if":
+                    result = self._handle_if(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
+                elif cmd_lower == "throw":
+                    result = self._handle_throw(command_info, resolved_params, line_num)
+                    if result == "error" or result == "stop":
+                        self.is_running = False
+                        return False
                 elif cmd_lower == "cycle":
                     # Cycle is handled by the loop expander, not here
                     pass
