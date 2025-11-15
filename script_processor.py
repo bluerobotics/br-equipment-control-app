@@ -476,11 +476,12 @@ class ScriptRunner(threading.Thread):
                 # Log to both status line and terminal
                 self.status_cb(f"Cycle {iteration_num}", original_line_num)
                 
-                # Also log to terminal if available
-                if self.gui_refs:
-                    log_func = self.gui_refs.get('log_to_terminal')
-                    if log_func:
-                        log_func(f"Cycle {iteration_num}", self.gui_refs)
+                # Also log to terminal
+                try:
+                    import comms
+                    comms.log_to_terminal(f"Cycle {iteration_num}", self.gui_refs)
+                except Exception:
+                    pass  # Ignore if logging fails
                 
                 continue
             
