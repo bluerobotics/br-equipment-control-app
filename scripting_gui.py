@@ -300,14 +300,17 @@ class SyntaxHighlighter:
         self.device_manager = device_manager
         self.valid_string_params = set()  # Will hold all valid enum/option values
         self.all_variables = []  # Will hold all device.variable names
+        self.all_warnings = []  # Will hold all device.warning names
         self._load_valid_string_params()
         self._load_all_variables()
+        self._load_all_warnings()
         
         self.tags = {
             'device': {'foreground': theme.DEVICE_COLOR, 'font': theme.FONT_BOLD},  # Purple for device namespace
             'command': {'foreground': theme.COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'script_command': {'foreground': theme.SCRIPT_COMMAND_COLOR, 'font': theme.FONT_BOLD},
-            'variable': {'foreground': theme.VARIABLE_COLOR},  # Orange for variables (device.variable) - same as parameters
+            'variable': {'foreground': theme.VARIABLE_COLOR},  # Green for variables (device.variable)
+            'warning': {'foreground': theme.ERROR_RED},  # Red for warnings (device.warning)
             'parameter': {'foreground': theme.PARAMETER_COLOR},
             'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
             'logging_session': {'foreground': theme.WARNING_YELLOW},  # Yellow for logging session names
@@ -355,6 +358,20 @@ class SyntaxHighlighter:
             for param_name in telemetry_data.keys():
                 full_var_name = f"{device_name}.{param_name}"
                 self.all_variables.append(full_var_name)
+    
+    def _load_all_warnings(self):
+        """Load all warnings from all devices."""
+        self.all_warnings = []
+        if not self.device_manager:
+            return
+        
+        for device_name in self.device_manager.get_all_device_names():
+            device_data = self.device_manager.devices.get(device_name, {})
+            warnings_data = device_data.get('warnings', {})
+            
+            for warning_name in warnings_data.keys():
+                full_warning_name = f"{device_name}.{warning_name}"
+                self.all_warnings.append(full_warning_name)
 
     def refresh_keywords(self):
         """Re-fetches the keywords from the device manager and re-highlights the text."""
@@ -371,6 +388,7 @@ class SyntaxHighlighter:
         
         self._load_valid_string_params()  # Refresh valid string params too
         self._load_all_variables()  # Refresh variables too
+        self._load_all_warnings()  # Refresh warnings too
         self.highlight()
 
 
@@ -412,7 +430,7 @@ class SyntaxHighlighter:
                     # No dot, just highlight the whole thing as a command
                     self.text.tag_add("command", f"1.0+{start}c", f"1.0+{end}c")
         
-        # Highlight variables (device.variable format) - purple.burgundy
+        # Highlight variables (device.variable format) - purple.green
         if self.all_variables:
             variable_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(v) for v in self.all_variables) + r')(?=\s|,|$)'
             for match in re.finditer(variable_pattern, content, re.IGNORECASE | re.MULTILINE):
@@ -425,9 +443,26 @@ class SyntaxHighlighter:
                     # Highlight device part (before dot) in purple
                     device_end = start + dot_pos
                     self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
-                    # Highlight variable part (after dot) in burgundy
+                    # Highlight variable part (after dot) in green
                     variable_start = start + dot_pos + 1
                     self.text.tag_add("variable", f"1.0+{variable_start}c", f"1.0+{end}c")
+        
+        # Highlight warnings (device.warning format) - purple.red
+        if self.all_warnings:
+            warning_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(w) for w in self.all_warnings) + r')(?=\s|,|$)'
+            for match in re.finditer(warning_pattern, content, re.IGNORECASE | re.MULTILINE):
+                start, end = match.span(1)
+                full_warning = match.group(1)
+                
+                # Warnings always have a dot (device.warning format)
+                if '.' in full_warning:
+                    dot_pos = full_warning.index('.')
+                    # Highlight device part (before dot) in purple
+                    device_end = start + dot_pos
+                    self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
+                    # Highlight warning part (after dot) in red
+                    warning_start = start + dot_pos + 1
+                    self.text.tag_add("warning", f"1.0+{warning_start}c", f"1.0+{end}c")
 
         # Highlight script commands
         if self.script_keywords:
