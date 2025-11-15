@@ -153,6 +153,8 @@ class CommandReference(ttk.Frame):
         self.text.tag_configure('commands_header', foreground=theme.PRIMARY_ACCENT, font=theme.FONT_BOLD)
         self.text.tag_configure('variables_header', foreground='#C04848', font=theme.FONT_BOLD)
         self.text.tag_configure('events_header', foreground=theme.SUCCESS_GREEN, font=theme.FONT_BOLD)
+        self.text.tag_configure('warnings_header', foreground=theme.ERROR_RED, font=theme.FONT_BOLD)
+        self.text.tag_configure('warning_part', foreground=theme.ERROR_RED)
         self.text.tag_configure('folder_icon', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('variable_info', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('parameter_name', foreground=theme.PARAMETER_COLOR)  # Orange/yellow for parameter names
@@ -699,6 +701,49 @@ class CommandReference(ttk.Frame):
                             'data': event_details
                         }
                         line_num += 1
+                
+                # Warnings folder
+                warnings = device_data.get('warnings', {})
+                warnings_folder_key = (device_name, 'warnings_folder')
+                warnings_collapsed = warnings_folder_key in self.collapsed_folders
+                warnings_icon = "  ► " if warnings_collapsed else "  ▼ "
+                
+                self.text.insert(f"{line_num}.0", warnings_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"warnings ({len(warnings)})\n", "warnings_header")
+                self.line_items[line_num] = {'type': 'warnings_folder', 'device': device_name, 'line_start': line_num}
+                line_num += 1
+                
+                # Add individual warnings if not collapsed
+                if not warnings_collapsed:
+                    for warning_name, warning_details in sorted(warnings.items()):
+                        # Ensure warning has device prefix
+                        if '.' not in warning_name:
+                            full_warning_name = f"{device_name}.{warning_name}"
+                        else:
+                            full_warning_name = warning_name
+                        
+                        self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                        if '.' in full_warning_name:
+                            parts = full_warning_name.split('.', 1)
+                            self.text.insert(f"{line_num}.end", parts[0], "device_part")
+                            self.text.insert(f"{line_num}.end", ".", "folder_icon")
+                            self.text.insert(f"{line_num}.end", f"{parts[1]}", "warning_part")
+                        else:
+                            self.text.insert(f"{line_num}.end", f"{full_warning_name}", "warning_part")
+                        
+                        # Add description info
+                        description = warning_details.get('description', '')
+                        if description:
+                            self.text.insert(f"{line_num}.end", f" - {description}", "variable_info")
+                        
+                        self.text.insert(f"{line_num}.end", "\n")
+                        
+                        self.line_items[line_num] = {
+                            'type': 'warning',
+                            'name': full_warning_name,
+                            'data': warning_details
+                        }
+                        line_num += 1
     
     def _get_default_collapsed_folders(self):
         """Get the default set of collapsed folders (all folders except Script Commands)."""
@@ -711,6 +756,7 @@ class CommandReference(ttk.Frame):
             collapsed.add((device_name, 'commands_folder'))
             collapsed.add((device_name, 'variables_folder'))
             collapsed.add((device_name, 'events_folder'))
+            collapsed.add((device_name, 'warnings_folder'))
         
         # Keep script commands expanded by default
         # collapsed.add(('', 'script_folder'))
@@ -729,9 +775,9 @@ class CommandReference(ttk.Frame):
         item_data = self.line_items.get(line_num, {})
         
         # Only highlight if it's an actual item (not empty or folder header in some cases)
-        is_item = item_data.get('type') in ['command', 'variable', 'event', 'device', 
+        is_item = item_data.get('type') in ['command', 'variable', 'event', 'warning', 'device', 
                                              'commands_folder', 'variables_folder', 
-                                             'events_folder', 'script_folder', 'script_command']
+                                             'events_folder', 'warnings_folder', 'script_folder', 'script_command']
         
         if is_item and line_num != self.current_hover_line:
             # Remove previous hover
@@ -762,7 +808,7 @@ class CommandReference(ttk.Frame):
         self.text.tag_remove(tk.SEL, "1.0", tk.END)
         
         # Toggle folder collapse/expand
-        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'script_folder', 'device']:
+        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -808,7 +854,7 @@ class CommandReference(ttk.Frame):
                 self.script_editor_widget.insert(tk.INSERT, f"WAIT_FOR {event_name}\n")
         
         # Folders: toggle open/close
-        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'script_folder', 'device']:
+        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -1029,6 +1075,21 @@ class CommandReference(ttk.Frame):
             device_name = item_data.get('device')
             self.context_menu.add_command(label="Add Event...", 
                                          command=lambda: self.show_add_event_dialog_for_device(device_name))
+        
+        elif item_type == 'warnings_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Add Warning...", 
+                                         command=lambda: self.show_add_warning_dialog_for_device(device_name))
+        
+        elif item_type == 'warning':
+            self.context_menu.add_command(label="Copy Warning", command=self.copy_warning)
+            self.context_menu.add_command(label="Add to Script (throw)", command=self.add_warning_to_script)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Edit Warning...", command=self.edit_warning)
+            self.context_menu.add_command(label="More Info...", command=self.show_warning_info)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Delete Warning", command=self.delete_warning,
+                                         foreground=theme.ERROR_RED)
         
         # Show menu
         if self.context_menu.index('end') is not None:  # If menu has items
@@ -2953,6 +3014,157 @@ class CommandReference(ttk.Frame):
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete event:\n{str(e)}")
+    
+    # ===== WARNING METHODS =====
+    
+    def get_selected_warning(self):
+        """Get warning from selected text line."""
+        line_num = self._get_selected_line_num()
+        if not line_num:
+            return None
+        item_data = self.line_items.get(line_num, {})
+        if item_data.get('type') == 'warning':
+            return item_data.get('name')
+        return None
+    
+    def copy_warning(self):
+        """Copy selected warning to clipboard."""
+        warning_name = self.get_selected_warning()
+        if warning_name:
+            self.clipboard_clear()
+            self.clipboard_append(warning_name)
+    
+    def add_warning_to_script(self):
+        """Add selected warning to script editor as throw command."""
+        warning_name = self.get_selected_warning()
+        if warning_name and self.script_editor_widget:
+            self.script_editor_widget.text.insert(tk.INSERT, f"throw {warning_name}")
+            self.script_editor_widget.text.focus_set()
+    
+    def show_add_warning_dialog_for_device(self, device_name):
+        """Show add warning dialog for a specific device."""
+        # Simple implementation - warnings are just {"description": "..."} in warnings.json
+        from tkinter import simpledialog, messagebox
+        import json
+        import os
+        
+        warning_name = simpledialog.askstring("Add Warning", f"Warning name for {device_name}:")
+        if not warning_name:
+            return
+        
+        description = simpledialog.askstring("Add Warning", "Warning description:")
+        if not description:
+            return
+        
+        try:
+            json_path = os.path.join('devices', device_name, 'warnings.json')
+            warnings_data = {}
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    warnings_data = json.load(f)
+            
+            warnings_data[warning_name] = {"description": description}
+            
+            with open(json_path, 'w') as f:
+                json.dump(warnings_data, f, indent=4)
+            
+            messagebox.showinfo("Success", f"Warning '{warning_name}' added successfully!")
+            self.device_manager.reload_device_modules()
+            self.refresh()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add warning:\n{str(e)}")
+    
+    def edit_warning(self):
+        """Edit selected warning."""
+        from tkinter import simpledialog, messagebox
+        import json
+        import os
+        
+        warning_name = self.get_selected_warning()
+        if not warning_name:
+            return
+        
+        device_name, warn_key = warning_name.split('.', 1)
+        device_data = self.device_manager.devices.get(device_name, {})
+        warnings_data = device_data.get('warnings', {})
+        warning_info = warnings_data.get(warn_key, {})
+        
+        old_description = warning_info.get('description', '')
+        new_description = simpledialog.askstring("Edit Warning", "Warning description:", initialvalue=old_description)
+        if not new_description:
+            return
+        
+        try:
+            json_path = os.path.join('devices', device_name, 'warnings.json')
+            with open(json_path, 'r') as f:
+                file_warnings = json.load(f)
+            
+            file_warnings[warn_key] = {"description": new_description}
+            
+            with open(json_path, 'w') as f:
+                json.dump(file_warnings, f, indent=4)
+            
+            messagebox.showinfo("Success", f"Warning '{warning_name}' updated successfully!")
+            self.device_manager.reload_device_modules()
+            self.refresh()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to edit warning:\n{str(e)}")
+    
+    def show_warning_info(self):
+        """Show info for selected warning."""
+        from tkinter import messagebox
+        warning_name = self.get_selected_warning()
+        if not warning_name:
+            return
+        
+        device_name, warn_key = warning_name.split('.', 1)
+        device_data = self.device_manager.devices.get(device_name, {})
+        warnings_data = device_data.get('warnings', {})
+        warning_info = warnings_data.get(warn_key, {})
+        
+        description = warning_info.get('description', 'No description available.')
+        messagebox.showinfo(f"Warning: {warning_name}", f"Description:\n{description}\n\nUsage:\nthrow {warning_name}")
+    
+    def delete_warning(self):
+        """Delete selected warning."""
+        from tkinter import messagebox
+        import json
+        import os
+        
+        warning_name = self.get_selected_warning()
+        if not warning_name:
+            return
+        
+        device_name, warn_key = warning_name.split('.', 1)
+        
+        response = messagebox.askyesno("Confirm Deletion", 
+                                       f"Are you sure you want to delete warning:\n\n{warning_name}\n\n" +
+                                       "This will modify the JSON file and cannot be undone.")
+        if not response:
+            return
+        
+        try:
+            json_path = os.path.join('devices', device_name, 'warnings.json')
+            if not os.path.exists(json_path):
+                messagebox.showerror("Error", f"Warnings file not found: {json_path}")
+                return
+            
+            with open(json_path, 'r') as f:
+                warnings_data = json.load(f)
+            
+            if warn_key in warnings_data:
+                del warnings_data[warn_key]
+                
+                with open(json_path, 'w') as f:
+                    json.dump(warnings_data, f, indent=4)
+                
+                messagebox.showinfo("Success", f"Warning '{warning_name}' deleted successfully!")
+                self.device_manager.reload_device_modules()
+                self.refresh()
+            else:
+                messagebox.showerror("Error", f"Warning '{warn_key}' not found in JSON.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete warning:\n{str(e)}")
 
 # ===== ADD/EDIT DIALOGS =====
 

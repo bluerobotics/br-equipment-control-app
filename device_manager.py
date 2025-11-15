@@ -104,6 +104,13 @@ class DeviceManager:
                         with open(events_path, 'r') as f:
                             events_data = json.load(f)
 
+                    # Load warnings from JSON
+                    warnings_data = {}
+                    warnings_path = os.path.join(device_path, 'warnings.json')
+                    if os.path.exists(warnings_path):
+                        with open(warnings_path, 'r') as f:
+                            warnings_data = json.load(f)
+
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
@@ -111,6 +118,7 @@ class DeviceManager:
                         'telemetry_data': telemetry_data, # Store the schema
                         'scripting_commands': scripting_commands, # Store loaded JSON data
                         'events_data': events_data, # Store events data
+                        'warnings': warnings_data, # Store warnings data
                         'config': {}, # Keep the key for consistent structure, but it's now unused
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
@@ -203,6 +211,12 @@ class DeviceManager:
                         with open(events_path, 'r') as f:
                             events_data = json.load(f)
 
+                    warnings_data = {}
+                    warnings_path = os.path.join(device_path, 'warnings.json')
+                    if os.path.exists(warnings_path):
+                        with open(warnings_path, 'r') as f:
+                            warnings_data = json.load(f)
+
                     self.devices[device_name] = {
                         'gui': gui_module,
                         'parser': parser_module,
@@ -210,6 +224,7 @@ class DeviceManager:
                         'telemetry_data': telemetry_data,
                         'scripting_commands': scripting_commands,
                         'events_data': events_data,
+                        'warnings': warnings_data,
                         'config': {},
                         'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
                     }
@@ -286,6 +301,13 @@ class DeviceManager:
             with open(events_path, 'r') as f:
                 self.devices[device_name]['events_data'] = json.load(f)
                 self.log(f"Reloaded events.json for {device_name}")
+        
+        # Reload warnings.json
+        warnings_path = os.path.join(device_path, 'warnings.json')
+        if os.path.exists(warnings_path):
+            with open(warnings_path, 'r') as f:
+                self.devices[device_name]['warnings'] = json.load(f)
+                self.log(f"Reloaded warnings.json for {device_name}")
         
         # Refresh syntax highlighter if available
         if 'syntax_highlighter' in self.shared_gui_refs:

@@ -5,6 +5,7 @@ pressboi.retract
 
 queue_for_logging pressboi.current_pos pressboi.force_load_cell
 start_logging "<date> <time> t200 press" pressboi
+
 pressboi.move_abs 122 mm 5 mm/s 4 kg abort action     # approach move
 pressboi.move_abs 124 mm 2 mm/s 20 kg abort action       # alignment move
 pressboi.move_abs 140 mm 1 mm/s 500 kg retract action					# press move
@@ -13,9 +14,3 @@ if 3 > pressboi.joules < 1.5 throw pressboi.energy_warning
 if 123 > pressboi.endpoint < 124 throw pressboi.endpoint_warning
 
 stop_logging
-
-
-
-pressboi.reset_nvm 
-pressboi.dump_nvm 
-
