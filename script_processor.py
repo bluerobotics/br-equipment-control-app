@@ -272,6 +272,8 @@ class ScriptRunner(threading.Thread):
                             count = int(float(match.group(0))) # float then int to handle "100.0"
                             break
                     
+                    print(f"[DEBUG] CYCLE found: line='{line.strip()}', parts={parts}, count={count}")
+                    
                     line_indent = len(line) - len(line.lstrip(' '))
 
                     # Find the first non-empty, indented line to start the block
@@ -307,8 +309,10 @@ class ScriptRunner(threading.Thread):
                     
                     expanded_body = _expand_recursive(loop_body_with_nums)
                     
+                    print(f"[DEBUG] Expanding cycle {count} times, body has {len(expanded_body)} lines")
                     for _ in range(count):
                         expanded_list.extend(expanded_body)
+                    print(f"[DEBUG] After expansion, expanded_list has {len(expanded_list)} lines total")
                     
                     i = body_end_index + 1
                 else:
