@@ -472,7 +472,16 @@ class ScriptRunner(threading.Thread):
             if line.startswith('# CYCLE ITERATION '):
                 iteration_info = line.replace('# CYCLE ITERATION ', '')
                 iteration_num = iteration_info.split('/')[0]  # Extract just the iteration number
+                
+                # Log to both status line and terminal
                 self.status_cb(f"Cycle {iteration_num}", original_line_num)
+                
+                # Also log to terminal if available
+                if self.gui_refs:
+                    log_func = self.gui_refs.get('log_to_terminal')
+                    if log_func:
+                        log_func(f"Cycle {iteration_num}", self.gui_refs)
+                
                 continue
             
             if not line or line.startswith('#'):
