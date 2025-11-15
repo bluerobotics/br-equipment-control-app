@@ -4,14 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [1.10.0] - 2025-11-15
 
+### Added
+- **Warning system**: New `throw` command to trigger custom warnings defined in `warnings.json` files
+- **Conditional logic**: `if` statements with variable comparisons (e.g., `if pressboi.joules < 1.5 throw pressboi.energy_warning`)
+- **Warnings display**: New warnings section in device pane for each device (similar to events)
+- **Script error handling**: Warnings now trigger script hold (like errors), require reset to continue
+
 ### Changed
-- Updated `force_action` parameter documentation in command reference to match firmware v1.6.0 behavior clarifications.
+- **Variable highlighting**: Changed variable color from red to orange for better distinction from error/warning messages
+- Updated `force_action` parameter documentation in command reference to match firmware v1.6.0 behavior clarifications
 
 ### Fixed
-- **Script processor**: Fixed cycle block parsing to correctly detect end of indented cycle blocks, preventing "Unexpected end of file" errors.
+- **Script processor**: Fixed cycle block parsing to correctly detect end of indented cycle blocks, preventing "Unexpected end of file" errors
+- **Conditional parsing**: Fixed decimal number parsing in `if` conditions (e.g., `1.5` now correctly parsed as number, not variable)
 
 ### Notes
-- This release primarily updates documentation and fixes script parsing. Core functionality already compatible with firmware v1.6.0 fixes.
 - Compatible with Pressboi firmware v1.6.0+
 
 ## [1.9.0] - 2025-11-14
