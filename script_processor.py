@@ -1349,6 +1349,35 @@ class ScriptRunner(threading.Thread):
                 if "_ERROR:" in msg:
                     self.is_held = True
                     self.status_cb(f"ERROR: {msg} - Script held. Click Run to continue.", line_num)
+                    
+                    # Check if an automatic retract was triggered (abort action)
+                    # Continue processing messages to see if START: retract appears
+                    retract_in_progress = False
+                    error_wait_start = time.time()
+                    while time.time() - error_wait_start < 2.0:  # Wait up to 2 seconds for START: retract
+                        try:
+                            next_msg = self.msg_q.get(timeout=0.1)
+                            print(f"[DEBUG] During error hold, received: {next_msg}")
+                            if "START" in next_msg and "retract" in next_msg.lower():
+                                retract_in_progress = True
+                                self.status_cb("Auto-retract triggered. Waiting for completion before allowing resume...", line_num)
+                                break
+                        except queue.Empty:
+                            continue
+                    
+                    # If retract is in progress, wait for DONE: retract before allowing resume
+                    if retract_in_progress:
+                        retract_timeout = time.time() + 60  # 60 second timeout for retract
+                        while self.is_running and time.time() < retract_timeout:
+                            try:
+                                retract_msg = self.msg_q.get(timeout=0.1)
+                                print(f"[DEBUG] Waiting for retract completion: {retract_msg}")
+                                if "DONE" in retract_msg and "retract" in retract_msg.lower():
+                                    self.status_cb("Auto-retract complete. Ready to resume.", line_num)
+                                    break
+                            except queue.Empty:
+                                continue
+                    
                     # Enter hold/pause state - wait for user to resume or stop
                     while self.is_running and not self._stop_event.is_set():
                         time.sleep(0.1)
