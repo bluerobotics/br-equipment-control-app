@@ -1039,36 +1039,55 @@ class ScriptRunner(threading.Thread):
     def _get_variable_value(self, var_name):
         """Get the current value of a variable like pressboi.joules"""
         try:
+            print(f"[DEBUG] _get_variable_value: looking up '{var_name}'")
             device_name, field_name = var_name.split('.', 1)
+            print(f"[DEBUG] device_name='{device_name}', field_name='{field_name}'")
+            
             device_manager = self.gui_refs.get('device_manager')
             if not device_manager:
+                print(f"[DEBUG] device_manager not found in gui_refs")
                 return None
             
             device_data = device_manager.devices.get(device_name)
             if not device_data:
+                print(f"[DEBUG] device '{device_name}' not found in devices")
                 return None
             
             telemetry_data = device_data.get('telemetry_data', {})
+            print(f"[DEBUG] telemetry_data keys: {list(telemetry_data.keys())}")
+            
             field_info = telemetry_data.get(field_name)
             if not field_info:
+                print(f"[DEBUG] field '{field_name}' not found in telemetry_data")
                 return None
             
             gui_var_name = field_info.get('gui_var')
             if not gui_var_name:
+                print(f"[DEBUG] gui_var not found in field_info")
                 return None
             
+            print(f"[DEBUG] gui_var_name: '{gui_var_name}'")
             gui_var = self.gui_refs.get(gui_var_name)
             if not gui_var:
+                print(f"[DEBUG] gui_var '{gui_var_name}' not found in gui_refs")
                 return None
             
             value_str = gui_var.get()
+            print(f"[DEBUG] value_str: '{value_str}'")
+            
             # Strip units and convert to float
             try:
-                return float(value_str.split()[0])
-            except (ValueError, IndexError):
+                value = float(value_str.split()[0])
+                print(f"[DEBUG] returning value: {value}")
+                return value
+            except (ValueError, IndexError) as e:
+                print(f"[DEBUG] failed to parse value: {e}")
                 return None
                 
-        except Exception:
+        except Exception as e:
+            print(f"[DEBUG] Exception in _get_variable_value: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _handle_throw(self, command_info, resolved_params, line_num):
