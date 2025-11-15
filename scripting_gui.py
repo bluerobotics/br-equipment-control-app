@@ -1386,7 +1386,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             
             # Validate the block (not just the first line)
             # For logging commands with blocks, we don't validate strictly since they'll be collapsed
-            if command_word in logging_commands and block_content != next_valid_line_content:
+            if command_word in block_commands and block_content != next_valid_line_content:
                 # It's a multi-line block, skip detailed validation
                 errors = []
             else:
