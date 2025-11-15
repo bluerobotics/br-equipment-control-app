@@ -72,6 +72,22 @@ SCRIPT_COMMANDS = {
         ],
         "handler": "_handle_unqueue_for_logging",
         "device": "script"
+    },
+    "if": {
+        "description": "Conditional statement with comparison operators (e.g., if 3 > pressboi.joules < 1.5 throw pressboi.energy_warning).",
+        "params": [
+            {"parameter": "condition", "type": "string", "variadic": True}
+        ],
+        "handler": "_handle_if",
+        "device": "script"
+    },
+    "throw": {
+        "description": "Throws a warning to halt script execution (e.g., throw pressboi.energy_warning).",
+        "params": [
+            {"parameter": "warning", "type": "string"}
+        ],
+        "handler": "_handle_throw",
+        "device": "script"
     }
 }
 
@@ -894,6 +910,197 @@ class ScriptRunner(threading.Thread):
                 
         except Exception as e:
             self.status_cb(f"Error in unqueue_for_logging command: {e}", line_num)
+            return "error"
+
+    def _handle_if(self, command_info, resolved_params, line_num):
+        """Handler for the 'if' conditional command."""
+        try:
+            # Get the full condition string (all args after 'if')
+            condition_str = resolved_params.get('condition', '')
+            
+            # Parse the condition: supports "value1 > var < value2" or similar
+            # Split on comparison operators while preserving them
+            import re
+            
+            # Find all tokens (numbers, variables, operators, commands)
+            tokens = re.split(r'\s+', condition_str)
+            
+            # Evaluate the comparison chain
+            result = self._evaluate_condition(tokens, line_num)
+            
+            if result is None:
+                self.status_cb(f"Error: Invalid condition syntax", line_num)
+                return "error"
+            
+            # If condition is true, continue processing remaining tokens
+            if result:
+                # Find 'throw' command in tokens
+                if 'throw' in tokens:
+                    throw_index = tokens.index('throw')
+                    if throw_index + 1 < len(tokens):
+                        warning_name = tokens[throw_index + 1]
+                        return self._trigger_warning(warning_name, line_num)
+                # If no action specified, just continue
+                return "continue"
+            else:
+                # Condition false - skip any action and continue
+                self.status_cb(f"Condition false - skipping", line_num)
+                return "continue"
+                
+        except Exception as e:
+            self.status_cb(f"Error in if command: {e}", line_num)
+            return "error"
+
+    def _evaluate_condition(self, tokens, line_num):
+        """Evaluate a chained comparison like '3 > pressboi.joules < 1.5'"""
+        try:
+            # Resolve variables to their values
+            resolved = []
+            for token in tokens:
+                if token in ['>', '<', '>=', '<=', '==', '!=']:
+                    resolved.append(token)
+                elif token == 'throw':
+                    # Stop processing at 'throw' - that's the action
+                    break
+                elif '.' in token:
+                    # It's a variable - resolve it
+                    value = self._get_variable_value(token)
+                    if value is None:
+                        self.status_cb(f"Error: Variable {token} not found", line_num)
+                        return None
+                    resolved.append(float(value))
+                else:
+                    # It's a number
+                    try:
+                        resolved.append(float(token))
+                    except ValueError:
+                        # Skip unknown tokens
+                        continue
+            
+            # Now evaluate the chain: e.g., [3.0, '>', 1.5, '<', 1.5]
+            # becomes: (3.0 > 1.5) and (1.5 < 1.5)
+            if len(resolved) < 3:
+                return None
+            
+            # Process comparison chain
+            result = True
+            for i in range(0, len(resolved) - 2, 2):
+                left = resolved[i]
+                op = resolved[i + 1]
+                right = resolved[i + 2]
+                
+                if op == '>':
+                    result = result and (left > right)
+                elif op == '<':
+                    result = result and (left < right)
+                elif op == '>=':
+                    result = result and (left >= right)
+                elif op == '<=':
+                    result = result and (left <= right)
+                elif op == '==':
+                    result = result and (left == right)
+                elif op == '!=':
+                    result = result and (left != right)
+                else:
+                    return None
+                
+                if not result:
+                    break
+            
+            return result
+            
+        except Exception as e:
+            self.status_cb(f"Error evaluating condition: {e}", line_num)
+            return None
+
+    def _get_variable_value(self, var_name):
+        """Get the current value of a variable like pressboi.joules"""
+        try:
+            device_name, field_name = var_name.split('.', 1)
+            device_manager = self.gui_refs.get('device_manager')
+            if not device_manager:
+                return None
+            
+            device_data = device_manager.devices.get(device_name)
+            if not device_data:
+                return None
+            
+            telemetry_data = device_data.get('telemetry_data', {})
+            field_info = telemetry_data.get(field_name)
+            if not field_info:
+                return None
+            
+            gui_var_name = field_info.get('gui_var')
+            if not gui_var_name:
+                return None
+            
+            gui_var = self.gui_refs.get(gui_var_name)
+            if not gui_var:
+                return None
+            
+            value_str = gui_var.get()
+            # Strip units and convert to float
+            try:
+                return float(value_str.split()[0])
+            except (ValueError, IndexError):
+                return None
+                
+        except Exception:
+            return None
+
+    def _handle_throw(self, command_info, resolved_params, line_num):
+        """Handler for the 'throw' command to trigger warnings."""
+        try:
+            warning_name = resolved_params.get('warning', '')
+            return self._trigger_warning(warning_name, line_num)
+                
+        except Exception as e:
+            self.status_cb(f"Error in throw command: {e}", line_num)
+            return "error"
+
+    def _trigger_warning(self, warning_name, line_num):
+        """Trigger a warning and halt script execution."""
+        try:
+            # Parse device.warning format
+            if '.' not in warning_name:
+                self.status_cb(f"Error: Invalid warning format '{warning_name}'. Use device.warning_name", line_num)
+                return "error"
+            
+            device_name, warning_key = warning_name.split('.', 1)
+            
+            # Load warnings for this device
+            device_manager = self.gui_refs.get('device_manager')
+            if not device_manager:
+                self.status_cb(f"Error: Device manager not available", line_num)
+                return "error"
+            
+            device_data = device_manager.devices.get(device_name)
+            if not device_data:
+                self.status_cb(f"Error: Device '{device_name}' not found", line_num)
+                return "error"
+            
+            warnings_data = device_data.get('warnings', {})
+            warning_info = warnings_data.get(warning_key)
+            
+            if not warning_info:
+                self.status_cb(f"Error: Warning '{warning_key}' not defined for {device_name}", line_num)
+                return "error"
+            
+            # Get warning description
+            description = warning_info.get('description', warning_key)
+            
+            # Send a warning message (format: DEVICE_WARNING: message)
+            warning_msg = f"{device_name.upper()}_WARNING: {description}"
+            self.status_cb(warning_msg, line_num)
+            
+            # Put script in error hold state
+            self.is_held = True
+            
+            # Return error to stop execution
+            return "error"
+                
+        except Exception as e:
+            self.status_cb(f"Error triggering warning: {e}", line_num)
             return "error"
 
     def _process_line(self, line, line_num):

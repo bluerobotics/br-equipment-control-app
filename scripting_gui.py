@@ -307,7 +307,7 @@ class SyntaxHighlighter:
             'device': {'foreground': theme.DEVICE_COLOR, 'font': theme.FONT_BOLD},  # Purple for device namespace
             'command': {'foreground': theme.COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'script_command': {'foreground': theme.SCRIPT_COMMAND_COLOR, 'font': theme.FONT_BOLD},
-            'variable': {'foreground': '#C04848'},  # Burgundy for variables (device.variable)
+            'variable': {'foreground': theme.VARIABLE_COLOR},  # Orange for variables (device.variable) - same as parameters
             'parameter': {'foreground': theme.PARAMETER_COLOR},
             'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
             'logging_session': {'foreground': theme.WARNING_YELLOW},  # Yellow for logging session names
