@@ -10,9 +10,6 @@ pressboi.move_abs 122 mm 5 mm/s 4 kg abort action     # approach move
 pressboi.move_abs 124 mm 5 mm/s 20 kg abort action       # alignment move
 pressboi.move_abs 140 mm 5 mm/s 500 kg retract action					# press move
 
-# wait for telemetry to update before checks
-wait 1 sec
-
 # Throw warning if endpoint is OUTSIDE the range
 if pressboi.endpoint < 123 throw pressboi.endpoint_warning
 if pressboi.endpoint > 124 throw pressboi.endpoint_warning

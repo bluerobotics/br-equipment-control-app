@@ -1306,10 +1306,11 @@ class ScriptRunner(threading.Thread):
                         # Store the stripped command for DONE matching
                         commands_to_wait_for.append(cmd_to_send)
                         
-                        # If this is move_abs or move_inc with retract/abort action, also wait for the retract
+                        # If this is move_abs or move_inc with retract action, also wait for the automatic retract
+                        # Note: "abort" action only retracts if force limit is hit, so we can't pre-emptively wait for it
                         if cmd_to_send in ["move_abs", "move_inc"]:
                             force_action = resolved_params.get("force_action", "").lower()
-                            if force_action in ["retract", "abort"]:
+                            if force_action == "retract":
                                 commands_to_wait_for.append("retract")
 
             time.sleep(0.05)
