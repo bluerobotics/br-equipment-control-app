@@ -1334,7 +1334,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         update_selection_highlight(next_valid_line_num)
 
         if is_single_block:
-            # Check if this is a logging command with an indented block
+            # Check if this is a logging command or cycle with an indented block
             import shlex
             try:
                 parts = shlex.split(next_valid_line_content.strip())
@@ -1342,13 +1342,13 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 parts = next_valid_line_content.strip().split()
             
             command_word = parts[0].lower() if parts else ''
-            logging_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
+            block_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging', 'cycle']
             
             # Collect content including indented block if present
             block_content = next_valid_line_content
             block_end_line = next_valid_line_num
             
-            if command_word in logging_commands:
+            if command_word in block_commands:
                 # Get base indentation of the command line (handle tabs)
                 current_line_raw = all_lines[next_valid_line_num - 1]
                 base_indent_str = current_line_raw[:len(current_line_raw) - len(current_line_raw.lstrip())]

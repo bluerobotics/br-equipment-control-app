@@ -307,6 +307,11 @@ class ScriptRunner(threading.Thread):
                     
                     loop_body_with_nums = block_with_nums[body_start_index : body_end_index + 1]
                     
+                    print(f"[DEBUG] CYCLE body extraction: body_start_index={body_start_index}, body_end_index={body_end_index}, block_indent={block_indent}")
+                    print(f"[DEBUG] CYCLE body lines (raw slice):")
+                    for idx, (line, lnum) in enumerate(loop_body_with_nums):
+                        print(f"[DEBUG]   [{idx}] line {lnum}: '{line}'")
+                    
                     expanded_body = _expand_recursive(loop_body_with_nums)
                     
                     print(f"[DEBUG] Expanding cycle {count} times, body has {len(expanded_body)} lines")
