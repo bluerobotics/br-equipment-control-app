@@ -92,6 +92,14 @@
         "help": "Target position for current move operation",
         "gui_var": "pressboi_target_pos_var"
     },
+    "endpoint": {
+        "unit": "mm",
+        "type": "float",
+        "default": 0.0,
+        "precision": 2,
+        "help": "Actual position where last move ended (force trigger or completion)",
+        "gui_var": "pressboi_endpoint_var"
+    },
     "torque_avg": {
         "unit": "%",
         "type": "float",
