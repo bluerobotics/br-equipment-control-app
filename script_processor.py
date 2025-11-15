@@ -917,6 +917,8 @@ class ScriptRunner(threading.Thread):
         try:
             # Get the full condition string (all args after 'if')
             condition_str = resolved_params.get('condition', '')
+            print(f"[DEBUG] _handle_if condition_str: '{condition_str}'")
+            print(f"[DEBUG] _handle_if resolved_params: {resolved_params}")
             
             # Parse the condition: supports "value1 > var < value2" or similar
             # Split on comparison operators while preserving them
@@ -924,6 +926,7 @@ class ScriptRunner(threading.Thread):
             
             # Find all tokens (numbers, variables, operators, commands)
             tokens = re.split(r'\s+', condition_str)
+            print(f"[DEBUG] _handle_if tokens: {tokens}")
             
             # Evaluate the comparison chain
             result = self._evaluate_condition(tokens, line_num)
