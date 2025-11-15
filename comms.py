@@ -622,19 +622,24 @@ def recv_loop(gui_refs, device_manager):
 
             elif "_RECOVERY:" in msg or msg.startswith("RECOVERY:"):
                 # Special handler for watchdog recovery messages
-                log_to_terminal(f"[RECOVERY @{source_ip}]: {msg}", gui_refs)
+                # Check if device is configured for USB before logging
+                should_log = True
                 with devices_lock:
                     for key, device_state in device_manager.get_all_device_states().items():
                         if device_state["ip"] == source_ip:
-                            # Ignore if device is configured for USB
+                            # Ignore if device is configured for USB (suppress both logging and dialog)
                             if device_state.get('connection_method') == 'usb':
-                                continue
+                                should_log = False
+                                break
                             device_manager.update_device_state(key, {"last_rx": time.time()})
                             # Queue a warning dialog to show on the main GUI thread
                             device_name = key.upper()
                             if gui_queue := gui_refs.get('gui_queue'):
                                 gui_queue.put((show_recovery_warning, (device_name, msg, gui_refs), {}))
                             break
+                
+                if should_log:
+                    log_to_terminal(f"[RECOVERY @{source_ip}]: {msg}", gui_refs)
             elif msg.startswith("NVMDUMP:"):
                 try:
                     _, device_key, payload = msg.split(":", 2)
