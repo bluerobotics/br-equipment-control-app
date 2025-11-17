@@ -48,7 +48,7 @@ list_ports = _import_pyserial()
 
 import theme
 from clearcore_firmware import (
-    CLEARCORE_DEVICE_CONFIG,
+    get_device_firmware_configs,
     compare_versions,
     get_release_history,
     start_manual_update,
@@ -98,7 +98,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         self.release_cache = {}
         self.rows = {}
         self._refresh_job = None
-        self._usb_poll_job = None
         self.command_funcs = gui_refs.get('command_funcs', {})
         self.update_in_progress = False
         self.nvm_views = {}
@@ -113,10 +112,37 @@ class FirmwareManagerWindow(tk.Toplevel):
         self._build_ui()
         self.refresh_device_states()
         self.refresh_all_releases()
-        self._start_usb_polling()
+        
+        # Request firmware versions for all connected devices
+        for device_key in self.rows.keys():
+            self._request_device_version(device_key)
 
     def _build_ui(self):
-        container = ttk.Frame(self, style='TFrame', padding=(20, 20, 20, 12))
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(self, bg=theme.BG_COLOR, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Store canvas reference for mousewheel binding
+        self._canvas = canvas
+        
+        # Bind mousewheel
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+        container = ttk.Frame(scrollable_frame, style='TFrame', padding=(20, 20, 20, 12))
         container.pack(fill=tk.BOTH, expand=True)
         container.columnconfigure(0, weight=1)
 
@@ -125,11 +151,32 @@ class FirmwareManagerWindow(tk.Toplevel):
             text="Manage firmware for supported ClearCore devices.",
             style='Header.TLabel'
         )
-        header.grid(row=0, column=0, sticky='w', pady=(0, 16))
+        header.grid(row=0, column=0, sticky='w', pady=(0, 8))
+        
+        note = ttk.Label(
+            container,
+            text="Note: Firmware flashing is only supported over USB connections.",
+            style='Subtle.TLabel',
+            foreground=theme.WARNING_YELLOW
+        )
+        note.grid(row=1, column=0, sticky='w', pady=(0, 16))
 
-        devices = sorted(CLEARCORE_DEVICE_CONFIG.items(), key=lambda item: item[0])
-        if not devices:
+        all_devices = get_device_firmware_configs()
+        if not all_devices:
             ttk.Label(container, text="No ClearCore devices are configured.", style='TLabel').grid(row=2, column=0, sticky='w')
+            return
+        
+        # Filter to only show connected devices
+        connected_devices = []
+        for device_key, config in all_devices.items():
+            state = self.device_manager.get_device_state(device_key) or {}
+            if state.get('connected'):
+                connected_devices.append((device_key, config))
+        
+        devices = sorted(connected_devices, key=lambda item: item[0])
+        
+        if not devices:
+            ttk.Label(container, text="No ClearCore devices are currently connected.", style='TLabel').grid(row=2, column=0, sticky='w')
             return
 
         for idx, (device_key, config) in enumerate(devices, start=2):
@@ -149,11 +196,11 @@ class FirmwareManagerWindow(tk.Toplevel):
             latest_var = tk.StringVar(value="—")
             status_var = tk.StringVar(value="Idle")
             release_var = tk.StringVar()
-            usb_var = tk.StringVar(value="No USB devices detected")
+            conn_var = tk.StringVar(value="Not connected")
 
-            ttk.Label(frame, text="USB Connection:", style='Subtle.TLabel').grid(row=0, column=0, sticky='w')
-            usb_label = ttk.Label(frame, textvariable=usb_var, style='TLabel')
-            usb_label.grid(row=0, column=1, sticky='w')
+            ttk.Label(frame, text="Connection:", style='Subtle.TLabel').grid(row=0, column=0, sticky='w')
+            conn_label = ttk.Label(frame, textvariable=conn_var, style='TLabel')
+            conn_label.grid(row=0, column=1, sticky='w')
 
             ttk.Label(frame, text="Current Version:", style='Subtle.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
             current_label = ttk.Label(frame, textvariable=current_var, style='TLabel')
@@ -261,13 +308,12 @@ class FirmwareManagerWindow(tk.Toplevel):
                 'release_combo': release_combo,
                 'release_notes': notes_widget,
                 'current_label': current_label,
-                'usb_var': usb_var,
-                'usb_label': usb_label,
+                'conn_var': conn_var,
+                'conn_label': conn_label,
                 'latest_label': latest_label,
                 'releases': {},
                 'config': config,
-                'status_label': status_label,
-                'usb_connected': False
+                'status_label': status_label
             }
 
 
@@ -278,7 +324,27 @@ class FirmwareManagerWindow(tk.Toplevel):
         for device_key, row in self.rows.items():
             state = self.device_manager.get_device_state(device_key) or {}
             connected = bool(state.get('connected'))
-            self._update_usb_info(device_key)
+            
+            # Update connection status display
+            conn_var = row.get('conn_var')
+            conn_label = row.get('conn_label')
+            if conn_var and conn_label:
+                if connected:
+                    conn_method = state.get('connection_method', 'Unknown')
+                    conn_port = state.get('connection_port', '')
+                    
+                    # For USB connections, the port IS the method (e.g., "COM10")
+                    # For UDP connections, method is "UDP" and port might be IP:port
+                    if conn_method and conn_method.startswith('COM'):
+                        conn_var.set(f"Connected via USB ({conn_method})")
+                    elif conn_port:
+                        conn_var.set(f"Connected via {conn_method} ({conn_port})")
+                    else:
+                        conn_var.set(f"Connected via {conn_method}")
+                    conn_label.configure(foreground=theme.SUCCESS_GREEN)
+                else:
+                    conn_var.set("Not connected")
+                    conn_label.configure(foreground=theme.ERROR_RED)
 
             firmware_version = state.get('firmware_version') or "Unknown"
             row['current_var'].set(firmware_version)
@@ -303,9 +369,8 @@ class FirmwareManagerWindow(tk.Toplevel):
         flash_btn = row['flash_button']
 
         check_btn_state = tk.NORMAL
-        usb_connected = row.get('usb_connected', False)
         has_release = bool(row['release_var'].get())
-        flash_btn_state = tk.NORMAL if connected and usb_connected and not in_progress and has_release else tk.DISABLED
+        flash_btn_state = tk.NORMAL if connected and not in_progress and has_release else tk.DISABLED
 
         check_btn.configure(state=check_btn_state)
         flash_btn.configure(state=flash_btn_state)
@@ -583,14 +648,13 @@ class FirmwareManagerWindow(tk.Toplevel):
         state = self.device_manager.get_device_state(device_key) or {}
         if not state.get('connected'):
             return
-        if state.get('firmware_version'):
-            return
-
+        
+        # Always request version to ensure we have the latest
         try:
             import comms
             comms.discover_devices(self.gui_refs)
             row = self.rows.get(device_key)
-            if row:
+            if row and not state.get('firmware_version'):
                 row['status_var'].set("Requesting device firmware version...")
         except Exception:
             pass
@@ -699,73 +763,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         else:
             current_label.configure(foreground=theme.WARNING_YELLOW)
 
-    def _update_all_usb_info(self):
-        for device_key in self.rows.keys():
-            self._update_usb_info(device_key)
-
-    def _update_usb_info(self, device_key):
-        row = self.rows.get(device_key)
-        if not row:
-            return
-        usb_var = row.get('usb_var')
-        usb_label = row.get('usb_label')
-        if not usb_var:
-            return
-
-        if list_ports is None:
-            usb_var.set("pyserial not installed")
-            if usb_label:
-                usb_label.configure(foreground=theme.WARNING_YELLOW)
-            row['usb_connected'] = False
-            state = self.device_manager.get_device_state(device_key) or {}
-            self._update_button_states(row, bool(state.get('connected')), bool(state.get('fw_update_in_progress')))
-            return
-
-        try:
-            ports = list(list_ports.comports())
-        except Exception:
-            ports = []
-
-        config = row.get('config', {})
-        patterns = [
-            pattern.lower()
-            for pattern in config.get('usb_identifiers', [])
-            if isinstance(pattern, str)
-        ]
-        matches = []
-        for port in ports:
-            desc_parts = [port.device, port.description, getattr(port, 'manufacturer', None)]
-            desc = " ".join(part for part in desc_parts if part).lower()
-            if patterns and any(pattern in desc for pattern in patterns):
-                matches.append(port.device)
-
-        if matches:
-            usb_var.set(f"Connected ({', '.join(matches)})")
-            if usb_label:
-                usb_label.configure(foreground=theme.SUCCESS_GREEN)
-            row['usb_connected'] = True
-        elif ports:
-            usb_var.set("Available: " + ", ".join(port.device for port in ports))
-            if usb_label:
-                usb_label.configure(foreground=theme.WARNING_YELLOW)
-            row['usb_connected'] = False
-        else:
-            usb_var.set("No USB devices detected")
-            if usb_label:
-                usb_label.configure(foreground=theme.ERROR_RED)
-            row['usb_connected'] = False
-
-        state = self.device_manager.get_device_state(device_key) or {}
-        self._update_button_states(row, bool(state.get('connected')), bool(state.get('fw_update_in_progress')))
-
-    def _start_usb_polling(self):
-        self._update_all_usb_info()
-        if self._usb_poll_job:
-            try:
-                self.after_cancel(self._usb_poll_job)
-            except Exception:
-                pass
-        self._usb_poll_job = self.after(4000, self._start_usb_polling)
 
     def _configure_styles(self):
         try:
@@ -817,13 +814,6 @@ class FirmwareManagerWindow(tk.Toplevel):
             except Exception:
                 pass
             self._refresh_job = None
-
-        if self._usb_poll_job:
-            try:
-                self.after_cancel(self._usb_poll_job)
-            except Exception:
-                pass
-            self._usb_poll_job = None
 
         if self.gui_refs.get('show_nvm_dump_cb') is self.display_nvm_dump:
             if self._previous_nvm_cb:

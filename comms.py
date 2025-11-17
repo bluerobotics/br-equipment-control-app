@@ -220,9 +220,20 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
     device_modules = device_manager.devices
     
     try:
-        # Handle discovery responses (these are mirrored from network responses, just ignore them)
+        # Handle discovery responses - parse firmware version
         if msg.startswith("DISCOVERY_RESPONSE:"):
-            # Already connected via USB, no need to process discovery
+            try:
+                # Parse firmware version from discovery response
+                # Format: DISCOVERY_RESPONSE: DEVICE_ID=pressboi PORT=8888 FW=1.6.0
+                parts = msg.split()
+                for part in parts[1:]:  # Skip "DISCOVERY_RESPONSE:"
+                    if "=" in part:
+                        key, value = part.split("=", 1)
+                        if key in ("FW", "FIRMWARE", "VERSION"):
+                            device_manager.update_device_state(device_key, {"firmware_version": value})
+                            break
+            except Exception as e:
+                log_to_terminal(f"Error parsing USB discovery firmware version: {e}", gui_refs)
             return
         
         # Handle telemetry

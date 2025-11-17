@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.1] - 2025-11-17
+
+### Changed
+- **Device-agnostic firmware system**: Refactored ClearCore firmware configuration to use per-device JSON files instead of hardcoded dictionary
+
+### Fixed
+- **Firmware Manager**: Fixed display to show only connected devices with correct COM port and firmware version information
+- **Firmware Manager**: Added scrollbar for device list and USB-only flashing note
+
 ## [1.10.0] - 2025-11-15
 
 ### Added

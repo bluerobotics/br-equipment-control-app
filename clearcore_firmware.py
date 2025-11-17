@@ -54,6 +54,23 @@ def get_clearcore_device_config(device_key):
     return _load_firmware_config(device_key)
 
 
+def get_device_firmware_configs():
+    """Get all ClearCore firmware configurations. Returns a dict of {device_key: config}."""
+    devices_dir = os.path.join(os.path.dirname(__file__), "devices")
+    if not os.path.exists(devices_dir):
+        return {}
+    
+    configs = {}
+    for device_key in os.listdir(devices_dir):
+        device_path = os.path.join(devices_dir, device_key)
+        if os.path.isdir(device_path):
+            config = _load_firmware_config(device_key)
+            if config:
+                configs[device_key] = config
+    
+    return configs
+
+
 def schedule_version_check(device_key, gui_refs, device_manager):
     """Queue a firmware version check on the UI thread for ClearCore devices."""
     config = _load_firmware_config(device_key)

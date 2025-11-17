@@ -5,12 +5,14 @@
 			"path": "."
 		},
 		{
-			"name": "st8erboi",
-			"path": "../st8erboi"
-		},
-		{
 			"name": "pressboi",
 			"path": "../pressboi"
+		},
+		{
+			"path": "../gantry"
+		},
+		{
+			"path": "../fillhead"
 		}
 	],
 	"settings": {}
