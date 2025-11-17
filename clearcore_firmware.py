@@ -9,26 +9,55 @@ import urllib.request
 from typing import Callable, Optional
 
 
-# Configuration for ClearCore-based devices
-CLEARCORE_DEVICE_CONFIG = {
-    "pressboi": {
-        "repo": "bluerobotics/pressboi",
-        "asset_name": "pressboi.uf2",
-        "label": "Pressboi",
-        "bootloader_command": "reboot_bootloader",
-        "volume_label": "CLEAR_BOOT",
-        "usb_identifiers": ["PressBoi", "ClearCore"]
-    }
-}
+# Cache for dynamically loaded firmware configs
+_FIRMWARE_CONFIG_CACHE = {}
 
 CACHE_TTL_SECONDS = 15 * 60
 RELEASE_CACHE = {}
 RELEASE_LIST_CACHE = {}
 
 
+def _load_firmware_config(device_key):
+    """
+    Load firmware configuration from device folder.
+    Returns None if no config exists or if firmware_type is not 'clearcore'.
+    """
+    if device_key in _FIRMWARE_CONFIG_CACHE:
+        return _FIRMWARE_CONFIG_CACHE[device_key]
+    
+    # Try to load from devices/{device_key}/firmware_config.json
+    config_path = os.path.join(os.path.dirname(__file__), 'devices', device_key, 'firmware_config.json')
+    
+    if not os.path.exists(config_path):
+        _FIRMWARE_CONFIG_CACHE[device_key] = None
+        return None
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Only cache and return if this is a ClearCore device
+        if config.get('firmware_type') == 'clearcore':
+            _FIRMWARE_CONFIG_CACHE[device_key] = config
+            return config
+        else:
+            _FIRMWARE_CONFIG_CACHE[device_key] = None
+            return None
+    except Exception as e:
+        print(f"[FIRMWARE] Error loading config for {device_key}: {e}")
+        _FIRMWARE_CONFIG_CACHE[device_key] = None
+        return None
+
+
+def get_clearcore_device_config(device_key):
+    """Get ClearCore firmware configuration for a device. Returns None if not a ClearCore device."""
+    return _load_firmware_config(device_key)
+
+
 def schedule_version_check(device_key, gui_refs, device_manager):
     """Queue a firmware version check on the UI thread for ClearCore devices."""
-    if device_key not in CLEARCORE_DEVICE_CONFIG:
+    config = _load_firmware_config(device_key)
+    if not config:
         device_manager.update_device_state(device_key, {"fw_check_scheduled": False})
         return
 
@@ -45,7 +74,7 @@ def _check_on_ui_thread(device_key, gui_refs, device_manager):
     """Executed on the UI thread to prompt the user for available firmware updates."""
     device_manager.update_device_state(device_key, {"fw_check_scheduled": False})
 
-    config = CLEARCORE_DEVICE_CONFIG.get(device_key)
+    config = _load_firmware_config(device_key)
     if not config:
         return
 
@@ -357,7 +386,7 @@ def _log(gui_refs, message):
 
 def get_latest_release_info(device_key):
     """Public helper to fetch the latest firmware release info for a ClearCore device."""
-    config = CLEARCORE_DEVICE_CONFIG.get(device_key)
+    config = _load_firmware_config(device_key)
     if not config:
         return None
     return _get_latest_release_info(device_key, config)
@@ -370,7 +399,7 @@ def compare_versions(current, latest):
 
 def get_release_history(device_key, limit=5, force_refresh=False):
     """Fetch a list of recent releases for the device, including changelog text."""
-    config = CLEARCORE_DEVICE_CONFIG.get(device_key)
+    config = _load_firmware_config(device_key)
     if not config:
         return []
     return _get_release_history(device_key, config, per_page=limit, force_refresh=force_refresh)
@@ -381,7 +410,7 @@ def start_manual_update(device_key, gui_refs, device_manager, release_info=None,
     Starts a firmware update without going through the prompt flow.
     Returns the worker thread if the update was started successfully.
     """
-    config = CLEARCORE_DEVICE_CONFIG.get(device_key)
+    config = _load_firmware_config(device_key)
     if not config:
         raise ValueError(f"No ClearCore firmware configuration found for '{device_key}'.")
 

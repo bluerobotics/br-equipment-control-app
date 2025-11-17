@@ -1,0 +1,10 @@
+{
+  "firmware_type": "clearcore",
+  "repo": "bluerobotics/pressurizer",
+  "asset_name": "pressurizer.uf2",
+  "label": "Pressurizer",
+  "bootloader_command": "reboot_bootloader",
+  "volume_label": "CLEAR_BOOT",
+  "usb_identifiers": ["Pressurizer", "ClearCore"]
+}
+

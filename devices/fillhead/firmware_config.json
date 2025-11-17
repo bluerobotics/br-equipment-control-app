@@ -1,0 +1,10 @@
+{
+  "firmware_type": "clearcore",
+  "repo": "bluerobotics/fillhead",
+  "asset_name": "fillhead.uf2",
+  "label": "Fillhead",
+  "bootloader_command": "reboot_bootloader",
+  "volume_label": "CLEAR_BOOT",
+  "usb_identifiers": ["Fillhead", "ClearCore"]
+}
+

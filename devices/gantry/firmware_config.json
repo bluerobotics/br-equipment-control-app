@@ -1,0 +1,10 @@
+{
+  "firmware_type": "clearcore",
+  "repo": "bluerobotics/gantry",
+  "asset_name": "gantry.uf2",
+  "label": "Gantry",
+  "bootloader_command": "reboot_bootloader",
+  "volume_label": "CLEAR_BOOT",
+  "usb_identifiers": ["Gantry", "ClearCore"]
+}
+
