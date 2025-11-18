@@ -501,10 +501,22 @@ class DeviceManager:
     def create_all_gui_components(self, parent_container):
         """
         Iterates through all loaded devices and calls their GUI creation functions.
+        Also ensures status variables are added to shared_gui_refs for all devices.
         """
-        for device_name, modules in self.devices.items():
-            if hasattr(modules['gui'], 'create_gui_components'):
-                panel = modules['gui'].create_gui_components(parent_container, self.shared_gui_refs)
+        for device_name, device_data in self.devices.items():
+            # Ensure status_var is in shared_gui_refs (needed even for devices without GUI)
+            status_var_key = f'status_var_{device_name}'
+            if status_var_key not in self.shared_gui_refs:
+                if 'status_var' in device_data:
+                    self.shared_gui_refs[status_var_key] = device_data['status_var']
+                else:
+                    # Create a default status_var if it doesn't exist
+                    self.shared_gui_refs[status_var_key] = tk.StringVar(value=f'{device_name.capitalize()}')
+            
+            # Create GUI components if the device has a gui module
+            gui_module = device_data.get('gui')
+            if gui_module and hasattr(gui_module, 'create_gui_components'):
+                panel = gui_module.create_gui_components(parent_container, self.shared_gui_refs)
                 self.shared_gui_refs[f'{device_name}_panel'] = panel
                 panel.pack_forget() # Hide by default
                 self.log(f"Created GUI panel for {device_name}")

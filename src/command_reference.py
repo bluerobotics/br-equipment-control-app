@@ -4564,8 +4564,10 @@ class AddDeviceDialog(tk.Toplevel):
         if not self.original_device_name:
             return
         
-        # Set device name
-        self.name_entry.insert(0, self.original_device_name)
+        # In edit mode, there are no input fields to populate
+        # The edit mode just allows rediscovering devices
+        if hasattr(self, 'name_entry'):
+            self.name_entry.insert(0, self.original_device_name)
     
     def toggle_copy_device(self):
         """Enable/disable the copy device dropdown."""
@@ -4816,23 +4818,11 @@ class AddDeviceDialog(tk.Toplevel):
         import json
         import os
         
-        device_name = self.name_entry.get().strip()
-        description = self.desc_text.get("1.0", tk.END).strip()
-        
-        if not device_name:
-            messagebox.showerror("Error", "Device name is required.")
-            return
-        
-        # Validate device name (only alphanumeric and underscores)
-        if not device_name.replace('_', '').isalnum():
-            messagebox.showerror("Error", "Device name can only contain letters, numbers, and underscores.")
-            return
-        
         try:
             old_device_name = self.original_device_name if self.edit_mode else None
             
             if self.edit_mode:
-                # Edit mode: just rediscover devices
+                # Edit mode: just rediscover devices (no input fields to read)
                 self.device_manager.discover_devices()
             else:
                 # Add mode: select or create device folder
@@ -4873,10 +4863,18 @@ class AddDeviceDialog(tk.Toplevel):
                     # Rediscover devices to load the new one
                     self.device_manager.discover_devices()
                     
+                    # Extract device name from path for display
+                    device_name_display = os.path.basename(device_path)
                     messagebox.showinfo("Success", f"Device folder added:\n{device_path}\n\n"
-                                                   f"Device '{device_name}' should now be available.")
+                                                   f"Device '{device_name_display}' should now be available.")
                 else:
                     # No folder selected - create new device folder
+                    # This path requires name_entry which doesn't exist in current add mode
+                    # Add mode uses browse_device_folder() instead
+                    messagebox.showerror("Error", "Please select a device folder using the folder browser.")
+                    return
+                    
+                    # The code below is unreachable but kept for reference
                     # Prompt user to select where to create it
                     from tkinter import filedialog
                     
@@ -4888,6 +4886,8 @@ class AddDeviceDialog(tk.Toplevel):
                     if not create_path:
                         return  # User cancelled
                     
+                    # Would need name_entry here, but it doesn't exist in add mode
+                    device_name = "new_device"  # Fallback
                     device_path = os.path.join(create_path, device_name)
                     
                     if os.path.exists(device_path):

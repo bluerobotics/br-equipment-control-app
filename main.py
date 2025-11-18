@@ -3,12 +3,20 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import sys
 import subprocess
+import os
+
+# Add libs directory to path for bundled dependencies (e.g., pyserial)
+# This allows the app to work on macOS/Linux when running from source
+project_root = os.path.dirname(os.path.abspath(__file__))
+libs_path = os.path.join(project_root, "libs")
+if os.path.exists(libs_path) and libs_path not in sys.path:
+    sys.path.insert(0, libs_path)
+
 from src import comms
 from src.scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
 from src.status_panel import create_status_bar
 from src.terminal import create_terminal_panel
 import json
-import os
 from src import theme  # Import the new theme file
 import tkinter.font as tkfont
 import platform
