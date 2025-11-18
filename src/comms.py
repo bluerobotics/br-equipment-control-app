@@ -5,10 +5,10 @@ import datetime
 import tkinter as tk
 import json
 from queue import Empty
-import serial_comms
+from . import serial_comms
 
 try:
-    from clearcore_firmware import schedule_version_check
+    from .clearcore_firmware import schedule_version_check
 except ImportError:
     schedule_version_check = None
 
@@ -52,6 +52,17 @@ def log_to_terminal(msg, gui_refs):
     """Safely logs a message to the GUI terminal by placing it on the queue."""
     timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
     full_msg = f"{timestr} {msg}\n"
+    
+    # Also log to system logger if available
+    # The logger will see the timestamp in full_msg and won't add another one
+    try:
+        from .system_logger import get_system_logger
+        logger = get_system_logger()
+        if logger:
+            # Pass message with timestamp - logger will detect it and not add another
+            logger.log_message(full_msg.rstrip('\n'), is_error=False)
+    except Exception:
+        pass  # Ignore errors in logging system
     
     terminal_cb = gui_refs.get('terminal_cb')
     gui_queue = gui_refs.get('gui_queue')
@@ -131,7 +142,7 @@ def send_to_device(device_key, msg, gui_refs):
         serial_port = device_state.get('serial_port')
         if serial_port:
             try:
-                import serial_comms
+                from . import serial_comms
                 log_to_terminal(f"[CMD SENT to {device_key.upper()} via USB]: {msg}", gui_refs)
                 serial_comms.send_serial_command(serial_port, msg)
             except Exception as e:
@@ -174,13 +185,15 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
     if not msg:
         return
     
-    # Mark device as connected via USB
+    # Mark device as connected via USB and update last_rx for ANY message received
     is_new_connection = False
     with devices_lock:
         device_state = device_manager.get_device_state(device_key)
         if device_state:
-            if not device_state.get("connected"):
+            was_connected = device_state.get("connected", False)
+            if not was_connected:
                 is_new_connection = True
+            # Always update last_rx when we receive ANY message - this prevents timeout
             device_manager.update_device_state(device_key, {
                 "connected": True,
                 "last_rx": time.time()
@@ -195,17 +208,26 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
         gui_queue = gui_refs.get('gui_queue')
         
         # Queue showing the panel first
-        if gui_queue and 'show_panel' in gui_refs:
-            gui_queue.put((gui_refs['show_panel'], (device_key,), {}))
+        show_panel_fn = gui_refs.get('show_panel')
+        if show_panel_fn:
+            if gui_queue:
+                gui_queue.put((show_panel_fn, (device_key,), {}))
+            else:
+                show_panel_fn(device_key)
         
         # Then update the status variable
         status_var = gui_refs.get(f'status_var_{device_key}')
-        if gui_queue and status_var:
-            gui_queue.put((status_var.set, (status_text,), {}))
+        if status_var:
+            if gui_queue:
+                gui_queue.put((status_var.set, (status_text,), {}))
+            else:
+                status_var.set(status_text)
         
         # Queue the visibility update for the "searching" panel
         if gui_queue:
             gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+        else:
+            update_searching_panel_visibility(gui_refs)
         
         # Refresh the command reference to update the device tree after a small delay
         # This ensures the status variable has been updated before refresh
@@ -240,13 +262,13 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
         if "_TELEM:" in msg:
             try:
                 if device_key in device_modules:
+                    # Always log that telemetry was received (for debugging)
                     if log_telemetry:
                         log_to_terminal(f"[TELEM via USB]: {msg}", gui_refs)
                     
                     device_info = device_modules[device_key]
                     parser_module = device_info.get('parser')
                     telemetry_data = device_info.get('telemetry_data', {})
-                    
                     parsed_data = {}
                     if parser_module and hasattr(parser_module, 'parse_telemetry'):
                         # Use module-level queue_ui_update function
@@ -257,6 +279,11 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
                     
                     if parsed_data:
                         device_manager.notify_telemetry_callbacks(device_key, parsed_data)
+                else:
+                    # Device not configured - log as telemetry (filtered by telemetry checkbox)
+                    # but don't parse or process it
+                    if log_telemetry:
+                        log_to_terminal(f"[TELEM via USB]: {msg}", gui_refs)
             except Exception as e:
                 log_to_terminal(f"Error processing USB telemetry: {e}", gui_refs)
         
@@ -308,8 +335,19 @@ def monitor_connections(gui_refs, device_manager):
                 device_state = device_manager.get_device_state(key)
                 if not device_state: continue
                 prev_conn_status = device_state["connected"]
+                fw_update_in_progress = device_state.get("fw_update_in_progress", False)
 
-            if prev_conn_status and (now - device_state["last_rx"]) > TIMEOUT_THRESHOLD:
+            # Skip disconnection handling if firmware update is in progress
+            # The device will intentionally disconnect when rebooting into bootloader mode
+            if fw_update_in_progress:
+                # Device is expected to disconnect during firmware update - don't treat as error
+                continue
+
+            # Use longer timeout for USB connections (they may take longer to establish communication)
+            connection_method = device_state.get("connection_method", "network")
+            timeout = TIMEOUT_THRESHOLD * 2 if connection_method == "usb" else TIMEOUT_THRESHOLD
+            
+            if prev_conn_status and (now - device_state["last_rx"]) > timeout:
                 with devices_lock:
                     device_manager.update_device_state(key, {"connected": False, "ip": None})
                 
@@ -335,23 +373,63 @@ def update_searching_panel_visibility(gui_refs):
     searching_frame = gui_refs.get('searching_frame')
     status_bar_container = gui_refs.get('status_bar_container')
     device_manager = gui_refs.get('device_manager')
-    if not searching_frame or not status_bar_container or not device_manager:
+    
+    if not searching_frame or not device_manager:
         return
-
+    
+    # Check if any devices are connected
     any_connected = False
     with devices_lock:
-        for device_state in device_manager.get_all_device_states().values():
-            if device_state["connected"]:
+        device_states = device_manager.get_all_device_states()
+        for device_state in device_states.values():
+            if device_state.get("connected"):
                 any_connected = True
                 break
     
     # This function is now executed by the main thread, so it's safe to modify the GUI
     if any_connected:
-        searching_frame.pack_forget()
+        # Hide searching panel when devices are connected
+        try:
+            searching_frame.pack_forget()
+        except tk.TclError:
+            pass  # Widget might have been destroyed
     else:
-        # Use 'before' to ensure it's always packed at the top of its parent,
-        # right before the container that holds the device status panels.
-        searching_frame.pack(before=status_bar_container, side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+        # Show searching panel when no devices are connected
+        try:
+            # Check if searching_frame is already packed
+            try:
+                searching_frame.pack_info()
+                # Already packed, nothing to do
+            except tk.TclError:
+                # Not packed, need to pack it
+                if status_bar_container:
+                    # Try to pack before status_bar_container
+                    try:
+                        # Ensure status_bar_container is packed first
+                        try:
+                            status_bar_container.pack_info()
+                        except tk.TclError:
+                            # Container is not packed, pack it first
+                            parent = status_bar_container.master
+                            if parent:
+                                status_bar_container.pack(side=tk.TOP, fill='x', expand=False)
+                        
+                        # Pack searching_frame before status_bar_container
+                        searching_frame.pack(before=status_bar_container, side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+                    except tk.TclError:
+                        # Fallback: pack normally if 'before' doesn't work
+                        try:
+                            searching_frame.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+                        except tk.TclError:
+                            pass  # Widget might have been destroyed
+                else:
+                    # No status_bar_container, just pack normally
+                    try:
+                        searching_frame.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+                    except tk.TclError:
+                        pass  # Widget might have been destroyed
+        except tk.TclError:
+            pass  # Widget might have been destroyed
 
 def queue_ui_update(gui_refs, var_name, value):
     """Safely queues a tkinter variable update."""
@@ -362,6 +440,11 @@ def queue_ui_update(gui_refs, var_name, value):
         if isinstance(var, tk.DoubleVar):
             value = safe_float(value)
         gui_queue.put((var.set, (value,), {}))
+    else:
+        if not gui_queue:
+            pass
+        if not var:
+            pass
 
 def handle_connection(device_key, source_ip, gui_refs, device_manager):
     """Handles the logic for a new or existing connection."""
@@ -370,37 +453,56 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
 
     with devices_lock:
         device_state = device_manager.get_device_state(device_key)
-        if not device_state: return # Should not happen if discovery is working
-        
-        # Don't handle network connection if device is configured for USB
-        if device_state.get('connection_method') == 'usb':
+        if not device_state:
             return
         
-        if not device_state["connected"]:
+        # Don't handle network connection if device is configured for USB AND actually connected via USB
+        # If USB connection failed, we should accept network connection instead
+        if device_state.get('connection_method') == 'usb' and device_state.get('connected'):
+            return
+        
+        was_connected = device_state.get("connected", False)
+        if not was_connected:
             is_new_connection = True
         
-        device_manager.update_device_state(device_key, {
+        # If we're here and connection_method was 'usb', it means USB failed - switch to network
+        updates = {
             "ip": source_ip,
             "last_rx": time.time(),
             "connected": True
-        })
+        }
+        
+        # Don't automatically switch to network if USB is the configured method
+        # The user must manually switch via the UI if they want to use network instead
+        # This prevents network discovery from interrupting USB connections
+        
+        device_manager.update_device_state(device_key, updates)
 
     if is_new_connection:
         status_text = f"{device_key.capitalize()} ({source_ip})"
         log_to_terminal(f"{device_key}: Connected via Ethernet on {source_ip}", gui_refs)
         
         status_var = gui_refs.get(f'status_var_{device_key}')
-        if gui_queue and status_var:
-            # Queue the status variable update
-            gui_queue.put((status_var.set, (status_text,), {}))
+        if status_var:
+            if gui_queue:
+                # Queue the status variable update
+                gui_queue.put((status_var.set, (status_text,), {}))
+            else:
+                status_var.set(status_text)
         
         # Queue showing the panel
-        if gui_queue and 'show_panel' in gui_refs:
-            gui_queue.put((gui_refs['show_panel'], (device_key,), {}))
+        show_panel_fn = gui_refs.get('show_panel')
+        if show_panel_fn:
+            if gui_queue:
+                gui_queue.put((show_panel_fn, (device_key,), {}))
+            else:
+                show_panel_fn(device_key)
         
         # Queue the visibility update for the "searching" panel
         if gui_queue:
             gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+        else:
+            update_searching_panel_visibility(gui_refs)
         
         # Refresh the command reference to update the device tree after a small delay
         # This ensures the status variable has been updated before refresh
@@ -544,7 +646,8 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
 
 def recv_loop(gui_refs, device_manager):
     """Main network receive loop. Routes packets to the correct local parser."""
-    device_modules = device_manager.get_device_modules()
+    # Don't cache device_modules - get it fresh each iteration to pick up newly added devices
+    # device_modules = device_manager.get_device_modules()  # Removed - get fresh each time
 
     while True:
         try:
@@ -571,6 +674,8 @@ def recv_loop(gui_refs, device_manager):
                             elif key in ("FW", "FIRMWARE", "VERSION"):
                                 device_fw = value
                     
+                    # Get fresh device_modules to pick up newly added devices
+                    device_modules = device_manager.get_device_modules()
                     if device_key and device_key in device_modules:
                         # Check if device is configured for USB - if so, ignore network discovery
                         with devices_lock:
@@ -598,14 +703,59 @@ def recv_loop(gui_refs, device_manager):
             elif "_TELEM:" in msg:
                 try:
                     device_key = msg.split("_TELEM:")[0].lower()
+                    # Get fresh device_modules to pick up newly added devices
+                    device_modules = device_manager.get_device_modules()
+                    
                     if device_key in device_modules:
-                        # Check if device is configured for USB - if so, ignore network telemetry
+                        # Update connection state based on telemetry
+                        # BUT: Don't mark as connected if device is configured for USB - let USB handle that
+                        is_new_connection = False
                         with devices_lock:
                             device_state = device_manager.get_device_state(device_key)
-                            if device_state and device_state.get('connection_method') == 'usb':
-                                continue  # Ignore network telemetry for USB devices
+                            if device_state:
+                                connection_method = device_state.get('connection_method', 'network')
+                                was_connected = device_state.get('connected', False)
+                                
+                                # Only update connection state if device is using network connection
+                                # If using USB, completely ignore network telemetry
+                                if connection_method == 'network':
+                                    if not was_connected:
+                                        is_new_connection = True
+                                    device_manager.update_device_state(device_key, {
+                                        "connected": True,
+                                        "last_rx": time.time(),
+                                        "ip": source_ip
+                                    })
+                                # If USB is configured, ignore network telemetry entirely
+                                # Don't even update the IP
                         
-                        handle_connection(device_key, source_ip, gui_refs, device_manager)
+                        # Update status variable if this is a new network connection
+                        if is_new_connection:
+                            status_text = f"{device_key.capitalize()} ({source_ip})"
+                            log_to_terminal(f"{device_key}: Connected via Ethernet on {source_ip}", gui_refs)
+                            
+                            status_var = gui_refs.get(f'status_var_{device_key}')
+                            if status_var:
+                                gui_queue = gui_refs.get('gui_queue')
+                                if gui_queue:
+                                    gui_queue.put((status_var.set, (status_text,), {}))
+                                else:
+                                    status_var.set(status_text)
+                            
+                            # Show the panel if it was hidden
+                            show_panel_fn = gui_refs.get('show_panel')
+                            if show_panel_fn:
+                                gui_queue = gui_refs.get('gui_queue')
+                                if gui_queue:
+                                    gui_queue.put((show_panel_fn, (device_key,), {}))
+                                else:
+                                    show_panel_fn(device_key)
+                            
+                            # Update searching panel visibility
+                            gui_queue = gui_refs.get('gui_queue')
+                            if gui_queue:
+                                gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+                        
                         if log_telemetry:
                             log_to_terminal(f"[TELEM @{source_ip}]: {msg}", gui_refs)
                         
@@ -627,7 +777,10 @@ def recv_loop(gui_refs, device_manager):
                         if parsed_data:
                             device_manager.notify_telemetry_callbacks(device_key, parsed_data)
                     else:
-                        log_to_terminal(f"[UNHANDLED @{source_ip}]: {msg}", gui_refs)
+                        # Device not configured - log as telemetry (filtered by telemetry checkbox)
+                        # but don't parse or process it
+                        if log_telemetry:
+                            log_to_terminal(f"[TELEM @{source_ip}]: {msg}", gui_refs)
                 except Exception as e:
                     log_to_terminal(f"Error processing telemetry for {msg}: {e}", gui_refs)
 

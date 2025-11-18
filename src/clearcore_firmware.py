@@ -17,18 +17,101 @@ RELEASE_CACHE = {}
 RELEASE_LIST_CACHE = {}
 
 
-def _load_firmware_config(device_key):
+def clear_firmware_config_cache(device_key=None):
     """
-    Load firmware configuration from device folder.
+    Clear the firmware config cache for a specific device or all devices.
+    
+    Args:
+        device_key: Device name/key to clear, or None to clear all
+    """
+    if device_key:
+        _FIRMWARE_CONFIG_CACHE.pop(device_key, None)
+    else:
+        _FIRMWARE_CONFIG_CACHE.clear()
+
+
+def _load_firmware_config(device_key, device_manager=None):
+    """
+    Load firmware configuration from device definition folder.
     Returns None if no config exists or if firmware_type is not 'clearcore'.
+    
+    Args:
+        device_key: Device name/key
+        device_manager: Optional DeviceManager instance to find device paths
     """
+    # Check cache first, but always reload if device_manager is provided (in case paths changed)
+    # If no device_manager, we can use cached value
     if device_key in _FIRMWARE_CONFIG_CACHE:
-        return _FIRMWARE_CONFIG_CACHE[device_key]
+        if device_manager is None:
+            # No device_manager provided, use cache
+            return _FIRMWARE_CONFIG_CACHE[device_key]
+        else:
+            # device_manager provided - clear cache for this device to force reload
+            # (paths might have changed)
+            _FIRMWARE_CONFIG_CACHE.pop(device_key, None)
     
-    # Try to load from devices/{device_key}/firmware_config.json
-    config_path = os.path.join(os.path.dirname(__file__), 'devices', device_key, 'firmware_config.json')
+    # Try to find device definition folder
+    config_path = None
     
-    if not os.path.exists(config_path):
+    # First, try to get from device_manager if provided
+    # Device paths are root folders (e.g., pressboi/), need to look for definition/ subfolder
+    if device_manager:
+        for device_root_path in device_manager.device_paths:
+            # Normalize paths for comparison
+            device_root_path = os.path.normpath(device_root_path)
+            
+            # Strategy 1: Check if folder name matches device_key, then look for config
+            if os.path.basename(device_root_path).lower() == device_key.lower():
+                # Try definition subfolder first
+                potential_config = os.path.join(device_root_path, 'definition', 'config.json')
+                if os.path.exists(potential_config):
+                    config_path = potential_config
+                    break
+                # Try root folder
+                potential_config = os.path.join(device_root_path, 'config.json')
+                if os.path.exists(potential_config):
+                    config_path = potential_config
+                    break
+            
+            # Strategy 2: Check all config files and match by device_name
+            # Check definition subfolder first
+            definition_path = os.path.join(device_root_path, 'definition')
+            test_config_path = os.path.join(definition_path, 'config.json')
+            
+            if not os.path.exists(test_config_path):
+                # Fallback: check root folder (backward compatibility)
+                test_config_path = os.path.join(device_root_path, 'config.json')
+            
+            if os.path.exists(test_config_path):
+                try:
+                    with open(test_config_path, 'r') as f:
+                        test_config = json.load(f)
+                        path_device_name = test_config.get('device_name') or test_config.get('name')
+                        if path_device_name and path_device_name.lower() == device_key.lower():
+                            config_path = test_config_path
+                            break
+                except Exception:
+                    pass
+    
+    # Fallback: try old devices folder structure
+    if not config_path:
+        old_config_path = os.path.join(os.path.dirname(__file__), 'devices', device_key, 'firmware_config.json')
+        if os.path.exists(old_config_path):
+            config_path = old_config_path
+    
+    # Also try config.json in old structure
+    if not config_path:
+        old_config_path = os.path.join(os.path.dirname(__file__), 'devices', device_key, 'config.json')
+        if os.path.exists(old_config_path):
+            config_path = old_config_path
+    
+    if not config_path or not os.path.exists(config_path):
+        if device_manager:
+            # Log available paths for debugging
+            print(f"[FIRMWARE] No config.json found for '{device_key}'. Searched in:")
+            for device_root_path in device_manager.device_paths:
+                print(f"  - {os.path.join(device_root_path, 'definition', 'config.json')}")
+                print(f"  - {os.path.join(device_root_path, 'config.json')}")
         _FIRMWARE_CONFIG_CACHE[device_key] = None
         return None
     
@@ -37,43 +120,84 @@ def _load_firmware_config(device_key):
             config = json.load(f)
         
         # Only cache and return if this is a ClearCore device
-        if config.get('firmware_type') == 'clearcore':
+        firmware_type = config.get('firmware_type')
+        if firmware_type == 'clearcore':
+            # Validate required fields
+            required_fields = ['repo', 'asset_name', 'bootloader_command']
+            missing_fields = [field for field in required_fields if field not in config]
+            if missing_fields:
+                print(f"[FIRMWARE] Config for '{device_key}' is missing required fields: {missing_fields}")
+                _FIRMWARE_CONFIG_CACHE[device_key] = None
+                return None
             _FIRMWARE_CONFIG_CACHE[device_key] = config
+            print(f"[FIRMWARE] Loaded firmware config for '{device_key}' from {config_path}")
             return config
         else:
+            print(f"[FIRMWARE] Config for '{device_key}' has firmware_type='{firmware_type}', not 'clearcore'")
             _FIRMWARE_CONFIG_CACHE[device_key] = None
             return None
     except Exception as e:
-        print(f"[FIRMWARE] Error loading config for {device_key}: {e}")
+        print(f"[FIRMWARE] Error loading config for {device_key} from {config_path}: {e}")
+        import traceback
+        traceback.print_exc()
         _FIRMWARE_CONFIG_CACHE[device_key] = None
         return None
 
 
-def get_clearcore_device_config(device_key):
+def get_clearcore_device_config(device_key, device_manager=None):
     """Get ClearCore firmware configuration for a device. Returns None if not a ClearCore device."""
-    return _load_firmware_config(device_key)
+    return _load_firmware_config(device_key, device_manager)
 
 
-def get_device_firmware_configs():
-    """Get all ClearCore firmware configurations. Returns a dict of {device_key: config}."""
-    devices_dir = os.path.join(os.path.dirname(__file__), "devices")
-    if not os.path.exists(devices_dir):
-        return {}
+def get_device_firmware_configs(device_manager=None):
+    """
+    Get all ClearCore firmware configurations. Returns a dict of {device_key: config}.
     
+    Args:
+        device_manager: Optional DeviceManager instance to find device paths
+    """
     configs = {}
-    for device_key in os.listdir(devices_dir):
-        device_path = os.path.join(devices_dir, device_key)
-        if os.path.isdir(device_path):
-            config = _load_firmware_config(device_key)
-            if config:
-                configs[device_key] = config
+    
+    # If device_manager is provided, use its device paths (root folders)
+    if device_manager:
+        for device_root_path in device_manager.device_paths:
+            # Look for config.json in definition subfolder first
+            definition_path = os.path.join(device_root_path, 'definition')
+            config_path = os.path.join(definition_path, 'config.json')
+            
+            if not os.path.exists(config_path):
+                # Fallback: check root folder (backward compatibility)
+                config_path = os.path.join(device_root_path, 'config.json')
+            
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    
+                    # Check if it's a ClearCore device
+                    if config.get('firmware_type') == 'clearcore':
+                        device_name = config.get('device_name') or config.get('name')
+                        if device_name:
+                            configs[device_name] = config
+                except Exception:
+                    pass
+    
+    # Fallback: try old devices folder structure
+    devices_dir = os.path.join(os.path.dirname(__file__), "devices")
+    if os.path.exists(devices_dir):
+        for device_key in os.listdir(devices_dir):
+            device_path = os.path.join(devices_dir, device_key)
+            if os.path.isdir(device_path) and device_key not in configs:
+                config = _load_firmware_config(device_key, device_manager)
+                if config:
+                    configs[device_key] = config
     
     return configs
 
 
 def schedule_version_check(device_key, gui_refs, device_manager):
     """Queue a firmware version check on the UI thread for ClearCore devices."""
-    config = _load_firmware_config(device_key)
+    config = _load_firmware_config(device_key, device_manager)
     if not config:
         device_manager.update_device_state(device_key, {"fw_check_scheduled": False})
         return
@@ -91,7 +215,7 @@ def _check_on_ui_thread(device_key, gui_refs, device_manager):
     """Executed on the UI thread to prompt the user for available firmware updates."""
     device_manager.update_device_state(device_key, {"fw_check_scheduled": False})
 
-    config = _load_firmware_config(device_key)
+    config = _load_firmware_config(device_key, device_manager)
     if not config:
         return
 
@@ -182,16 +306,34 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
 
         initial_drives = set(_list_available_drives())
 
-        # Send reboot command
+        # Check if device might be in recovery mode - if so, send RESET first
+        # Devices in recovery mode (red LED) may not respond to bootloader commands
         sender = device_manager.get_device_sender(device_key)
+        
+        # Attempt to clear any recovery/error state before flashing
+        # This helps if the device is stuck in watchdog recovery mode
+        try:
+            _log(gui_refs, f"[{device_key}] Clearing any error/recovery states before firmware update...")
+            _queue_status_callback(gui_refs, status_callback, "Clearing error states...")
+            sender("reset")
+            time.sleep(1.0)  # Give device time to process reset and clear recovery state
+        except Exception as e:
+            _log(gui_refs, f"[{device_key}] Note: Could not send reset command (device may already be in bootloader): {e}")
+
+        # Send reboot command to enter bootloader
+        _log(gui_refs, f"[{device_key}] Sending bootloader command: {config['bootloader_command']}")
+        _queue_status_callback(gui_refs, status_callback, "Entering bootloader mode...")
         sender(config['bootloader_command'])
+        
+        # Give the device a moment to process the command before closing connection
+        time.sleep(0.2)
         
         # Close serial connection if device is using USB
         device_state = device_manager.get_device_state(device_key)
         if device_state and device_state.get('connection_method') == 'usb':
             serial_port = device_state.get('serial_port')
             if serial_port:
-                import serial_comms
+                from . import serial_comms
                 _log(gui_refs, f"[{device_key}] Closing serial connection on {serial_port}...")
                 serial_comms.disconnect_serial_device(serial_port)
                 time.sleep(0.5)  # Give time for device to reboot and port to close
@@ -224,8 +366,8 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
             time.sleep(2.0)  # Give device time to fully reboot
             
             try:
-                import serial_comms
-                import comms
+                from . import serial_comms
+                from . import comms
                 success_reconnect = serial_comms.connect_serial_device(
                     serial_port,
                     device_key,
@@ -395,15 +537,15 @@ def _show_error_message(title, message):
 
 def _log(gui_refs, message):
     try:
-        import comms
+        from . import comms
         comms.log_to_terminal(message, gui_refs)
     except Exception:
         pass
 
 
-def get_latest_release_info(device_key):
+def get_latest_release_info(device_key, device_manager=None):
     """Public helper to fetch the latest firmware release info for a ClearCore device."""
-    config = _load_firmware_config(device_key)
+    config = _load_firmware_config(device_key, device_manager)
     if not config:
         return None
     return _get_latest_release_info(device_key, config)
@@ -414,9 +556,9 @@ def compare_versions(current, latest):
     return _compare_versions(current, latest)
 
 
-def get_release_history(device_key, limit=5, force_refresh=False):
+def get_release_history(device_key, limit=5, force_refresh=False, device_manager=None):
     """Fetch a list of recent releases for the device, including changelog text."""
-    config = _load_firmware_config(device_key)
+    config = _load_firmware_config(device_key, device_manager)
     if not config:
         return []
     return _get_release_history(device_key, config, per_page=limit, force_refresh=force_refresh)
@@ -427,7 +569,7 @@ def start_manual_update(device_key, gui_refs, device_manager, release_info=None,
     Starts a firmware update without going through the prompt flow.
     Returns the worker thread if the update was started successfully.
     """
-    config = _load_firmware_config(device_key)
+    config = _load_firmware_config(device_key, device_manager)
     if not config:
         raise ValueError(f"No ClearCore firmware configuration found for '{device_key}'.")
 

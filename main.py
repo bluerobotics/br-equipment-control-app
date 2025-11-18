@@ -3,29 +3,29 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import sys
 import subprocess
-import comms
-from scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
-from status_panel import create_status_bar
-from terminal import create_terminal_panel
+from src import comms
+from src.scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
+from src.status_panel import create_status_bar
+from src.terminal import create_terminal_panel
 import json
 import os
-import theme  # Import the new theme file
+from src import theme  # Import the new theme file
 import tkinter.font as tkfont
 import platform
 import ctypes
 from queue import Queue, Empty
-import device_actions # Import the new device actions
-from device_manager import DeviceManager # Import the new DeviceManager
-from data_logger import DataLogger # Import the data logger
+from src import device_actions # Import the new device actions
+from src.device_manager import DeviceManager # Import the new DeviceManager
+from src.data_logger import DataLogger # Import the data logger
 import datetime
 from pathlib import Path
 
 from _version import __version__
 
 # Import GUI components
-from top_menu import create_top_menu
-from command_reference import create_command_reference
-from device_actions import create_device_commands
+from src.top_menu import create_top_menu
+from src.command_reference import create_command_reference, AddDeviceDialog
+from src.device_actions import create_device_commands
 
 GUI_UPDATE_INTERVAL_MS = 100
 
@@ -76,76 +76,83 @@ def save_config(config):
     except Exception as e:
         print(f"Error saving config: {e}")
 
-def get_devices_path():
-    """Get the devices folder path from config, or prompt user if not set."""
+def get_device_paths():
+    """Get the list of device folder paths from config."""
     config = load_config()
-    devices_path = config.get('devices_path')
-    if devices_path and os.path.isdir(devices_path):
-        return devices_path
+    device_paths = config.get('device_paths', [])
     
-    # Config doesn't exist or path is invalid - prompt user
-    return prompt_for_devices_folder()
+    # Filter out invalid paths
+    valid_paths = [p for p in device_paths if os.path.isdir(p)]
+    
+    # If we had invalid paths, save the cleaned list
+    if len(valid_paths) != len(device_paths):
+        config['device_paths'] = valid_paths
+        save_config(config)
+    
+    return valid_paths
 
-def prompt_for_devices_folder():
-    """Show dialog to select devices folder."""
-    # Create a temporary root window for the dialog
-    temp_root = tk.Tk()
-    temp_root.withdraw()
-    
-    # Show info message
-    result = messagebox.askokcancel(
-        "First Run Setup",
-        "Welcome to BR Equipment Control App!\n\n"
-        "Please select the 'devices' folder location.\n\n"
-        "This allows you to:\n"
-        "• Point to your local git repo for development\n"
-        "• Keep device configs separate from the app\n"
-        "• Edit device JSON files directly\n\n"
-        "You can change this later in Settings.",
-        icon='info'
-    )
-    
-    if not result:
-        temp_root.destroy()
-        messagebox.showerror("Setup Required", "A devices folder is required to run the application.")
-        return None
-    
-    # Prompt for folder
-    devices_path = filedialog.askdirectory(
-        title="Select Devices Folder",
-        mustexist=True
-    )
-    
-    temp_root.destroy()
-    
-    if not devices_path:
-        messagebox.showerror("Setup Required", "A devices folder is required to run the application.")
-        return None
-    
-    # Verify it looks like a devices folder
-    if not os.path.basename(devices_path) == 'devices':
-        response = messagebox.askyesno(
-            "Confirm Folder",
-            f"The selected folder is named '{os.path.basename(devices_path)}'.\n\n"
-            "Are you sure this is the correct devices folder?\n"
-            "(It should contain device subfolders like 'fillhead', 'gantry', etc.)",
-            icon='warning'
-        )
-        if not response:
-            return prompt_for_devices_folder()  # Try again
-    
-    # Save to config
-    save_devices_path(devices_path)
-    return devices_path
-
-def save_devices_path(devices_path):
-    """Save devices path to config file."""
+def add_device_path(device_path):
+    """Add a device path to the config."""
     try:
         config = load_config()
-        config['devices_path'] = devices_path
-        save_config(config)
+        device_paths = config.get('device_paths', [])
+        
+        # Normalize path and add if not already present
+        normalized_path = os.path.normpath(device_path)
+        if normalized_path not in device_paths:
+            device_paths.append(normalized_path)
+            config['device_paths'] = device_paths
+            save_config(config)
+        return True
     except Exception as e:
-        print(f"Error saving config: {e}")
+        print(f"Error adding device path: {e}")
+        return False
+
+def remove_device_path(device_path):
+    """Remove a device path from the config."""
+    try:
+        config = load_config()
+        device_paths = config.get('device_paths', [])
+        
+        # Normalize the path to remove - try both absolute and relative comparisons
+        # First normalize as-is (matching how add_device_path stores it)
+        normalized_path = os.path.normpath(os.path.normcase(device_path))
+        
+        # Also get absolute version for comparison
+        abs_normalized_path = os.path.normpath(os.path.normcase(os.path.abspath(device_path)))
+        
+        # Try to find and remove the path
+        found = False
+        for i, stored_path in enumerate(device_paths):
+            # Normalize stored path both ways
+            normalized_stored = os.path.normpath(os.path.normcase(stored_path))
+            abs_normalized_stored = os.path.normpath(os.path.normcase(os.path.abspath(stored_path)))
+            
+            # Match if either normalized version matches
+            if normalized_stored == normalized_path or abs_normalized_stored == abs_normalized_path:
+                device_paths.pop(i)
+                found = True
+                break
+        
+        if found:
+            config['device_paths'] = device_paths
+            save_config(config)
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Error removing device path: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# Keep old function for backward compatibility (deprecated)
+def get_devices_path():
+    """Deprecated: Get first device path from list. Use get_device_paths() instead."""
+    device_paths = get_device_paths()
+    if device_paths:
+        return device_paths[0]
+    return None
 
 class CollapsiblePanel(ttk.Frame):
     """A collapsible panel with a side trigger bar."""
@@ -432,18 +439,27 @@ class MainApplication:
         }
         
         # --- Device Management ---
-        # Get devices folder path (may prompt user on first run)
-        devices_path = get_devices_path()
-        if not devices_path:
-            # User cancelled - exit application
-            self.root.destroy()
-            return
+        # Get device paths from config (only explicitly added paths, no auto-scanning)
+        device_paths = get_device_paths()
         
         # DeviceManager needs shared_gui_refs to exist, but it can be populated after.
-        self.device_manager = DeviceManager(self.shared_gui_refs, devices_path=devices_path)
+        self.device_manager = DeviceManager(self.shared_gui_refs, device_paths=device_paths)
         self.device_modules = self.device_manager.get_device_modules()
         self.discovery_logs = self.device_manager.get_discovery_logs()
         self.shared_gui_refs['device_manager'] = self.device_manager
+        
+        # Check if no devices are loaded and prompt user to add one
+        if not self.device_modules:
+            response = messagebox.askyesno(
+                "No Devices Loaded",
+                "You don't have any devices loaded.\n\n"
+                "Would you like to add a device now?\n\n"
+                "You can add devices later from the Devices pane.",
+                icon='question'
+            )
+            if response:
+                # Schedule the dialog to open after the window is created
+                self.root.after(100, self._prompt_add_device)
         
         # --- Data Logger ---
         self.data_logger = DataLogger(self.shared_gui_refs)
@@ -458,11 +474,182 @@ class MainApplication:
         self.shared_gui_refs['command_funcs'] = self.command_funcs
         
         self.create_widgets()
+        
+        # Set GUI references in system logger so Python console messages appear in terminal
+        try:
+            from src.system_logger import get_system_logger
+            logger = get_system_logger()
+            if logger:
+                logger.set_gui_refs(self.shared_gui_refs)
+        except Exception:
+            pass  # Ignore if logger not available
+        
         self.load_last_script()
 
     def initialize_shared_variables(self):
         # This method's logic has been moved into __init__ to resolve a startup dependency issue.
         pass
+    
+    def _prompt_add_device(self):
+        """Open the Add Device dialog when no devices are loaded."""
+        try:
+            AddDeviceDialog(self.root, self.device_manager, on_save=self._on_device_added)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open Add Device dialog:\n{e}")
+    
+    def _on_device_added(self):
+        """Callback when a device is added - refresh the UI."""
+        # Reload device modules
+        self.device_modules = self.device_manager.get_device_modules()
+        
+        # Update shared refs
+        for device_name, device_data in self.device_modules.items():
+            self.shared_gui_refs[f'status_var_{device_name}'] = device_data['status_var']
+        
+        # Update command functions
+        self.command_funcs = self.device_manager.get_all_command_functions()
+        self.shared_gui_refs['command_funcs'] = self.command_funcs
+        
+        # Refresh command reference if it exists
+        if hasattr(self, 'command_reference') and self.command_reference:
+            self.command_reference.refresh()
+        
+        # Refresh status panels - rebuild device panels
+        status_bar_container = self.shared_gui_refs.get('status_bar_container')
+        if status_bar_container:
+            # Preserve current variable values before destroying panels
+            # This prevents values from being reset to "---" when panels are recreated
+            preserved_values = {}
+            for device_name, device_data in self.device_modules.items():
+                # Get variables from the mapping (explicit gui_var)
+                device_vars_map = self.device_manager.get_all_device_variable_names().get(device_name, {})
+                for var_name, schema_key in device_vars_map.items():
+                    var = self.shared_gui_refs.get(var_name)
+                    if var:
+                        try:
+                            preserved_values[var_name] = var.get()
+                        except tk.TclError:
+                            pass  # Variable might not exist yet
+                
+                # Also preserve auto-generated variables (device_name_key_var pattern)
+                # Check telemetry schema for all keys and generate var names
+                telemetry_data = device_data.get('telemetry_data', {})
+                for schema_key, details in telemetry_data.items():
+                    # Get gui_var if explicit, otherwise auto-generate
+                    gui_var_name = details.get('gui_var', f"{device_name}_{schema_key}_var")
+                    if gui_var_name not in preserved_values:
+                        var = self.shared_gui_refs.get(gui_var_name)
+                        if var:
+                            try:
+                                preserved_values[gui_var_name] = var.get()
+                            except tk.TclError:
+                                pass
+            
+            # Clear all panel references from shared_gui_refs before destroying
+            # (clear all *_panel keys, not just current devices)
+            panel_keys_to_remove = [key for key in self.shared_gui_refs.keys() if key.endswith('_panel')]
+            for panel_key in panel_keys_to_remove:
+                del self.shared_gui_refs[panel_key]
+            
+            # Clear all existing device panels (but keep the container itself)
+            for widget in list(status_bar_container.winfo_children()):
+                widget.destroy()
+            # Rebuild device panels with updated device list
+            self.device_manager.create_all_gui_components(status_bar_container)
+            
+            # Restore preserved variable values after panels are recreated
+            for var_name, value in preserved_values.items():
+                var = self.shared_gui_refs.get(var_name)
+                if var:
+                    try:
+                        if isinstance(var, tk.StringVar):
+                            var.set(str(value))
+                        elif isinstance(var, tk.DoubleVar):
+                            var.set(float(value))
+                    except (tk.TclError, ValueError, TypeError):
+                        pass  # Skip if variable type doesn't match or doesn't exist
+            
+            # Ensure status_bar_container is packed and visible
+            try:
+                status_bar_container.pack_info()
+            except tk.TclError:
+                # Container was unpacked, repack it
+                if hasattr(self, 'left_bar_frame'):
+                    status_bar_container.pack(side=tk.TOP, fill='x', expand=False)
+            
+            # Update status variables based on current device states
+            # Use get_all_device_states which handles locking properly
+            all_states = self.device_manager.get_all_device_states()
+            for device_name, device_data in self.device_modules.items():
+                status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
+                if status_var:
+                    device_state = all_states.get(device_name)
+                    if device_state:
+                        if device_state.get('connected'):
+                            # Device is connected, update status
+                            conn_method = device_state.get('connection_method', 'network')
+                            if conn_method == 'usb':
+                                serial_port = device_state.get('serial_port', 'USB')
+                                status_text = f"{device_name.capitalize()} ({serial_port})"
+                            else:
+                                ip = device_state.get('ip', 'Unknown')
+                                status_text = f"{device_name.capitalize()} (@{ip})"
+                            status_var.set(status_text)
+                        else:
+                            # Device is disconnected, set default
+                            status_var.set(f"{device_name.capitalize()}")
+            
+            # Update "searching for devices" panel visibility
+            from src.comms import update_searching_panel_visibility
+            update_searching_panel_visibility(self.shared_gui_refs)
+            
+            # Force update the UI to ensure panels are visible
+            self.root.update_idletasks()
+        
+        # Trigger auto-connect for USB devices after a delay to allow device discovery to complete
+        # Also update status after auto-connect completes
+        def trigger_auto_connect_and_update(attempt=1, max_attempts=12, retry_delay_ms=1500):
+            from src.comms import update_searching_panel_visibility
+            if hasattr(self.device_manager, 'auto_connect_usb_devices'):
+                connected = self.device_manager.auto_connect_usb_devices()
+                # Update status variables again after auto-connect (in case connection succeeded)
+                self.root.after(1000, lambda: self._update_status_variables())
+                # Also update searching panel visibility after auto-connect
+                self.root.after(1000, lambda: update_searching_panel_visibility(self.shared_gui_refs))
+                
+                if not connected and attempt < max_attempts:
+                    # Retry after a short delay to give Windows time to enumerate the USB device
+                    self.root.after(retry_delay_ms, lambda: trigger_auto_connect_and_update(attempt + 1, max_attempts, retry_delay_ms))
+            else:
+                # Auto-connect not available; ensure UI reflects current state
+                self.root.after(1000, lambda: update_searching_panel_visibility(self.shared_gui_refs))
+        
+        self.root.after(500, trigger_auto_connect_and_update)
+        
+        # Also update searching panel visibility immediately (in case no devices connect)
+        self.root.after(100, lambda: update_searching_panel_visibility(self.shared_gui_refs))
+    
+    def _update_status_variables(self):
+        """Update status variables based on current device states."""
+        all_states = self.device_manager.get_all_device_states()
+        for device_name, device_data in self.device_modules.items():
+            status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
+            if status_var:
+                device_state = all_states.get(device_name)
+                if device_state:
+                    if device_state.get('connected'):
+                        # Device is connected, update status
+                        conn_method = device_state.get('connection_method', 'network')
+                        if conn_method == 'usb':
+                            serial_port = device_state.get('serial_port', 'USB')
+                            status_text = f"{device_name.capitalize()} ({serial_port})"
+                        else:
+                            ip = device_state.get('ip', 'Unknown')
+                            status_text = f"{device_name.capitalize()} (@{ip})"
+                        status_var.set(status_text)
+                    else:
+                        # Device is disconnected, set default
+                        status_var.set(f"{device_name.capitalize()}")
 
     def reset_and_hide_panel(self, device_key):
         """Resets all associated variables for a device and hides its panel."""
@@ -669,9 +856,8 @@ class MainApplication:
                 desired_width = max(350, min(desired_width, 700))
                 # Update the collapsible panel width
                 cmd_ref_collapsible.width = desired_width
-                print(f"[DEBUG] Adjusted device pane width: {desired_width}px (content required: {req_width}px)")
-            except Exception as e:
-                print(f"[DEBUG] Error adjusting device pane width: {e}")
+            except Exception:
+                pass  # Silently ignore errors adjusting pane width
         
         # Expand the devices panel by default (after content is created and laid out)
         def expand_devices_panel():
@@ -715,7 +901,52 @@ class MainApplication:
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
-        file_commands = self.scripting_gui_refs['file_commands']
+        file_commands = self.scripting_gui_refs['file_commands'].copy()  # Make a copy so we can add to it
+        
+        # Add system log commands
+        def show_latest_system_log():
+            """Open the latest system log file in a text viewer."""
+            try:
+                from src.system_logger import get_system_logger
+                logger = get_system_logger()
+                log_path = None
+                
+                # Try to get current session log
+                if logger:
+                    log_path = logger.get_log_file_path()
+                    if log_path and log_path.exists():
+                        self._show_text_file_viewer(log_path, "Latest System Log")
+                        return
+                
+                # If no current session log, find the most recent log file
+                if logger:
+                    logs_dir = logger.logs_dir
+                else:
+                    # Fallback: try to determine logs directory
+                    from src.system_logger import SystemLogger
+                    temp_logger = SystemLogger()
+                    logs_dir = temp_logger.logs_dir
+                    temp_logger.stop_logging()
+                
+                if logs_dir.exists():
+                    # Find all session log files
+                    log_files = list(logs_dir.glob("session_*.log"))
+                    if log_files:
+                        # Sort by modification time, most recent first
+                        log_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        log_path = log_files[0]
+                        self._show_text_file_viewer(log_path, f"Latest System Log ({log_path.name})")
+                        return
+                
+                # No log files found
+                from tkinter import messagebox
+                messagebox.showinfo("No Log File", "No system log files found.")
+            except Exception as e:
+                from tkinter import messagebox
+                messagebox.showerror("Error", f"Failed to open system log: {e}")
+        
+        file_commands['show_latest_system_log'] = show_latest_system_log
+        
         edit_commands = self.scripting_gui_refs['edit_commands']
         script_commands = {
             'validate': self.validate_script
@@ -774,73 +1005,129 @@ class MainApplication:
         device_panel_container = self.shared_gui_refs.get('status_bar_container')
         if device_panel_container:
             for device_name in device_names:
-                # This is a simplified version of the logic in DeviceManager.create_all_gui_components
-                modules = self.device_manager.get_device_modules().get(device_name)
-                if modules and hasattr(modules.get('gui'), 'create_gui_components'):
-                    panel = modules['gui'].create_gui_components(device_panel_container, self.shared_gui_refs)
-                    self.shared_gui_refs[f'{device_name}_panel'] = panel
-                    panel.pack_forget() # Hide by default
+                try:
+                    # This is a simplified version of the logic in DeviceManager.create_all_gui_components
+                    modules = self.device_manager.get_device_modules().get(device_name)
+                    if modules and hasattr(modules.get('gui'), 'create_gui_components'):
+                        panel = modules['gui'].create_gui_components(device_panel_container, self.shared_gui_refs)
+                        self.shared_gui_refs[f'{device_name}_panel'] = panel
+                        panel.pack_forget() # Hide by default
+                except Exception as e:
+                    print(f"Error creating GUI panel for {device_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Update searching panel visibility after adding new device panels
+            try:
+                from src.comms import update_searching_panel_visibility
+                update_searching_panel_visibility(self.shared_gui_refs)
+            except Exception as e:
+                print(f"Error updating searching panel visibility: {e}")
+        
         self.root.after_idle(self.adjust_status_panel_width)
 
 
     def change_device_folder(self):
         """
-        Allows the user to change the device folder path.
+        Allows the user to add or remove device folder paths.
         """
-        current_path = self.device_manager.devices_path
+        from tkinter import simpledialog
         
-        result = messagebox.askyesno(
-            "Change Device Folder",
-            f"Current device folder:\n{current_path}\n\n"
-            "Do you want to select a new device folder?\n\n"
-            "Note: The application will reload after changing the folder.",
+        device_paths = get_device_paths()
+        
+        # Show current paths
+        paths_text = "\n".join([f"• {p}" for p in device_paths]) if device_paths else "None"
+        
+        result = messagebox.askyesnocancel(
+            "Manage Device Folders",
+            f"Current device folders:\n{paths_text}\n\n"
+            "Click 'Yes' to add a device folder\n"
+            "Click 'No' to remove a device folder",
             icon='question'
         )
         
-        if not result:
+        if result is None:  # Cancel
             return
         
-        # Prompt for new folder
-        new_path = filedialog.askdirectory(
-            title="Select New Devices Folder",
-            initialdir=current_path,
-            mustexist=True
-        )
-        
-        if not new_path:
-            return  # User cancelled
-        
-        # Verify it looks like a devices folder
-        if not os.path.basename(new_path) == 'devices':
-            response = messagebox.askyesno(
-                "Confirm Folder",
-                f"The selected folder is named '{os.path.basename(new_path)}'.\n\n"
-                "Are you sure this is the correct devices folder?\n"
-                "(It should contain device subfolders like 'fillhead', 'gantry', etc.)",
-                icon='warning'
+        if result:  # Add device folder
+            new_path = filedialog.askdirectory(
+                title="Select Device Folder",
+                mustexist=True
             )
-            if not response:
+            
+            if not new_path:
+                return  # User cancelled
+            
+            # Verify it's a valid device folder
+            has_gui = os.path.exists(os.path.join(new_path, 'gui.py'))
+            has_commands = os.path.exists(os.path.join(new_path, 'commands.json'))
+            is_devices_folder = os.path.basename(new_path) == 'devices'
+            
+            if not (has_gui or has_commands or is_devices_folder):
+                response = messagebox.askyesno(
+                    "Confirm Folder",
+                    f"The selected folder doesn't appear to be a device folder.\n\n"
+                    f"Folder: {new_path}\n\n"
+                    f"A device folder should contain gui.py and/or commands.json,\n"
+                    f"or be a 'devices' folder containing device subfolders.\n\n"
+                    f"Would you like to add it anyway?",
+                    icon='warning'
+                )
+                if not response:
+                    return
+            
+            # Add to config
+            if add_device_path(new_path):
+                messagebox.showinfo(
+                    "Success",
+                    f"Device folder added:\n{new_path}\n\n"
+                    "The application will reload to apply changes."
+                )
+                # Rediscover devices
+                self.device_manager.discover_devices()
+                # Refresh UI
+                if hasattr(self, 'command_reference'):
+                    self.command_reference.refresh()
+            else:
+                messagebox.showerror("Error", "Failed to add device folder.")
+        
+        else:  # Remove device folder
+            if not device_paths:
+                messagebox.showinfo("Info", "No device folders to remove.")
                 return
-        
-        # Save the new path
-        save_devices_path(new_path)
-        
-        # Inform user about restart
-        messagebox.showinfo(
-            "Restart Required",
-            "Device folder path has been updated.\n\n"
-            "Please restart the application to apply changes."
-        )
-        
-        # Exit the application (user will restart manually)
-        self.root.quit()
+            
+            # Create a simple dialog to select which path to remove
+            paths_list = "\n".join([f"{i+1}. {p}" for i, p in enumerate(device_paths)])
+            selection = simpledialog.askinteger(
+                "Remove Device Folder",
+                f"Select the number of the folder to remove:\n\n{paths_list}\n\n"
+                f"Enter number (1-{len(device_paths)}):",
+                minvalue=1,
+                maxvalue=len(device_paths)
+            )
+            
+            if selection:
+                path_to_remove = device_paths[selection - 1]
+                if remove_device_path(path_to_remove):
+                    messagebox.showinfo(
+                        "Success",
+                        f"Device folder removed:\n{path_to_remove}\n\n"
+                        "The application will reload to apply changes."
+                    )
+                    # Rediscover devices
+                    self.device_manager.discover_devices()
+                    # Refresh UI
+                    if hasattr(self, 'command_reference'):
+                        self.command_reference.refresh()
+                else:
+                    messagebox.showerror("Error", "Failed to remove device folder.")
     
     def validate_script(self):
         """
         Validates the current script and shows results in a dialog.
         """
         from tkinter import messagebox
-        from script_validator import validate_script
+        from src.script_validator import validate_script
         
         # Get the current script content
         script_content = self.scripting_gui_refs['get_script_content']()
@@ -853,7 +1140,7 @@ class MainApplication:
         
         if not errors:
             # Check for device connectivity issues
-            from script_processor import ScriptRunner
+            from src.script_processor import ScriptRunner
             import shlex
             
             required_devices = set()
@@ -946,6 +1233,13 @@ class MainApplication:
         # Ask the scripting GUI to check for unsaved changes before closing
         check_result = self.scripting_gui_refs['check_unsaved']()
         if check_result:
+            # Stop system logger
+            try:
+                from src.system_logger import stop_system_logger
+                stop_system_logger()
+            except Exception:
+                pass
+            
             # Terminate simulator if it's running
             if device_actions.simulator_process and device_actions.simulator_process.poll() is None:
                 device_actions.simulator_process.terminate()
@@ -1060,6 +1354,76 @@ class MainApplication:
         self.root.clipboard_clear()
         self.root.clipboard_append(text)
         self.root.update()  # Ensure clipboard is updated across platforms
+    
+    def _show_text_file_viewer(self, file_path: Path, title: str):
+        """Open a text file in a viewer window."""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            self._show_text_content_viewer(content, title)
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Failed to read file:\n{e}")
+    
+    def _show_text_content_viewer(self, content: str, title: str):
+        """Display text content in a scrollable viewer window."""
+        from tkinter import scrolledtext
+        
+        # Create or reuse viewer window
+        if not hasattr(self, '_text_viewer_windows'):
+            self._text_viewer_windows = {}
+        
+        if title in self._text_viewer_windows:
+            window = self._text_viewer_windows[title]
+            if window.winfo_exists():
+                window.lift()
+                return
+        
+        # Create new window
+        window = tk.Toplevel(self.root)
+        window.title(title)
+        window.geometry("800x600")
+        window.configure(bg=theme.BG_COLOR)
+        
+        # Create frame with padding
+        frame = ttk.Frame(window, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create scrolled text widget
+        text_widget = scrolledtext.ScrolledText(
+            frame,
+            wrap=tk.NONE,  # Don't wrap - preserve exact formatting including newlines
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            font=("Consolas", 9),
+            insertbackground=theme.FG_COLOR,
+            relief=tk.FLAT,
+            borderwidth=1,
+            highlightbackground=theme.SECONDARY_ACCENT,
+            highlightthickness=1
+        )
+        text_widget.pack(fill=tk.BOTH, expand=True)
+        
+        # Insert content - ensure newlines are preserved
+        # Replace any \r\n with \n, then ensure all newlines are properly handled
+        normalized_content = content.replace('\r\n', '\n').replace('\r', '\n')
+        text_widget.insert('1.0', normalized_content)
+        text_widget.config(state=tk.DISABLED)  # Make read-only
+        
+        # Add close button
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        ttk.Button(button_frame, text="Close", command=window.destroy).pack(side=tk.RIGHT)
+        
+        # Store window reference
+        self._text_viewer_windows[title] = window
+        
+        # Clean up on close
+        def on_close():
+            if title in self._text_viewer_windows:
+                del self._text_viewer_windows[title]
+            window.destroy()
+        window.protocol("WM_DELETE_WINDOW", on_close)
 
     def adjust_status_panel_width(self):
         """Resize the status pane based on the required width of its contents."""
@@ -1090,7 +1454,7 @@ class MainApplication:
             ("Config Directory", CONFIG_FILE.parent),
             ("Recent Files", RECENT_FILES_PATH),
             ("Logs Directory", getattr(self.data_logger, 'logs_path', 'Unknown')),
-            ("Devices Folder", Path(self.device_manager.devices_path) if self.device_manager else "Unknown"),
+            ("Device Folders", ", ".join([str(Path(p)) for p in get_device_paths()]) if self.device_manager else "Unknown"),
             ("Executable", Path(sys.executable).resolve()),
             ("Working Directory", Path.cwd()),
         ]
@@ -1140,6 +1504,15 @@ def main():
     Initializes the main application window, creates the primary UI layout,
     and starts the communication threads.
     """
+    # Initialize system logger first (before any print statements)
+    try:
+        from src.system_logger import initialize_system_logger
+        system_logger = initialize_system_logger()
+        print(f"[SYSTEM] Session log started: {system_logger.get_log_file_path()}")
+    except Exception as e:
+        print(f"[SYSTEM ERROR] Failed to initialize system logger: {e}")
+        system_logger = None
+    
     # --- Make the application DPI-aware on Windows ---
     if platform.system() == "Windows":
         try:

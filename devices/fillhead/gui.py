@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parent_dir = os.path.dirname(os.path.dirname(current_dir))
     sys.path.insert(0, parent_dir)
 
-import theme
+from src import theme
 
 # --- GUI Helper Functions (self-contained in each module) ---
 
@@ -216,9 +216,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Override the IP label tracer for fillhead to show "@ IP" or "@ COM"
     ip_label = getattr(fillhead_outer_container, 'ip_label', None)
-    print(f"[DEBUG fillhead] ip_label = {ip_label}")
     if ip_label is not None:
-        print(f"[DEBUG fillhead] ip_label exists, setting up tracer")
         # Remove all existing tracers on this variable to avoid conflicts
         trace_info = shared_gui_refs['status_var_fillhead'].trace_info()
         for trace in trace_info:
@@ -230,22 +228,17 @@ def create_gui_components(parent, shared_gui_refs):
         
         def fillhead_conn_tracer(*args):
             full_status = shared_gui_refs['status_var_fillhead'].get()
-            print(f"[DEBUG fillhead_conn_tracer] status = '{full_status}'")
             if '(' in full_status and ')' in full_status:
                 try:
                     address = full_status.split('(')[1].split(')')[0]
-                    print(f"[DEBUG fillhead_conn_tracer] address = '{address}'")
                     if 'SIM' in full_status.upper() or 'SIMULATOR' in full_status.upper():
                         ip_label.config(text="[Simulator]", foreground=theme.WARNING_YELLOW)
                     else:
                         # Show @ for both IP addresses and COM ports
                         ip_label.config(text=f"@ {address}", foreground=theme.SUCCESS_GREEN)
-                        print(f"[DEBUG fillhead_conn_tracer] Set label to '@ {address}'")
-                except (IndexError, AttributeError) as e:
-                    print(f"[DEBUG fillhead_conn_tracer] Error: {e}")
+                except (IndexError, AttributeError):
                     ip_label.config(text="", foreground=theme.COMMENT_COLOR)
             else:
-                print(f"[DEBUG fillhead_conn_tracer] No parentheses found, clearing label")
                 ip_label.config(text="", foreground=theme.COMMENT_COLOR)
         
         shared_gui_refs['status_var_fillhead'].trace_add('write', fillhead_conn_tracer)

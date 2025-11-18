@@ -423,7 +423,7 @@ class ScriptRunner(threading.Thread):
             pass  # Cleared stale messages
 
         # Clear the injection target display at the beginning of the script
-        if self.gui_refs:
+        if self.gui_refs and 'injection_target_ml_var' in self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
         
         # Pre-flight check: verify required devices are connected
@@ -478,7 +478,7 @@ class ScriptRunner(threading.Thread):
                 
                 # Also log to terminal as a system message
                 try:
-                    import comms
+                    from . import comms
                     comms.log_to_terminal(f"[SYSTEM] Cycle {iteration_num}", self.gui_refs)
                 except Exception:
                     pass  # Ignore if logging fails
@@ -511,7 +511,7 @@ class ScriptRunner(threading.Thread):
             self.completion_cb()
 
         # Clear the injection target display at the end of the script
-        if self.gui_refs:
+        if self.gui_refs and 'injection_target_ml_var' in self.gui_refs:
             self.gui_refs['injection_target_ml_var'].set('---')
     
     def _parse_positional_args(self, parts, command_info):

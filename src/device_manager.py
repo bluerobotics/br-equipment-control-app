@@ -7,18 +7,28 @@ import json
 import threading
 import socket
 import time
-import connection_config
+from . import connection_config
 
 class DeviceManager:
-    def __init__(self, shared_gui_refs, devices_path=None):
+    def __init__(self, shared_gui_refs, device_paths=None):
+        """
+        Initialize DeviceManager.
+        
+        Args:
+            shared_gui_refs: Dictionary of shared GUI references
+            device_paths: List of individual device folder paths (each path should be a device folder)
+        """
         self.devices = {}
         self.device_state = {} # New dictionary for connection state
         self.discovery_logs = []
         self.shared_gui_refs = shared_gui_refs
         self.simulator_threads = {}  # device_name -> {'thread': thread, 'stop_flag': Event, 'socket': socket}
         self.telemetry_callbacks = {}  # device_name -> list of callback functions
-        # Store custom devices path if provided, otherwise use default
-        self.devices_path = devices_path if devices_path else os.path.join(os.path.dirname(__file__), 'devices')
+        
+        # Only use explicitly configured device paths (no defaults, no auto-scanning)
+        self.device_paths = device_paths if device_paths and isinstance(device_paths, list) else []
+        
+        # Load devices from configured paths
         self.discover_devices()
 
     def _load_module_from_path(self, device_name, module_name, device_path):
@@ -48,221 +58,184 @@ class DeviceManager:
 
     def discover_devices(self):
         """
-        Dynamically discovers and loads device modules from the 'devices' directory.
+        Loads device modules from explicitly configured device paths.
+        Each path should be a device root folder (e.g., pressboi/).
+        The code will look for a definition/ subfolder or use the root if it contains definition files.
+        Device name is read from config.json in the definition folder.
         """
-        self.log("Starting device discovery...")
+        self.log("Loading devices from configured paths...")
         
         # Clear existing devices to pick up deletions/renames
         self.devices.clear()
         self.device_state.clear()
         
-        devices_dir = self.devices_path
-        if not os.path.isdir(devices_dir):
-            self.log(f"Devices directory not found at '{devices_dir}'")
-            return
-
-        for device_name in os.listdir(devices_dir):
-            device_path = os.path.join(devices_dir, device_name)
-            if os.path.isdir(device_path) and not device_name.startswith('__'):
-                try:
-                    # Load modules from custom path
-                    gui_module = self._load_module_from_path(device_name, 'gui', device_path)
-                    if not gui_module:
-                        self.log(f"Skipping {device_name}: gui.py not found")
-                        continue
-                    
-                    # --- NEW: Optional Script Handlers ---
-                    script_handlers_module = self._load_module_from_path(device_name, 'script_handlers', device_path)
-
-                    # The parser module is now optional.
-                    parser_module = self._load_module_from_path(device_name, 'parser', device_path)
-
-                    # Load scripting commands from JSON
-                    scripting_commands = {}
-                    json_path = os.path.join(device_path, 'commands.json')
-                    if os.path.exists(json_path):
-                        with open(json_path, 'r') as f:
-                            scripting_commands = json.load(f)
-
-                    # Load telemetry schema and create GUI variables
-                    telemetry_data = {}
-                    schema_path = os.path.join(device_path, 'telemetry.json')
-                    if os.path.exists(schema_path):
-                        with open(schema_path, 'r') as f:
-                            telemetry_data = json.load(f)
-                        # Dynamically create the tk variables (auto-generate gui_var from key)
-                        for key, details in telemetry_data.items():
-                            # Auto-generate gui_var if not provided: device_key_var
-                            gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
-                            if gui_var_name not in self.shared_gui_refs:
-                                self.shared_gui_refs[gui_var_name] = tk.StringVar(value="---")
-
-                    # Load events from JSON
-                    events_data = {}
-                    events_path = os.path.join(device_path, 'events.json')
-                    if os.path.exists(events_path):
-                        with open(events_path, 'r') as f:
-                            events_data = json.load(f)
-
-                    # Load warnings from JSON
-                    warnings_data = {}
-                    warnings_path = os.path.join(device_path, 'warnings.json')
-                    if os.path.exists(warnings_path):
-                        with open(warnings_path, 'r') as f:
-                            warnings_data = json.load(f)
-
-                    self.devices[device_name] = {
-                        'gui': gui_module,
-                        'parser': parser_module,
-                        'script_handlers': script_handlers_module, # Store the module
-                        'telemetry_data': telemetry_data, # Store the schema
-                        'scripting_commands': scripting_commands, # Store loaded JSON data
-                        'events_data': events_data, # Store events data
-                        'warnings': warnings_data, # Store warnings data
-                        'config': {}, # Keep the key for consistent structure, but it's now unused
-                        'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
-                    }
-                    # Load saved connection config
-                    saved_config = connection_config.load_connection_config(device_name)
-                    connection_method = 'network'
-                    serial_port = None
-                    if saved_config:
-                        connection_method = saved_config.get('connection_method', 'network')
-                        serial_port = saved_config.get('serial_port')
-                    
-                    # Initialize the state for this device
-                    self.device_state[device_name] = {
-                        "ip": None,
-                        "last_rx": 0,
-                        "connection_method": connection_method,
-                        "serial_port": serial_port,
-                        "connected": False,
-                        "last_discovery_attempt": 0,
-                        "simulated": False,
-                        "firmware_version": None,
-                        "fw_prompt_version": None,
-                        "fw_update_in_progress": False,
-                        "fw_check_scheduled": False
-                    }
-                    self.log(f"Successfully loaded device module: {device_name}")
-                    
-                    # Auto-connect to USB if that was the saved preference
-                    if connection_method == 'usb' and serial_port:
-                        self.log(f"{device_name}: Will attempt USB connection on {serial_port}")
-                        # Connection will be attempted when GUI is ready
-
-                except ImportError as e:
-                    self.log(f"Failed to load device modules for '{device_name}': {e}")
-                except Exception as e:
-                    self.log(f"An unexpected error occurred loading '{device_name}': {e}")
-
-    def scan_and_load_new_devices(self):
-        """
-        Scans the 'devices' directory for new device modules that haven't been loaded yet,
-        and loads them into the running application.
+        # Clear firmware config cache when devices are rediscovered
+        # This ensures stale cache entries don't prevent firmware configs from being found
+        try:
+            from .clearcore_firmware import clear_firmware_config_cache
+            clear_firmware_config_cache()
+        except Exception:
+            pass  # Ignore if firmware module not available
         
-        Returns:
-            A list of the names of the newly loaded devices.
-        """
-        self.log("Scanning for new device modules...")
-        newly_loaded = []
-        devices_dir = self.devices_path
-        if not os.path.isdir(devices_dir):
-            self.log(f"Devices directory not found at '{devices_dir}'")
-            return newly_loaded
-
-        for device_name in os.listdir(devices_dir):
-            if os.path.isdir(os.path.join(devices_dir, device_name)) and \
-               not device_name.startswith('__') and \
-               device_name not in self.devices:
-                
-                # This is a new device, so load it.
-                # The original discover_devices logic is reused here implicitly.
-                # We can achieve this by calling it again, but it's more efficient to just load the new one.
-                # For simplicity in this refactor, we'll just log and load.
-                # A more robust implementation would extract the loading logic into a helper.
-                
-                device_path = os.path.join(devices_dir, device_name)
-                try:
-                    gui_module = self._load_module_from_path(device_name, 'gui', device_path)
-                    if not gui_module:
-                        continue
-                    
-                    parser_module = self._load_module_from_path(device_name, 'parser', device_path)
-
-                    scripting_commands = {}
-                    json_path = os.path.join(device_path, 'commands.json')
-                    if os.path.exists(json_path):
-                        with open(json_path, 'r') as f:
-                            scripting_commands = json.load(f)
-
-                    telemetry_data = {}
-                    schema_path = os.path.join(device_path, 'telemetry.json')
-                    if os.path.exists(schema_path):
-                        with open(schema_path, 'r') as f:
-                            telemetry_data = json.load(f)
-                        for key, details in telemetry_data.items():
-                            if 'gui_var' in details:
-                                self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
-
-                    events_data = {}
-                    events_path = os.path.join(device_path, 'events.json')
-                    if os.path.exists(events_path):
-                        with open(events_path, 'r') as f:
-                            events_data = json.load(f)
-
-                    warnings_data = {}
-                    warnings_path = os.path.join(device_path, 'warnings.json')
-                    if os.path.exists(warnings_path):
-                        with open(warnings_path, 'r') as f:
-                            warnings_data = json.load(f)
-
-                    self.devices[device_name] = {
-                        'gui': gui_module,
-                        'parser': parser_module,
-                        'script_handlers': None, # No script_handlers for new devices yet
-                        'telemetry_data': telemetry_data,
-                        'scripting_commands': scripting_commands,
-                        'events_data': events_data,
-                        'warnings': warnings_data,
-                        'config': {},
-                        'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
-                    }
-                    self.device_state[device_name] = {
-                        "ip": None,
-                        "last_rx": 0,
-                        "connection_method": "network",  # 'network' or 'usb'
-                        "serial_port": None,
-                        "connected": False,
-                        "last_discovery_attempt": 0,
-                        "simulated": False,
-                        "firmware_version": None,
-                        "fw_prompt_version": None,
-                        "fw_update_in_progress": False,
-                        "fw_check_scheduled": False
-                    }
-                    self.log(f"Successfully loaded new device: {device_name}")
-                    newly_loaded.append(device_name)
-
-                except ImportError as e:
-                    self.log(f"Failed to load modules for new device '{device_name}': {e}")
-                except Exception as e:
-                    self.log(f"An unexpected error occurred loading new device '{device_name}': {e}")
+        # Track device names we've already loaded to avoid duplicates
+        loaded_device_names = set()
         
-        if not newly_loaded:
-            self.log("No new device modules found.")
+        # Iterate over all device paths (each should be a device root folder)
+        for device_root_path in self.device_paths:
+            if not os.path.isdir(device_root_path):
+                self.log(f"Device path not found at '{device_root_path}'")
+                continue
             
-        return newly_loaded
+            # Find definition folder (could be definition/ subfolder or root itself)
+            definition_path = os.path.join(device_root_path, 'definition')
+            if not os.path.isdir(definition_path):
+                # Check if root contains definition files (backward compatibility)
+                if os.path.exists(os.path.join(device_root_path, 'config.json')) or \
+                   os.path.exists(os.path.join(device_root_path, 'commands.json')):
+                    definition_path = device_root_path
+                else:
+                    self.log(f"No definition folder found at '{device_root_path}/definition' and no definition files in root")
+                    continue
+            
+            # Read device name from config.json
+            config_path = os.path.join(definition_path, 'config.json')
+            device_name = None
+            
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        device_name = config.get('device_name') or config.get('name')
+                except Exception as e:
+                    self.log(f"Failed to read config.json from '{definition_path}': {e}")
+            
+            # Fallback: infer from root folder name
+            if not device_name:
+                device_name = os.path.basename(device_root_path)
+                self.log(f"Device name not found in config.json, using '{device_name}'")
+            
+            if device_name in loaded_device_names:
+                self.log(f"Skipping duplicate device '{device_name}' at '{device_root_path}'")
+                continue
+            
+            # Load the device from the definition path
+            self._load_device_from_path(device_name, definition_path)
+            loaded_device_names.add(device_name)
+    
+    def _load_device_from_path(self, device_name, definition_path):
+        """Load a single device from a given definition path."""
+        try:
+            # Look for gui.py in the definition folder or parent folder (device root)
+            gui_path = definition_path
+            gui_file = os.path.join(gui_path, 'gui.py')
+            
+            # If not found in definition folder, check parent folder (device root)
+            if not os.path.exists(gui_file):
+                parent_path = os.path.dirname(definition_path)
+                parent_gui_file = os.path.join(parent_path, 'gui.py')
+                if os.path.exists(parent_gui_file):
+                    gui_path = parent_path
+            
+            gui_module = self._load_module_from_path(device_name, 'gui', gui_path)
+            if not gui_module:
+                self.log(f"Skipping {device_name}: gui.py not found (searched {definition_path} and parent)")
+                return
+            
+            # --- NEW: Optional Script Handlers ---
+            script_handlers_module = self._load_module_from_path(device_name, 'script_handlers', definition_path)
+
+            # The parser module is now optional (look in parent folder if definition folder)
+            parser_path = gui_path if gui_path == definition_path else definition_path
+            parser_module = self._load_module_from_path(device_name, 'parser', parser_path)
+
+            # Load scripting commands from JSON (always from definition folder)
+            scripting_commands = {}
+            json_path = os.path.join(definition_path, 'commands.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    scripting_commands = json.load(f)
+
+            # Load telemetry schema and create GUI variables (always from definition folder)
+            telemetry_data = {}
+            schema_path = os.path.join(definition_path, 'telemetry.json')
+            if os.path.exists(schema_path):
+                with open(schema_path, 'r') as f:
+                    telemetry_data = json.load(f)
+                # Dynamically create the tk variables (auto-generate gui_var from key)
+                # Only create if they don't already exist to preserve existing values
+                for key, details in telemetry_data.items():
+                    # Auto-generate gui_var if not provided: device_key_var
+                    gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
+                    if gui_var_name not in self.shared_gui_refs:
+                        # Check if there's a default value in the schema
+                        default_value = details.get('default', "---")
+                        self.shared_gui_refs[gui_var_name] = tk.StringVar(value=default_value)
+                    # If variable already exists, don't reset it - preserve the current value
+
+            # Load events from JSON (always from definition folder)
+            events_data = {}
+            events_path = os.path.join(definition_path, 'events.json')
+            if os.path.exists(events_path):
+                with open(events_path, 'r') as f:
+                    events_data = json.load(f)
+
+            # Load warnings from JSON (always from definition folder)
+            warnings_data = {}
+            warnings_path = os.path.join(definition_path, 'warnings.json')
+            if os.path.exists(warnings_path):
+                with open(warnings_path, 'r') as f:
+                    warnings_data = json.load(f)
+
+            self.devices[device_name] = {
+                'gui': gui_module,
+                'parser': parser_module,
+                'script_handlers': script_handlers_module, # Store the module
+                'telemetry_data': telemetry_data, # Store the schema
+                'scripting_commands': scripting_commands, # Store loaded JSON data
+                'events_data': events_data, # Store events data
+                'warnings': warnings_data, # Store warnings data
+                'config': {}, # Keep the key for consistent structure, but it's now unused
+                'status_var': tk.StringVar(value=f'{device_name.capitalize()}')
+            }
+            # Load saved connection config
+            saved_config = connection_config.load_connection_config(device_name)
+            connection_method = 'network'
+            serial_port = None
+            if saved_config:
+                connection_method = saved_config.get('connection_method', 'network')
+                serial_port = saved_config.get('serial_port')
+            
+            # Initialize the state for this device
+            self.device_state[device_name] = {
+                "ip": None,
+                "last_rx": 0,
+                "connection_method": connection_method,
+                "serial_port": serial_port,
+                "connected": False,
+                "last_discovery_attempt": 0,
+                "simulated": False,
+                "firmware_version": None,
+                "fw_prompt_version": None,
+                "fw_update_in_progress": False,
+                "fw_check_scheduled": False
+            }
+            self.log(f"Successfully loaded device module: {device_name}")
+            
+            # Auto-connect to USB if that was the saved preference
+            if connection_method == 'usb' and serial_port:
+                self.log(f"{device_name}: Will attempt USB connection on {serial_port}")
+                # Connection will be attempted when GUI is ready
+
+        except ImportError as e:
+            self.log(f"Failed to load device modules for '{device_name}': {e}")
+        except Exception as e:
+            self.log(f"An unexpected error occurred loading '{device_name}': {e}")
 
     def reload_device_modules(self):
         """
         Reloads the JSON configuration files (commands, telemetry, events) for all devices.
         Useful after editing JSON files through the GUI.
         """
-        devices_dir = os.path.join(os.path.dirname(__file__), 'devices')
-        if not os.path.isdir(devices_dir):
-            return
-
         for device_name in self.devices.keys():
             self.reload_single_device(device_name)
 
@@ -273,8 +246,16 @@ class DeviceManager:
         if device_name not in self.devices:
             return
         
-        devices_dir = self.devices_path
-        device_path = os.path.join(devices_dir, device_name)
+        # Find the device path from configured paths
+        device_path = None
+        for path in self.device_paths:
+            if os.path.basename(path) == device_name:
+                device_path = path
+                break
+        
+        if not device_path or not os.path.isdir(device_path):
+            self.log(f"Device path not found for '{device_name}'")
+            return
         
         # Reload commands.json
         json_path = os.path.join(device_path, 'commands.json')
@@ -289,10 +270,14 @@ class DeviceManager:
             with open(schema_path, 'r') as f:
                 telemetry_data = json.load(f)
                 self.devices[device_name]['telemetry_data'] = telemetry_data
-                # Update GUI variables if needed
+                # Update GUI variables if needed (only create if they don't exist)
                 for key, details in telemetry_data.items():
-                    if 'gui_var' in details and details['gui_var'] not in self.shared_gui_refs:
-                        self.shared_gui_refs[details['gui_var']] = tk.StringVar(value="---")
+                    gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
+                    if gui_var_name not in self.shared_gui_refs:
+                        # Check if there's a default value in the schema
+                        default_value = details.get('default', "---")
+                        self.shared_gui_refs[gui_var_name] = tk.StringVar(value=default_value)
+                    # If variable already exists, don't reset it - preserve the current value
                 self.log(f"Reloaded telemetry.json for {device_name}")
         
         # Reload events.json
@@ -341,8 +326,18 @@ class DeviceManager:
         base_port = 8888
         device_port = base_port + device_names.index(device_name)
         
+        # Find device path from configured paths
+        device_path = None
+        for path in self.device_paths:
+            if os.path.basename(path) == device_name:
+                device_path = path
+                break
+        
+        if not device_path:
+            self.log(f"Device path not found for '{device_name}'")
+            return
+        
         # Load telemetry schema for initial state
-        device_path = os.path.join(os.path.dirname(__file__), 'devices', device_name)
         schema_file = os.path.join(device_path, 'telemetry.json')
         initial_state = {}
         if os.path.exists(schema_file):
@@ -385,14 +380,14 @@ class DeviceManager:
             self.log(f"Started USB simulator for {device_name} (virtual port: {virtual_port})")
             
             # Start virtual USB listener
-            import comms
-            import serial_comms
+            from . import comms
+            from . import serial_comms
             # For USB simulation, we'll inject messages directly via handle_serial_message
             # No need for actual serial connection
         else:
             self.log(f"Started network simulator for {device_name} on 127.0.0.1:{device_port}")
             # Trigger a discovery to connect to the newly started simulator
-            import comms
+            from . import comms
             comms.discover_devices(self.shared_gui_refs)
     
     def stop_simulator(self, device_name):
@@ -432,7 +427,7 @@ class DeviceManager:
                 if connection_type == 'usb':
                     # For USB simulation, send directly via handle_serial_message
                     try:
-                        import comms
+                        from . import comms
                         comms.handle_serial_message(device_name, telemetry_msg, self.shared_gui_refs, self)
                     except:
                         pass
@@ -457,7 +452,7 @@ class DeviceManager:
                     if connection_type == 'usb':
                         # For USB, inject response directly
                         try:
-                            import comms
+                            from . import comms
                             comms.handle_serial_message(device_name, response, self.shared_gui_refs, self)
                         except:
                             pass
@@ -470,7 +465,7 @@ class DeviceManager:
                     if connection_type == 'usb':
                         # For USB, inject response directly
                         try:
-                            import comms
+                            from . import comms
                             comms.handle_serial_message(device_name, response, self.shared_gui_refs, self)
                         except:
                             pass
@@ -548,12 +543,12 @@ class DeviceManager:
 
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""
-        import comms # Local import to avoid circular dependency
+        from . import comms # Local import to avoid circular dependency
         return lambda msg: comms.send_to_device(device_name, msg, self.shared_gui_refs)
 
     def send_global_abort(self):
         """Sends a cancel command to all connected devices."""
-        import comms # Local import
+        from . import comms # Local import
         # Pass the entire shared_gui_refs dictionary to the logger
         comms.log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
         
@@ -604,22 +599,32 @@ class DeviceManager:
         return 'network'
     
     def auto_connect_usb_devices(self):
-        """Automatically connects to devices that were last connected via USB."""
-        import serial_comms
-        import comms
+        """Automatically connects to devices that were last connected via USB.
+
+        Returns:
+            bool: True if at least one device connected successfully, False otherwise.
+        """
+        from . import serial_comms
+        from . import comms
         
         any_usb_connected = False
         
+        from .comms import update_searching_panel_visibility
+        import time
+
         for device_name, device_state in self.device_state.items():
             if device_state.get('connection_method') == 'usb' and device_state.get('serial_port'):
                 port = device_state['serial_port']
+                
+                # Skip VIRTUAL_COM unless the device is actually being simulated
+                if port == "VIRTUAL_COM" and device_name not in self.simulator_threads:
+                    self.log(f"{device_name}: Skipping VIRTUAL_COM (device not being simulated)")
+                    continue
+                
                 self.log(f"{device_name}: Auto-connecting to USB on {port}")
                 
-                # Update status variable
-                status_text = f"{device_name.capitalize()} ({port})"
-                status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
-                if status_var:
-                    status_var.set(status_text)
+                # Don't update status variable yet - wait for actual connection confirmation
+                # The status will be updated when the first message arrives
                 
                 # Start USB listener
                 try:
@@ -632,12 +637,45 @@ class DeviceManager:
                     )
                     
                     if success:
-                        comms.log_to_terminal(f"{device_name}: Auto-connected via USB on {port}", self.shared_gui_refs)
+                        comms.log_to_terminal(f"{device_name}: Attempting USB connection on {port}...", self.shared_gui_refs)
                         any_usb_connected = True
+
+                        # Don't mark as connected yet - wait for first message to confirm
+                        # This prevents premature timeout if device takes a moment to start streaming
+                        # The status will be updated by handle_serial_message when first message arrives
+                        self.update_device_state(device_name, {
+                            "connection_method": "usb",
+                            "serial_port": port,
+                            "last_rx": 0  # Will be updated when first message arrives
+                        })
+                        
+                        # Send discovery commands with retries to prompt a response from the firmware
+                        # The firmware should respond with telemetry chunks
+                        import time
+                        time.sleep(0.5)  # Initial delay for serial port to be ready
+                        for attempt in range(3):
+                            serial_comms.send_serial_command(port, "DISCOVER_DEVICE")
+                            time.sleep(0.2)  # Small delay between attempts
+                        
+                        # Don't update status_var or show panel yet - wait for actual connection
+                        # The panel will be shown and status updated when the first message arrives
                     else:
                         comms.log_to_terminal(f"{device_name}: Failed to auto-connect to {port}", self.shared_gui_refs)
+                        
+                        # Reset device state to network on failure
+                        self.update_device_state(device_name, {
+                            "connection_method": "network",
+                            "serial_port": None
+                        })
+                        
+                        # Reset status text
+                        status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
+                        if status_var:
+                            status_var.set(f"{device_name.capitalize()} (Disconnected)")
                 except Exception as e:
                     comms.log_to_terminal(f"{device_name}: Error auto-connecting to {port}: {e}", self.shared_gui_refs)
+        
+        return any_usb_connected
 
     def get_all_scripting_commands(self):
         """
@@ -647,7 +685,7 @@ class DeviceManager:
         all_commands = {}
         
         # Add built-in script commands
-        from script_processor import SCRIPT_COMMANDS
+        from .script_processor import SCRIPT_COMMANDS
         for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
             all_commands[cmd_name] = cmd_details.copy()
         

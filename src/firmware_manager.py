@@ -46,8 +46,8 @@ def _import_pyserial():
 
 list_ports = _import_pyserial()
 
-import theme
-from clearcore_firmware import (
+from . import theme
+from .clearcore_firmware import (
     get_device_firmware_configs,
     compare_versions,
     get_release_history,
@@ -161,7 +161,7 @@ class FirmwareManagerWindow(tk.Toplevel):
         )
         note.grid(row=1, column=0, sticky='w', pady=(0, 16))
 
-        all_devices = get_device_firmware_configs()
+        all_devices = get_device_firmware_configs(self.device_manager)
         if not all_devices:
             ttk.Label(container, text="No ClearCore devices are configured.", style='TLabel').grid(row=2, column=0, sticky='w')
             return
@@ -651,7 +651,7 @@ class FirmwareManagerWindow(tk.Toplevel):
         
         # Always request version to ensure we have the latest
         try:
-            import comms
+            from . import comms
             comms.discover_devices(self.gui_refs)
             row = self.rows.get(device_key)
             if row and not state.get('firmware_version'):

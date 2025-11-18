@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parent_dir = os.path.dirname(os.path.dirname(current_dir))
     sys.path.insert(0, parent_dir)
 
-import theme
+from src import theme
 
 # --- GUI Helper Functions (self-contained in each module) ---
 
@@ -138,9 +138,7 @@ def create_gui_components(parent, shared_gui_refs):
     
     # Override the IP label tracer for gantry to show "@ IP" or "@ COM"
     ip_label = getattr(device_frame, 'ip_label', None)
-    print(f"[DEBUG gantry] ip_label = {ip_label}")
     if ip_label is not None:
-        print(f"[DEBUG gantry] ip_label exists, setting up tracer")
         # Remove all existing tracers on this variable to avoid conflicts
         trace_info = shared_gui_refs['status_var_gantry'].trace_info()
         for trace in trace_info:

@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 from datetime import datetime
 from typing import Dict, Any
-import theme
+from . import theme
 
 
 def load_json(filepath: str) -> Dict:
@@ -1106,12 +1106,12 @@ class CodeGeneratorDialog(tk.Toplevel):
         )
         copy_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Save to file button
-        save_btn = tk.Button(
+        # Save to directory button (user chooses location)
+        save_dir_btn = tk.Button(
             buttons_frame,
-            text="Save to Files",
+            text="Save to Directory…",
             command=self.save_to_files,
-            bg=theme.SUCCESS_GREEN,
+            bg=theme.PRIMARY_ACCENT,  # Blue
             fg='black',
             font=theme.FONT_BOLD,
             relief=tk.FLAT,
@@ -1119,14 +1119,14 @@ class CodeGeneratorDialog(tk.Toplevel):
             pady=6,
             cursor='hand2'
         )
-        save_btn.pack(side=tk.LEFT, padx=(0, 10))
+        save_dir_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Export to firmware button
-        export_btn = tk.Button(
+        # Save to firmware button (auto-saves to firmware folders)
+        save_firmware_btn = tk.Button(
             buttons_frame,
-            text="Export to Firmware…",
+            text="Save to Firmware",
             command=self.export_to_firmware,
-            bg=theme.PRIMARY_ACCENT,
+            bg=theme.SUCCESS_GREEN,  # Green
             fg='black',
             font=theme.FONT_BOLD,
             relief=tk.FLAT,
@@ -1134,7 +1134,7 @@ class CodeGeneratorDialog(tk.Toplevel):
             pady=6,
             cursor='hand2'
         )
-        export_btn.pack(side=tk.LEFT, padx=(0, 10))
+        save_firmware_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Close button
         close_btn = tk.Button(
@@ -1168,13 +1168,69 @@ class CodeGeneratorDialog(tk.Toplevel):
                 messagebox.showerror("Error", "Please select a device.")
                 return
             
-            # Get device path
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            device_dir = os.path.join(script_dir, 'devices', device_name)
+            # Find device root folder from device_manager
+            # Device paths are root folders (e.g., pressboi/), need to find definition/ subfolder
+            device_root_path = None
+            definition_path = None
+            device_manager = self.shared_gui_refs.get('device_manager')
+            if device_manager:
+                for root_path in device_manager.device_paths:
+                    # Check definition subfolder first
+                    def_path = os.path.join(root_path, 'definition')
+                    config_path = os.path.join(def_path, 'config.json')
+                    
+                    if not os.path.exists(config_path):
+                        # Fallback: check root folder (backward compatibility)
+                        config_path = os.path.join(root_path, 'config.json')
+                        def_path = root_path
+                    
+                    if os.path.exists(config_path):
+                        try:
+                            with open(config_path, 'r') as f:
+                                config = json.load(f)
+                                path_device_name = config.get('device_name') or config.get('name')
+                                if path_device_name == device_name:
+                                    device_root_path = root_path
+                                    definition_path = def_path
+                                    break
+                        except Exception:
+                            pass
+                    
+                    # Fallback: check folder name matches device_name
+                    if os.path.basename(root_path) == device_name:
+                        device_root_path = root_path
+                        # Try definition subfolder
+                        if os.path.isdir(os.path.join(root_path, 'definition')):
+                            definition_path = os.path.join(root_path, 'definition')
+                        else:
+                            definition_path = root_path
+                        break
             
-            commands_json_path = os.path.join(device_dir, 'commands.json')
-            telemetry_json_path = os.path.join(device_dir, 'telemetry.json')
-            events_json_path = os.path.join(device_dir, 'events.json')
+            if not device_root_path or not definition_path:
+                messagebox.showerror("Error", f"Could not find device folder for device '{device_name}'")
+                return
+            
+            # Check if there's a Python code generator script (in device root/python/)
+            python_dir = os.path.join(device_root_path, 'python')
+            generator_script = None
+            
+            if os.path.isdir(python_dir):
+                # Look for code generator script (common names)
+                for script_name in ['generate_code.py', 'code_generator.py', 'generate.py']:
+                    script_path = os.path.join(python_dir, script_name)
+                    if os.path.exists(script_path):
+                        generator_script = script_path
+                        break
+            
+            # If Python script exists, run it
+            if generator_script:
+                self._run_python_generator(generator_script, definition_path, device_name)
+                return
+            
+            # Otherwise, use built-in generator
+            commands_json_path = os.path.join(definition_path, 'commands.json')
+            telemetry_json_path = os.path.join(definition_path, 'telemetry.json')
+            events_json_path = os.path.join(definition_path, 'events.json')
             
             # Check if files exist
             if not os.path.exists(commands_json_path):
@@ -1233,6 +1289,49 @@ class CodeGeneratorDialog(tk.Toplevel):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate code:\n{str(e)}")
     
+    def _run_python_generator(self, script_path, definition_path, device_name):
+        """Run the Python code generator script from the device's python folder."""
+        import subprocess
+        import sys
+        
+        try:
+            # Run the Python script with definition path as argument
+            result = subprocess.run(
+                [sys.executable, script_path, definition_path],
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(script_path)
+            )
+            
+            if result.returncode != 0:
+                messagebox.showerror(
+                    "Code Generator Error",
+                    f"Failed to run code generator script:\n\n{result.stderr}"
+                )
+                return
+            
+            # Show success message
+            output_msg = result.stdout if result.stdout else "Code generation completed successfully."
+            messagebox.showinfo(
+                "Success",
+                f"Code generation completed!\n\n"
+                f"Script: {os.path.basename(script_path)}\n\n"
+                f"Output:\n{output_msg}"
+            )
+            
+            # Clear the text widgets since files were generated directly
+            for widget in [self.commands_text, self.commands_cpp_text, 
+                          self.variables_h_text, self.variables_cpp_text,
+                          self.events_h_text, self.events_cpp_text]:
+                widget.delete('1.0', tk.END)
+                widget.insert('1.0', "Code was generated directly to files by the Python script.\n\n"
+                                     f"Script: {script_path}\n"
+                                     f"Definition folder: {definition_path}\n\n"
+                                     "Check the device repository for generated files.")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to run code generator script:\n{str(e)}")
+    
     def copy_current_tab(self):
         """Copy the content of the current tab to clipboard."""
         current_tab = self.notebook.index(self.notebook.select())
@@ -1256,18 +1355,21 @@ class CodeGeneratorDialog(tk.Toplevel):
         messagebox.showinfo("Success", "Content copied to clipboard!")
     
     def save_to_files(self):
-        """Save generated files to the device directory."""
+        """Prompt user to choose a directory and save generated files there."""
         if not hasattr(self, 'generated_commands'):
             messagebox.showerror("Error", "Please generate the files first.")
             return
         
         try:
-            # Determine save paths (save to generated/ subfolder)
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            device_dir = os.path.join(script_dir, 'devices', self.current_device)
-            gen_dir = os.path.join(device_dir, 'generated')
+            # Prompt user to select a directory
+            from tkinter import filedialog
+            gen_dir = filedialog.askdirectory(title="Select Directory to Save Generated Files")
             
-            # Create generated/ folder if it doesn't exist
+            if not gen_dir:
+                # User cancelled
+                return
+            
+            # Create the directory if it doesn't exist
             os.makedirs(gen_dir, exist_ok=True)
             
             commands_h_path = os.path.join(gen_dir, 'commands.h')
@@ -1298,13 +1400,13 @@ class CodeGeneratorDialog(tk.Toplevel):
             
             messagebox.showinfo(
                 "Success",
-                f"All files saved successfully to generated/ folder!\n\n"
-                f"generated/commands.h\n"
-                f"generated/commands.cpp\n"
-                f"generated/variables.h\n"
-                f"generated/variables.cpp\n"
-                f"generated/events.h\n"
-                f"generated/events.cpp\n\n"
+                f"All files saved successfully!\n\n"
+                f"commands.h\n"
+                f"commands.cpp\n"
+                f"variables.h\n"
+                f"variables.cpp\n"
+                f"events.h\n"
+                f"events.cpp\n\n"
                 f"Location: {gen_dir}"
             )
             
@@ -1312,19 +1414,53 @@ class CodeGeneratorDialog(tk.Toplevel):
             messagebox.showerror("Error", f"Failed to save files:\n{str(e)}")
 
     def export_to_firmware(self):
-        """Copy generated files directly into a firmware inc/src folder structure."""
+        """Automatically save generated files to the device's firmware inc/src folders."""
         if not hasattr(self, 'generated_commands'):
             messagebox.showerror("Error", "Please generate the files first.")
             return
         
-        target_root = filedialog.askdirectory(
-            title="Select firmware folder (expects inc/ and src/ subfolders)"
-        )
-        if not target_root:
+        # Find device firmware folder automatically
+        device_path = None
+        device_manager = self.shared_gui_refs.get('device_manager')
+        if device_manager:
+            for path in device_manager.device_paths:
+                # Check if this path's basename matches the device name
+                if os.path.basename(path) == self.current_device:
+                    device_path = path
+                    break
+                
+                # Check config.json in root
+                config_path = os.path.join(path, 'config.json')
+                if os.path.exists(config_path):
+                    try:
+                        with open(config_path, 'r') as f:
+                            config = json.load(f)
+                            path_device_name = config.get('device_name') or config.get('name')
+                            if path_device_name == self.current_device:
+                                device_path = path
+                                break
+                    except Exception:
+                        pass
+                
+                # Check config.json in definition/ subfolder
+                def_config_path = os.path.join(path, 'definition', 'config.json')
+                if os.path.exists(def_config_path):
+                    try:
+                        with open(def_config_path, 'r') as f:
+                            config = json.load(f)
+                            path_device_name = config.get('device_name') or config.get('name')
+                            if path_device_name == self.current_device:
+                                device_path = path
+                                break
+                    except Exception:
+                        pass
+        
+        if not device_path:
+            messagebox.showerror("Error", f"Could not find firmware folder for device '{self.current_device}'")
             return
         
-        src_dir = os.path.join(target_root, 'src')
-        inc_dir = os.path.join(target_root, 'inc')
+        src_dir = os.path.join(device_path, 'src')
+        inc_dir = os.path.join(device_path, 'inc')
         
         try:
             os.makedirs(src_dir, exist_ok=True)

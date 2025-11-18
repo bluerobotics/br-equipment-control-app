@@ -1,5 +1,5 @@
-import code_generator
-from firmware_manager import open_firmware_manager
+from . import code_generator
+from .firmware_manager import open_firmware_manager
 
 # Retained for backward compatibility; simulator support has been removed.
 simulator_process = None

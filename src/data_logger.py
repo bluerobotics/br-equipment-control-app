@@ -13,7 +13,7 @@ import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 import tkinter as tk
-from comms import log_to_terminal
+from .comms import log_to_terminal
 
 
 def _resolve_logs_directory() -> Path:

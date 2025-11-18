@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-import theme
+from . import theme
 
 def create_status_bar(parent, shared_gui_refs):
     """

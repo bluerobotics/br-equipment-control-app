@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-import theme
+from . import theme
 import re
 
 def create_terminal_panel(parent, shared_gui_refs):
@@ -48,34 +48,38 @@ def create_terminal_panel(parent, shared_gui_refs):
         if not msg:
             return
         
-        # Determine color tag based on message content
-        tag = "system"  # Default
-        msg_upper = msg.upper()
-        
-        # Check for error messages
-        if any(keyword in msg_upper for keyword in ["ERROR", "_ERROR:", "FAILED", "FAULT", "EXCEPTION"]):
-            tag = "error"
-        # Check for success/done messages
-        elif any(keyword in msg_upper for keyword in ["_DONE:", "SUCCESS", "COMPLETE", "OK]"]):
-            tag = "success"
-        # Check for warnings
-        elif any(keyword in msg_upper for keyword in ["WARNING", "WARN", "_RECOVERY:"]):
-            tag = "warning"
-        # Check for disconnect messages
-        elif any(keyword in msg_upper for keyword in ["DISCONNECT", "OFFLINE", "LOST CONNECTION"]):
-            tag = "disconnect"
-        # Check for connect messages
-        elif any(keyword in msg_upper for keyword in ["CONNECT", "ONLINE", "DISCOVERED"]):
-            tag = "connect"
-        # Check for command messages
-        elif "[CMD SENT" in msg:
-            tag = "command"
-        # Check for telemetry messages
-        elif "_TELEM:" in msg:
-            tag = "telemetry"
-        # Check for info messages
-        elif any(keyword in msg_upper for keyword in ["_INFO:", "_START:", "[SYSTEM]"]):
-            tag = "info"
+        # Check for Python console messages first - they should be white
+        if "[python]" in msg.lower():
+            tag = "system"  # White/default color
+        else:
+            # Determine color tag based on message content
+            tag = "system"  # Default
+            msg_upper = msg.upper()
+            
+            # Check for error messages
+            if any(keyword in msg_upper for keyword in ["ERROR", "_ERROR:", "FAILED", "FAULT", "EXCEPTION"]):
+                tag = "error"
+            # Check for success/done messages
+            elif any(keyword in msg_upper for keyword in ["_DONE:", "SUCCESS", "COMPLETE", "OK]"]):
+                tag = "success"
+            # Check for warnings
+            elif any(keyword in msg_upper for keyword in ["WARNING", "WARN", "_RECOVERY:"]):
+                tag = "warning"
+            # Check for disconnect messages
+            elif any(keyword in msg_upper for keyword in ["DISCONNECT", "OFFLINE", "LOST CONNECTION"]):
+                tag = "disconnect"
+            # Check for connect messages
+            elif any(keyword in msg_upper for keyword in ["CONNECT", "ONLINE", "DISCOVERED"]):
+                tag = "connect"
+            # Check for command messages
+            elif "[CMD SENT" in msg:
+                tag = "command"
+            # Check for telemetry messages
+            elif "_TELEM:" in msg:
+                tag = "telemetry"
+            # Check for info messages
+            elif any(keyword in msg_upper for keyword in ["_INFO:", "_START:", "[SYSTEM]"]):
+                tag = "info"
         
         # Insert with appropriate tag
         terminal.insert(tk.END, msg, tag)
@@ -84,19 +88,24 @@ def create_terminal_panel(parent, shared_gui_refs):
     # Create checkboxes for the options frame (already packed above)
     show_telemetry_var = tk.BooleanVar(value=False)
     show_discovery_var = tk.BooleanVar(value=False)
+    show_python_console_var = tk.BooleanVar(value=False)  # Default to False - Python messages hidden by default
 
     # Use a style that inherits the correct background from the theme
     style = ttk.Style()
     style.configure("Terminal.TCheckbutton", background=theme.CARD_BG, foreground=theme.FG_COLOR, font=("Segoe UI", 8))
     style.map("Terminal.TCheckbutton", background=[('active', theme.CARD_BG)])
 
-    telemetry_check = ttk.Checkbutton(options_frame, text="Show Raw Telemetry", variable=show_telemetry_var,
+    telemetry_check = ttk.Checkbutton(options_frame, text="Show Telemetry", variable=show_telemetry_var,
                                       style="Terminal.TCheckbutton")
     telemetry_check.pack(side=tk.LEFT, padx=5)
 
-    discovery_check = ttk.Checkbutton(options_frame, text="Show Raw Discovery", variable=show_discovery_var,
-                                      style="Terminal.TCheckbutton")
+    discovery_check = ttk.Checkbutton(options_frame, text="Show Discovery", variable=show_discovery_var,
+                                     style="Terminal.TCheckbutton")
     discovery_check.pack(side=tk.LEFT, padx=5)
+
+    python_console_check = ttk.Checkbutton(options_frame, text="Show Python Console", variable=show_python_console_var,
+                                          style="Terminal.TCheckbutton")
+    python_console_check.pack(side=tk.LEFT, padx=5)
 
     # Return a dictionary of the created widgets and their references
     return {
@@ -104,5 +113,6 @@ def create_terminal_panel(parent, shared_gui_refs):
         'terminal_cb': insert_colored_message,
         'terminal_frame': bottom_frame,
         'show_telemetry_var': show_telemetry_var,
-        'show_discovery_var': show_discovery_var
+        'show_discovery_var': show_discovery_var,
+        'show_python_console_var': show_python_console_var
     }

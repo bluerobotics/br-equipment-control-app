@@ -7,10 +7,10 @@ from functools import partial
 import re
 import tkinter.font as tkfont
 
-from script_validator import validate_single_line, validate_script
-from script_processor import ScriptRunner, SCRIPT_COMMANDS
-import theme
-from comms import devices_lock
+from .script_validator import validate_single_line, validate_script
+from .script_processor import ScriptRunner, SCRIPT_COMMANDS
+from . import theme
+from .comms import devices_lock
 
 # --- Find/Replace Frame ---
 class FindReplaceFrame(ttk.Frame):

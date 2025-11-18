@@ -1,9 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
 import re
-import theme
-from script_processor import SCRIPT_COMMANDS
-from comms import devices_lock
+from . import theme
+from .script_processor import SCRIPT_COMMANDS
+from .comms import devices_lock
 
 class Tooltip:
     """
@@ -922,7 +922,7 @@ class CommandReference(ttk.Frame):
                                  activeforeground=theme.FG_COLOR)
             
             # List available serial ports
-            import serial_comms
+            from . import serial_comms
             ports = serial_comms.list_serial_ports()
             if ports:
                 for port, description in ports:
@@ -986,7 +986,7 @@ class CommandReference(ttk.Frame):
             self.context_menu.add_command(label="Edit Device...", command=self.edit_device)
             self.context_menu.add_command(label="More Info...", command=self.show_device_info)
             self.context_menu.add_separator()
-            self.context_menu.add_command(label="Delete Device", command=self.delete_device,
+            self.context_menu.add_command(label="Remove Device", command=self.remove_device,
                                          foreground=theme.ERROR_RED)
         
         elif item_type == 'command' or item_type == 'script_command':
@@ -1115,7 +1115,7 @@ class CommandReference(ttk.Frame):
             device_commands[device].append((cmd, details))
         
         # Add script commands
-        from script_processor import SCRIPT_COMMANDS
+        from .script_processor import SCRIPT_COMMANDS
         if 'script' not in device_commands:
             device_commands['script'] = []
         for cmd, details in SCRIPT_COMMANDS.items():
@@ -1729,7 +1729,7 @@ class CommandReference(ttk.Frame):
         
         # If not found, check SCRIPT_COMMANDS directly (for script-only commands)
         if not cmd_details:
-            from script_processor import SCRIPT_COMMANDS
+            from .script_processor import SCRIPT_COMMANDS
             cmd_details = SCRIPT_COMMANDS.get(command)
         
         if not cmd_details:
@@ -2560,36 +2560,54 @@ class CommandReference(ttk.Frame):
     
     def set_connection_network(self, device_name):
         """Switch device to network (UDP) connection."""
-        import serial_comms
-        import comms
+        from . import serial_comms
+        from . import comms
         
         # Disconnect any USB connection
         device_state = self.device_manager.get_device_state(device_name)
         if device_state and device_state.get('serial_port'):
             serial_comms.disconnect_serial_device(device_state['serial_port'])
         
-        # Set connection method to network
+        # Set connection method to network (this will save to config)
         self.device_manager.set_connection_method(device_name, 'network')
         
-        # Log the change
+        # Mark as disconnected so the next network message will be treated as a new connection
+        self.device_manager.update_device_state(device_name, {
+            'connected': False
+        })
+        
+        # Hide the status panel since device is now disconnected
         gui_refs = self.device_manager.shared_gui_refs
+        reset_and_hide_fn = gui_refs.get('reset_and_hide_panel')
+        if reset_and_hide_fn:
+            reset_and_hide_fn(device_name)
+        
+        # Update searching panel visibility
+        from . import comms
+        comms.update_searching_panel_visibility(gui_refs)
+        
+        # Log the change
         comms.log_to_terminal(f"{device_name}: Switched to network connection", gui_refs)
         
-        # Update status variable if device is connected
+        # Update status variable to reflect network mode
         device_state = self.device_manager.get_device_state(device_name)
-        if device_state and device_state.get('connected') and device_state.get('ip'):
-            status_var = gui_refs.get(f'status_var_{device_name}')
-            if status_var:
-                status_text = f"{device_name.capitalize()} ({device_state['ip']})"
-                status_var.set(status_text)
+        status_var = gui_refs.get(f'status_var_{device_name}')
+        if status_var and device_state:
+            ip = device_state.get('ip')
+            if device_state.get('connected') and ip:
+                status_text = f"{device_name.capitalize()} (@{ip})"
+            else:
+                # Not yet connected on network; show generic device name
+                status_text = f"{device_name.capitalize()}"
+            status_var.set(status_text)
         
         # Refresh display
         self.refresh()
     
     def set_connection_usb(self, device_name, port):
         """Switch device to USB serial connection."""
-        import serial_comms
-        import comms
+        from . import serial_comms
+        from . import comms
         
         gui_refs = self.device_manager.shared_gui_refs
         
@@ -2618,11 +2636,29 @@ class CommandReference(ttk.Frame):
         
         if success:
             comms.log_to_terminal(f"{device_name}: Connected via USB on {port}", gui_refs)
+            
+            # Mark as disconnected so first USB message triggers connection UI update
+            self.device_manager.update_device_state(device_name, {
+                "connection_method": "usb",
+                "serial_port": port,
+                "connected": False,  # Reset so first message triggers is_new_connection
+                "last_rx": 0  # Will be updated when first message arrives
+            })
+            
+            # Send a discovery command to wake up USB communication
+            # This helps if the firmware's USB buffers got into a bad state
+            import time
+            time.sleep(0.3)  # Give serial port time to be ready
+            serial_comms.send_serial_command(port, "DISCOVER_DEVICE")
+            
+            # Don't refresh immediately - the device needs time to send first message
+            # The USB message handler will trigger a refresh when data arrives
+            # But schedule one anyway as a fallback
+            self.after(1000, self.refresh)
         else:
             comms.log_to_terminal(f"{device_name}: Failed to connect to {port}", gui_refs)
-        
-        # Refresh display
-        self.refresh()
+            # Refresh immediately on failure
+            self.refresh()
     
     def start_simulate_device(self, device_name, connection_type='network'):
         """Start the simulator for a specific device.
@@ -2765,41 +2801,142 @@ class CommandReference(ttk.Frame):
                        edit_mode=True,
                        device_name=device_name)
     
-    def delete_device(self):
-        """Delete the selected device folder and all its files."""
+    def remove_device(self):
+        """Remove the device from the app and persistence (does not delete files)."""
         from tkinter import messagebox
-        import shutil
         import os
+        import json
         
         device_name = self.get_selected_device()
         if not device_name:
             return
         
-        # Confirm deletion
-        response = messagebox.askyesno("Confirm Deletion",
-                                       f"Are you sure you want to delete device:\n\n{device_name}\n\n" +
-                                       "This will DELETE the entire device folder and ALL its files.\n" +
-                                       "This action CANNOT be undone!",
-                                       icon='warning')
+        # Find the device path from device_manager
+        device_path_to_remove = None
+        for path in self.device_manager.device_paths:
+            # Check if this path contains the device
+            definition_path = os.path.join(path, 'definition')
+            if not os.path.isdir(definition_path):
+                definition_path = path
+            
+            config_path = os.path.join(definition_path, 'config.json')
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        path_device_name = config.get('device_name') or config.get('name')
+                        if path_device_name == device_name:
+                            device_path_to_remove = path
+                            break
+                except Exception:
+                    pass
+            
+            # Fallback: check folder name
+            if os.path.basename(path) == device_name:
+                device_path_to_remove = path
+                break
+        
+        if not device_path_to_remove:
+            messagebox.showerror("Error", f"Could not find device path for '{device_name}'\n\nAvailable paths:\n" + 
+                               "\n".join(self.device_manager.device_paths))
+            return
+        
+        # Confirm removal
+        response = messagebox.askyesno("Remove Device",
+                                       f"Remove device from app:\n\n{device_name}\n\n" +
+                                       f"Path: {device_path_to_remove}\n\n" +
+                                       "This will remove the device from the app and clear it from persistence.\n" +
+                                       "The device files will NOT be deleted.",
+                                       icon='question')
         if not response:
             return
         
         try:
-            device_path = os.path.join('devices', device_name)
+            # Remove device path from config
+            from main import remove_device_path, get_device_paths
+            success = remove_device_path(device_path_to_remove)
             
-            if os.path.exists(device_path):
-                shutil.rmtree(device_path)
-                
-                # Rediscover devices to pick up the deletion
-                self.device_manager.discover_devices()
-                
-                # Refresh UI after a short delay to ensure file system operations complete
-                self.after(100, self.refresh)
-            else:
-                messagebox.showerror("Error", f"Device folder not found: {device_path}")
+            if not success:
+                messagebox.showerror("Error", f"Failed to remove device path from config.\n\nPath: {device_path_to_remove}")
+                return
+            
+            # Reload device paths from config and rediscover devices
+            self.device_manager.device_paths = get_device_paths()
+            self.device_manager.discover_devices()
+            
+            # Refresh UI after a short delay to ensure device_manager has updated
+            self.after(200, self.refresh)
+            
+            # Refresh status panels on the left sidebar after a delay
+            def refresh_status_panels():
+                shared_gui_refs = getattr(self.device_manager, 'shared_gui_refs', None)
+                if shared_gui_refs:
+                    status_bar_container = shared_gui_refs.get('status_bar_container')
+                    if status_bar_container:
+                        # Preserve current variable values before destroying panels
+                        # This prevents values from being reset to "---" when panels are recreated
+                        import tkinter as tk
+                        preserved_values = {}
+                        device_modules = self.device_manager.get_device_modules()
+                        for device_name, device_data in device_modules.items():
+                            # Get variables from the mapping (explicit gui_var)
+                            device_vars_map = self.device_manager.get_all_device_variable_names().get(device_name, {})
+                            for var_name, schema_key in device_vars_map.items():
+                                var = shared_gui_refs.get(var_name)
+                                if var:
+                                    try:
+                                        preserved_values[var_name] = var.get()
+                                    except tk.TclError:
+                                        pass  # Variable might not exist yet
+                            
+                            # Also preserve auto-generated variables (device_name_key_var pattern)
+                            # Check telemetry schema for all keys and generate var names
+                            telemetry_data = device_data.get('telemetry_data', {})
+                            for schema_key, details in telemetry_data.items():
+                                # Get gui_var if explicit, otherwise auto-generate
+                                gui_var_name = details.get('gui_var', f"{device_name}_{schema_key}_var")
+                                if gui_var_name not in preserved_values:
+                                    var = shared_gui_refs.get(gui_var_name)
+                                    if var:
+                                        try:
+                                            preserved_values[gui_var_name] = var.get()
+                                        except tk.TclError:
+                                            pass
+                        
+                        # Clear all panel references from shared_gui_refs before destroying
+                        # (clear all *_panel keys, not just current devices)
+                        panel_keys_to_remove = [key for key in shared_gui_refs.keys() if key.endswith('_panel')]
+                        for panel_key in panel_keys_to_remove:
+                            del shared_gui_refs[panel_key]
+                        
+                        # Clear all existing device panels (but keep the container itself)
+                        for widget in list(status_bar_container.winfo_children()):
+                            widget.destroy()
+                        # Rebuild device panels with updated device list
+                        self.device_manager.create_all_gui_components(status_bar_container)
+                        
+                        # Restore preserved variable values after panels are recreated
+                        for var_name, value in preserved_values.items():
+                            var = shared_gui_refs.get(var_name)
+                            if var:
+                                try:
+                                    if isinstance(var, tk.StringVar):
+                                        var.set(str(value))
+                                    elif isinstance(var, tk.DoubleVar):
+                                        var.set(float(value))
+                                except (tk.TclError, ValueError, TypeError):
+                                    pass  # Skip if variable type doesn't match or doesn't exist
+                        
+                        # Update "searching for devices" panel visibility
+                        from src.comms import update_searching_panel_visibility
+                        update_searching_panel_visibility(shared_gui_refs)
+            
+            self.after(300, refresh_status_panels)
+            
+            messagebox.showinfo("Success", f"Device '{device_name}' has been removed from the app.")
         
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to delete device:\n{str(e)}")
+            messagebox.showerror("Error", f"Failed to remove device:\n{str(e)}")
     
     def delete_command(self):
         """Delete the selected command from its JSON file."""
@@ -4377,80 +4514,50 @@ class AddDeviceDialog(tk.Toplevel):
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title
-        title_text = "Edit Device" if self.edit_mode else "Add New Device"
+        title_text = "Edit Device" if self.edit_mode else "Add Device"
         title_label = ttk.Label(main_frame, text=title_text,
                                font=theme.FONT_LARGE_BOLD,
                                foreground=theme.COMMAND_COLOR)
         title_label.pack(pady=(0, 20))
         
-        # Device name
-        name_frame = ttk.Frame(main_frame, style='TFrame')
-        name_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(name_frame, text="Device Name:", font=theme.FONT_BOLD).pack(side=tk.LEFT)
-        self.name_entry = ttk.Entry(name_frame, width=30)
-        self.name_entry.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Copy from existing device (only in add mode)
         if not self.edit_mode:
-            copy_frame = ttk.Frame(main_frame, style='TFrame')
-            copy_frame.pack(fill=tk.X, pady=10)
+            # For add mode, go straight to folder selection
+            info_label = ttk.Label(main_frame,
+                                  text="Select the device folder (e.g., pressboi/definition).\n" +
+                                       "The folder should contain config.json and JSON files (commands.json, telemetry.json, etc.)",
+                                  font=theme.FONT_SMALL,
+                                  foreground=theme.COMMENT_COLOR,
+                                  justify=tk.LEFT)
+            info_label.pack(pady=(0, 15))
             
-            self.copy_var = tk.BooleanVar(value=False)
-            copy_check = tk.Checkbutton(copy_frame, text="Copy from existing device:",
-                                       variable=self.copy_var,
-                                       bg=theme.BG_COLOR, fg=theme.FG_COLOR,
-                                       font=theme.FONT_NORMAL,
-                                       selectcolor=theme.WIDGET_BG,
-                                       activebackground=theme.BG_COLOR,
-                                       activeforeground=theme.FG_COLOR,
-                                       command=self.toggle_copy_device)
-            copy_check.pack(side=tk.LEFT)
+            # Auto-open folder dialog (use update_idletasks to ensure window is ready)
+            self.update_idletasks()
+            self.after(200, self.browse_device_folder)
+        else:
+            # Info text for edit mode
+            info_label = ttk.Label(main_frame,
+                                  text="Editing device configuration.",
+                                  font=theme.FONT_SMALL,
+                                  foreground=theme.COMMENT_COLOR,
+                                  justify=tk.LEFT)
+            info_label.pack(pady=(20, 0))
+        
+        # Buttons (only show for edit mode, add mode auto-closes after folder selection)
+        if self.edit_mode:
+            button_frame = ttk.Frame(main_frame, style='TFrame')
+            button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(20, 0))
             
-            self.copy_device_var = tk.StringVar()
-            device_names = list(self.device_manager.get_all_device_names())
-            if device_names:
-                self.copy_device_var.set(device_names[0])
+            cancel_btn = tk.Button(button_frame, text="Cancel", command=self.destroy,
+                                   bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
+                                   font=theme.FONT_NORMAL, relief=tk.FLAT,
+                                   padx=20, pady=8)
+            cancel_btn.pack(side=tk.RIGHT, padx=5)
             
-            self.copy_device_dropdown = ttk.Combobox(copy_frame, textvariable=self.copy_device_var,
-                                                     values=device_names, state='disabled', width=20)
-            self.copy_device_dropdown.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Description
-        desc_frame = ttk.Frame(main_frame, style='TFrame')
-        desc_frame.pack(fill=tk.X, pady=15)
-        ttk.Label(desc_frame, text="Description (optional):", font=theme.FONT_BOLD).pack(anchor='w')
-        self.desc_text = tk.Text(desc_frame, height=3, width=50,
-                                bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
-                                insertbackground=theme.FG_COLOR,
-                                font=theme.FONT_NORMAL)
-        self.desc_text.pack(fill=tk.X, pady=(5, 0))
-        
-        # Info text
-        info_label = ttk.Label(main_frame,
-                              text="This will create a new device folder with:\n" +
-                                   "• commands.json, telemetry.json, events.json\n" +
-                                   "• gui.py (template)\n" +
-                                   "• generated/ folder (for auto-generated C++ code)",
-                              font=theme.FONT_SMALL,
-                              foreground=theme.COMMENT_COLOR,
-                              justify=tk.LEFT)
-        info_label.pack(pady=(20, 0))
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame, style='TFrame')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(20, 0))
-        
-        cancel_btn = tk.Button(button_frame, text="Cancel", command=self.destroy,
-                               bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
-                               font=theme.FONT_NORMAL, relief=tk.FLAT,
-                               padx=20, pady=8)
-        cancel_btn.pack(side=tk.RIGHT, padx=5)
-        
-        save_btn = tk.Button(button_frame, text="Save", command=self.save_device,
-                            bg=theme.SUCCESS_GREEN, fg=theme.BG_COLOR,
-                            font=theme.FONT_BOLD, relief=tk.FLAT,
-                            padx=20, pady=8)
-        save_btn.pack(side=tk.RIGHT, padx=5)
+            save_btn = tk.Button(button_frame, text="Save", command=self.save_device,
+                                bg=theme.SUCCESS_GREEN, fg=theme.BG_COLOR,
+                                font=theme.FONT_BOLD, relief=tk.FLAT,
+                                padx=20, pady=8)
+            save_btn.pack(side=tk.RIGHT, padx=5)
     
     def load_device_data(self):
         """Load existing device data into the dialog."""
@@ -4468,8 +4575,243 @@ class AddDeviceDialog(tk.Toplevel):
             else:
                 self.copy_device_dropdown.config(state='disabled')
     
+    def browse_device_folder(self):
+        """Open folder dialog to select device folder and immediately process it."""
+        from tkinter import filedialog, messagebox
+        import os
+        import json
+        
+        initial_dir = None
+        # Try to use the first device path if available
+        try:
+            from main import get_device_paths
+            device_paths = get_device_paths()
+            if device_paths:
+                # Use parent directory of first device path
+                first_path = device_paths[0]
+                initial_dir = os.path.dirname(first_path)
+        except Exception:
+            pass
+        
+        # Temporarily release grab to allow file dialog to open
+        self.grab_release()
+        try:
+            folder_path = filedialog.askdirectory(
+                title="Select Device Folder",
+                initialdir=initial_dir,
+                mustexist=True
+            )
+        except Exception as e:
+            self.grab_set()  # Re-grab on error
+            messagebox.showerror("Error", f"Failed to open folder dialog:\n{e}")
+            self.destroy()
+            return
+        finally:
+            # Re-grab after dialog closes
+            self.grab_set()
+        
+        if not folder_path:
+            # User cancelled - close dialog
+            self.destroy()
+            return
+        
+        # Device folders should point to root (e.g., pressboi/), not definition/
+        # Check if user selected definition/ folder - if so, use parent as root
+        device_root_path = folder_path
+        if os.path.basename(folder_path) == 'definition':
+            device_root_path = os.path.dirname(folder_path)
+        
+        # Check for definition subfolder and config.json
+        definition_path = os.path.join(device_root_path, 'definition')
+        if not os.path.isdir(definition_path):
+            # Check if the root folder itself contains definition files (for backward compatibility)
+            has_config = os.path.exists(os.path.join(device_root_path, 'config.json'))
+            has_commands = os.path.exists(os.path.join(device_root_path, 'commands.json'))
+            has_telemetry = os.path.exists(os.path.join(device_root_path, 'telemetry.json'))
+            
+            if has_config or has_commands or has_telemetry:
+                # Root folder contains definition files, use it directly
+                definition_path = device_root_path
+            else:
+                # No definition folder and no files in root - ask user
+                response = messagebox.askyesno(
+                    "Folder Selection",
+                    f"The selected folder doesn't appear to contain a device definition.\n\n"
+                    f"Selected: {device_root_path}\n\n"
+                    f"Expected structure: {device_root_path}/definition/ with config.json\n\n"
+                    f"Would you like to use this folder anyway?",
+                    icon='warning'
+                )
+                if not response:
+                    self.destroy()
+                    return
+                definition_path = device_root_path
+        
+        # Check for config.json to get device name
+        config_path = os.path.join(definition_path, 'config.json')
+        device_name = None
+        
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    device_name = config.get('device_name') or config.get('name')
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to read config.json:\n{e}")
+                self.destroy()
+                return
+        
+        if not device_name:
+            # Try to infer from folder name
+            device_name = os.path.basename(device_root_path)
+            response = messagebox.askyesno(
+                "Device Name",
+                f"Could not find device name in config.json.\n\n"
+                f"Use '{device_name}' as the device name?",
+                icon='question'
+            )
+            if not response:
+                self.destroy()
+                return
+        
+        # Verify it's a valid device folder
+        has_commands = os.path.exists(os.path.join(definition_path, 'commands.json'))
+        has_telemetry = os.path.exists(os.path.join(definition_path, 'telemetry.json'))
+        
+        if not (has_commands or has_telemetry):
+            response = messagebox.askyesno(
+                "Confirm Folder",
+                f"The selected folder doesn't appear to contain device definition files.\n\n"
+                f"Definition path: {definition_path}\n\n"
+                f"A device definition folder should contain commands.json and/or telemetry.json.\n\n"
+                f"Would you like to use this folder anyway?",
+                icon='warning'
+            )
+            if not response:
+                self.destroy()
+                return
+        
+        # Add device root path to config (not definition path)
+        try:
+            from main import add_device_path, get_device_paths
+            success = add_device_path(device_root_path)
+            
+            if not success:
+                messagebox.showerror("Error", f"Failed to add device path to config.\n\nPath: {device_root_path}")
+                self.destroy()
+                return
+            
+            # Reload device paths from config and rediscover devices
+            self.device_manager.device_paths = get_device_paths()
+            self.device_manager.discover_devices()
+            
+            # Check if device was actually loaded
+            loaded_devices = self.device_manager.get_device_modules()
+            if device_name not in loaded_devices:
+                # Device didn't load - show error with discovery logs
+                logs = self.device_manager.get_discovery_logs()
+                recent_logs = "\n".join(logs[-10:]) if logs else "No logs available"
+                messagebox.showerror(
+                    "Device Added But Not Loaded",
+                    f"Device path was added to config, but the device module failed to load.\n\n"
+                    f"Device: {device_name}\n"
+                    f"Root path: {device_root_path}\n"
+                    f"Definition path: {definition_path}\n\n"
+                    f"Discovery logs:\n{recent_logs}\n\n"
+                    f"Check that gui.py exists in the definition folder or device root."
+                )
+            else:
+                messagebox.showinfo("Success", f"Device added:\n{device_name}\n\n"
+                                               f"Root path: {device_root_path}\n"
+                                               f"Definition path: {definition_path}\n\n"
+                                               f"Device should now be available.")
+            
+            # Refresh status panels on the left sidebar
+            shared_gui_refs = getattr(self.device_manager, 'shared_gui_refs', None)
+            if shared_gui_refs:
+                status_bar_container = shared_gui_refs.get('status_bar_container')
+                if status_bar_container:
+                    # Preserve current variable values before destroying panels
+                    # This prevents values from being reset to "---" when panels are recreated
+                    import tkinter as tk
+                    preserved_values = {}
+                    device_modules = self.device_manager.get_device_modules()
+                    for device_name, device_data in device_modules.items():
+                        # Get variables from the mapping (explicit gui_var)
+                        device_vars_map = self.device_manager.get_all_device_variable_names().get(device_name, {})
+                        for var_name, schema_key in device_vars_map.items():
+                            var = shared_gui_refs.get(var_name)
+                            if var:
+                                try:
+                                    preserved_values[var_name] = var.get()
+                                except tk.TclError:
+                                    pass  # Variable might not exist yet
+                        
+                        # Also preserve auto-generated variables (device_name_key_var pattern)
+                        # Check telemetry schema for all keys and generate var names
+                        telemetry_data = device_data.get('telemetry_data', {})
+                        for schema_key, details in telemetry_data.items():
+                            # Get gui_var if explicit, otherwise auto-generate
+                            gui_var_name = details.get('gui_var', f"{device_name}_{schema_key}_var")
+                            if gui_var_name not in preserved_values:
+                                var = shared_gui_refs.get(gui_var_name)
+                                if var:
+                                    try:
+                                        preserved_values[gui_var_name] = var.get()
+                                    except tk.TclError:
+                                        pass
+                    
+                    # Clear all panel references from shared_gui_refs before destroying
+                    # (clear all *_panel keys, not just current devices)
+                    panel_keys_to_remove = [key for key in shared_gui_refs.keys() if key.endswith('_panel')]
+                    for panel_key in panel_keys_to_remove:
+                        del shared_gui_refs[panel_key]
+                    
+                    # Clear all existing device panels (but keep the container itself)
+                    for widget in list(status_bar_container.winfo_children()):
+                        widget.destroy()
+                    # Rebuild device panels with updated device list
+                    self.device_manager.create_all_gui_components(status_bar_container)
+                    
+                    # Restore preserved variable values after panels are recreated
+                    for var_name, value in preserved_values.items():
+                        var = shared_gui_refs.get(var_name)
+                        if var:
+                            try:
+                                if isinstance(var, tk.StringVar):
+                                    var.set(str(value))
+                                elif isinstance(var, tk.DoubleVar):
+                                    var.set(float(value))
+                            except (tk.TclError, ValueError, TypeError):
+                                pass  # Skip if variable type doesn't match or doesn't exist
+                    
+                    # Update "searching for devices" panel visibility
+                    from src.comms import update_searching_panel_visibility
+                    update_searching_panel_visibility(shared_gui_refs)
+                    
+                    # Force UI update to ensure panels are visible
+                    root = shared_gui_refs.get('root')
+                    if root:
+                        root.update_idletasks()
+            
+            # Trigger auto-connect for USB devices after a delay
+            if hasattr(self.device_manager, 'auto_connect_usb_devices'):
+                self.after(500, self.device_manager.auto_connect_usb_devices)
+            
+            # Also update searching panel visibility after a short delay
+            from src.comms import update_searching_panel_visibility
+            self.after(100, lambda: update_searching_panel_visibility(shared_gui_refs))
+            
+            if self.on_save:
+                self.on_save()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add device:\n{str(e)}")
+        
+        self.destroy()
+    
     def save_device(self):
-        """Save the device (create folder and JSON files)."""
+        """Save the device (add device folder to config or create new)."""
         from tkinter import messagebox
         import json
         import os
@@ -4489,97 +4831,134 @@ class AddDeviceDialog(tk.Toplevel):
         try:
             old_device_name = self.original_device_name if self.edit_mode else None
             
-            # Handle rename
-            if self.edit_mode and old_device_name and old_device_name != device_name:
-                old_path = os.path.join('devices', old_device_name)
-                new_path = os.path.join('devices', device_name)
-                
-                if os.path.exists(new_path):
-                    messagebox.showerror("Error", f"Device '{device_name}' already exists.")
-                    return
-                
-                # Rename folder
-                os.rename(old_path, new_path)
-                
-                # Update device field in all JSON files
-                for json_file in ['commands.json', 'telemetry.json', 'events.json']:
-                    json_path = os.path.join(new_path, json_file)
-                    if os.path.exists(json_path):
-                        with open(json_path, 'r') as f:
-                            data = json.load(f)
-                        
-                        # Update device field in all entries
-                        for key in data:
-                            if isinstance(data[key], dict) and 'device' in data[key]:
-                                data[key]['device'] = device_name
-                        
-                        with open(json_path, 'w') as f:
-                            json.dump(data, f, indent=4)
-                
-                # After rename, rediscover to pick up the new name
+            if self.edit_mode:
+                # Edit mode: just rediscover devices
                 self.device_manager.discover_devices()
-            
-            elif not self.edit_mode:
-                # Create new device
-                device_path = os.path.join('devices', device_name)
+            else:
+                # Add mode: select or create device folder
+                device_path = None
                 
-                if os.path.exists(device_path):
-                    messagebox.showerror("Error", f"Device '{device_name}' already exists.")
-                    return
-                
-                # Create device folder
-                os.makedirs(device_path, exist_ok=True)
-                
-                # Create generated/ subfolder for auto-generated code
-                gen_path = os.path.join(device_path, 'generated')
-                os.makedirs(gen_path, exist_ok=True)
-                
-                # Check if we should copy from existing device
-                should_copy = hasattr(self, 'copy_var') and self.copy_var.get()
-                copy_from_device = self.copy_device_var.get() if should_copy else None
-                
-                if should_copy and copy_from_device:
-                    # Copy JSON files from existing device
-                    import shutil
-                    source_path = os.path.join('devices', copy_from_device)
+                # Check if user selected a folder
+                if hasattr(self, 'folder_path_var') and self.folder_path_var.get():
+                    device_path = self.folder_path_var.get().strip()
                     
-                    for json_file in ['commands.json', 'telemetry.json', 'events.json']:
-                        source_file = os.path.join(source_path, json_file)
-                        dest_file = os.path.join(device_path, json_file)
-                        
-                        if os.path.exists(source_file):
-                            # Copy and update device field
-                            with open(source_file, 'r') as f:
-                                data = json.load(f)
-                            
-                            # Update device field in all entries
-                            for key in data:
-                                if isinstance(data[key], dict) and 'device' in data[key]:
-                                    data[key]['device'] = device_name
-                            
-                            with open(dest_file, 'w') as f:
-                                json.dump(data, f, indent=4)
-                        else:
-                            # Create empty file if source doesn't exist
-                            with open(dest_file, 'w') as f:
-                                json.dump({}, f, indent=4)
+                    if not os.path.isdir(device_path):
+                        messagebox.showerror("Error", f"Selected folder does not exist:\n{device_path}")
+                        return
+                    
+                    # Verify it's a valid device folder (has gui.py or commands.json)
+                    has_gui = os.path.exists(os.path.join(device_path, 'gui.py'))
+                    has_commands = os.path.exists(os.path.join(device_path, 'commands.json'))
+                    
+                    if not (has_gui or has_commands):
+                        response = messagebox.askyesno(
+                            "Confirm Folder",
+                            f"The selected folder doesn't appear to contain a device definition.\n\n"
+                            f"Folder: {device_path}\n\n"
+                            f"A device folder should contain gui.py and/or commands.json.\n\n"
+                            f"Would you like to use this folder anyway?",
+                            icon='warning'
+                        )
+                        if not response:
+                            return
+                    
+                    # Add device path to config
+                    try:
+                        from main import add_device_path
+                        add_device_path(device_path)
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to add device path to config:\n{e}")
+                        return
+                    
+                    # Rediscover devices to load the new one
+                    self.device_manager.discover_devices()
+                    
+                    messagebox.showinfo("Success", f"Device folder added:\n{device_path}\n\n"
+                                                   f"Device '{device_name}' should now be available.")
                 else:
-                    # Create empty JSON files
-                    for json_file in ['commands.json', 'telemetry.json', 'events.json']:
-                        json_path = os.path.join(device_path, json_file)
-                        with open(json_path, 'w') as f:
-                            json.dump({}, f, indent=4)
-                
-                # Create __init__.py
-                init_path = os.path.join(device_path, '__init__.py')
-                with open(init_path, 'w') as f:
-                    f.write(f'"""Device module for {device_name}"""\n')
-                
-                # Create gui.py template with variable display
-                gui_path = os.path.join(device_path, 'gui.py')
-                
-                # Build template with proper formatting
-                gui_template = f'''"""
+                    # No folder selected - create new device folder
+                    # Prompt user to select where to create it
+                    from tkinter import filedialog
+                    
+                    create_path = filedialog.askdirectory(
+                        title="Select Location for New Device Folder",
+                        mustexist=True
+                    )
+                    
+                    if not create_path:
+                        return  # User cancelled
+                    
+                    device_path = os.path.join(create_path, device_name)
+                    
+                    if os.path.exists(device_path):
+                        messagebox.showerror("Error", f"Folder already exists:\n{device_path}")
+                        return
+                    
+                    # Create device folder
+                    os.makedirs(device_path, exist_ok=True)
+                    
+                    # Create generated/ subfolder for auto-generated code
+                    gen_path = os.path.join(device_path, 'generated')
+                    os.makedirs(gen_path, exist_ok=True)
+                    
+                    # Check if we should copy from existing device
+                    should_copy = hasattr(self, 'copy_var') and self.copy_var.get()
+                    copy_from_device = self.copy_device_var.get() if should_copy else None
+                    
+                    if should_copy and copy_from_device:
+                        # Copy JSON files from existing device
+                        import shutil
+                        # Find source device path
+                        source_path = None
+                        try:
+                            from main import get_device_paths
+                            device_paths = get_device_paths()
+                            for path in device_paths:
+                                # Check if it's the device folder itself
+                                if os.path.basename(path) == copy_from_device:
+                                    source_path = path
+                                    break
+                        except Exception:
+                            pass
+                        
+                        if source_path:
+                            for json_file in ['commands.json', 'telemetry.json', 'events.json']:
+                                source_file = os.path.join(source_path, json_file)
+                                dest_file = os.path.join(device_path, json_file)
+                                
+                                if os.path.exists(source_file):
+                                    # Copy and update device field
+                                    with open(source_file, 'r') as f:
+                                        data = json.load(f)
+                                    
+                                    # Update device field in all entries
+                                    for key in data:
+                                        if isinstance(data[key], dict) and 'device' in data[key]:
+                                            data[key]['device'] = device_name
+                                    
+                                    with open(dest_file, 'w') as f:
+                                        json.dump(data, f, indent=4)
+                                else:
+                                    # Create empty file if source doesn't exist
+                                    with open(dest_file, 'w') as f:
+                                        json.dump({}, f, indent=4)
+                    else:
+                        # Create empty JSON files
+                        for json_file in ['commands.json', 'telemetry.json', 'events.json']:
+                            json_path = os.path.join(device_path, json_file)
+                            with open(json_path, 'w') as f:
+                                json.dump({}, f, indent=4)
+                    
+                    # Create __init__.py
+                    init_path = os.path.join(device_path, '__init__.py')
+                    with open(init_path, 'w') as f:
+                        f.write(f'"""Device module for {device_name}"""\n')
+                    
+                    # Create gui.py template with variable display
+                    gui_path = os.path.join(device_path, 'gui.py')
+                    
+                    # Build template with proper formatting
+                    gui_template = f'''"""
 GUI module for {device_name} device.
 
 This module contains device-specific GUI components and panels.
@@ -4587,7 +4966,7 @@ This module contains device-specific GUI components and panels.
 
 import tkinter as tk
 from tkinter import ttk
-import theme
+from src import theme
 
 def create_device_panel(parent, device_manager):
     """
@@ -4651,8 +5030,19 @@ def create_device_panel(parent, device_manager):
     
     return frame
 '''
-                with open(gui_path, 'w') as f:
-                    f.write(gui_template)
+                    with open(gui_path, 'w') as f:
+                        f.write(gui_template)
+                    
+                    # Add device path to config
+                    try:
+                        from main import add_device_path
+                        add_device_path(device_path)
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to add device path to config:\n{e}")
+                        return
+                    
+                    messagebox.showinfo("Success", f"Device folder created:\n{device_path}\n\n"
+                                                   f"Device '{device_name}' should now be available.")
             
             # Always rediscover devices to pick up new/renamed devices
             self.device_manager.discover_devices()

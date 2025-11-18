@@ -2,22 +2,16 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 from tkinter import ttk
 from tkinter import Menu
-import theme
+from . import theme
 import os
 import webbrowser
 import platform
 from _version import __version__
 
 
-def open_documentation():
-    """Opens the README.md file in the default web browser or text editor."""
-    filepath = os.path.join(os.path.dirname(__file__), 'README.md')
-    if os.path.exists(filepath):
-        # Using webbrowser is a cross-platform way to open the file
-        # It will open in a browser, which renders Markdown nicely.
-        webbrowser.open(f'file://{os.path.realpath(filepath)}')
-    else:
-        messagebox.showerror("Documentation Not Found", f"Could not find README.md at:\n{filepath}")
+def open_github_repo():
+    """Opens the GitHub repository in the browser."""
+    webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')
 
 
 def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, settings_commands, autosave_var, ui_scale_var, set_ui_scale_callback):
@@ -56,6 +50,9 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
     file_menu.add_cascade(label="Recent Files", menu=recent_files_menu)
     file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_command(label="Validate Script", command=script_commands['validate'], accelerator="Ctrl+Shift+V")
+    file_menu.add_separator(background=theme.WIDGET_BORDER)
+    if 'show_latest_system_log' in file_commands:
+        file_menu.add_command(label="Show Latest System Log", command=file_commands['show_latest_system_log'])
     file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_command(label="Exit", command=parent.quit)
     
@@ -152,8 +149,10 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
     menubar.add_cascade(label="Settings", menu=settings_menu)
 
     # --- Help Menu ---
-    help_menu = tk.Menu(menubar, tearoff=0, bg=theme.WIDGET_BG, fg=theme.FG_COLOR)
-    help_menu.add_command(label="Documentation", command=open_documentation)
+    help_menu = tk.Menu(menubar, tearoff=0, bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
+                       activebackground=theme.PRIMARY_ACCENT,
+                       activeforeground=theme.FG_COLOR)
+    help_menu.add_command(label="GitHub Repository", command=open_github_repo)
     help_menu.add_command(label="About", command=lambda: show_about_window(parent))
     menubar.add_cascade(label="Help", menu=help_menu)
 
@@ -163,5 +162,116 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, devic
 
 
 def show_about_window(parent):
-    """Opens the GitHub repository in the browser."""
-    webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')
+    """Shows an About window with app information."""
+    # Create or reuse about window
+    if hasattr(show_about_window, '_window') and show_about_window._window:
+        if show_about_window._window.winfo_exists():
+            show_about_window._window.lift()
+            return
+    
+    about_window = tk.Toplevel(parent)
+    about_window.title("About BR Equipment Control App")
+    about_window.geometry("500x350")
+    about_window.configure(bg=theme.BG_COLOR)
+    about_window.resizable(False, False)
+    about_window.transient(parent)
+    
+    # Center the window
+    about_window.update_idletasks()
+    x = (about_window.winfo_screenwidth() // 2) - (about_window.winfo_width() // 2)
+    y = (about_window.winfo_screenheight() // 2) - (about_window.winfo_height() // 2)
+    about_window.geometry(f"+{x}+{y}")
+    
+    # Main frame with padding
+    main_frame = ttk.Frame(about_window, padding=30)
+    main_frame.pack(fill=tk.BOTH, expand=True)
+    
+    # App name
+    app_name_label = ttk.Label(
+        main_frame,
+        text="BR Equipment Control App",
+        font=("Segoe UI", 18, "bold"),
+        foreground=theme.FG_COLOR
+    )
+    app_name_label.pack(pady=(0, 10))
+    
+    # Version
+    version_label = ttk.Label(
+        main_frame,
+        text=f"Version {__version__}",
+        font=("Segoe UI", 11),
+        foreground=theme.COMMENT_COLOR
+    )
+    version_label.pack(pady=(0, 20))
+    
+    # Description
+    description_text = (
+        "A comprehensive control application for Blue Robotics equipment,\n"
+        "including script-based automation, device management, and\n"
+        "firmware updates."
+    )
+    description_label = ttk.Label(
+        main_frame,
+        text=description_text,
+        font=("Segoe UI", 9),
+        foreground=theme.FG_COLOR,
+        justify=tk.CENTER
+    )
+    description_label.pack(pady=(0, 20))
+    
+    # GitHub link
+    github_frame = ttk.Frame(main_frame)
+    github_frame.pack(pady=(0, 20))
+    
+    github_label = ttk.Label(
+        github_frame,
+        text="GitHub: ",
+        font=("Segoe UI", 9),
+        foreground=theme.FG_COLOR
+    )
+    github_label.pack(side=tk.LEFT)
+    
+    github_link = ttk.Label(
+        github_frame,
+        text="github.com/bluerobotics/br-equipment-control-app",
+        font=("Segoe UI", 9, "underline"),
+        foreground=theme.PRIMARY_ACCENT,
+        cursor="hand2"
+    )
+    github_link.pack(side=tk.LEFT)
+    
+    def open_github(event=None):
+        webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')
+    
+    github_link.bind("<Button-1>", open_github)
+    
+    # Copyright
+    copyright_label = ttk.Label(
+        main_frame,
+        text="© Blue Robotics",
+        font=("Segoe UI", 8),
+        foreground=theme.COMMENT_COLOR
+    )
+    copyright_label.pack(pady=(0, 20))
+    
+    # Close button
+    button_frame = ttk.Frame(main_frame)
+    button_frame.pack(fill=tk.X)
+    
+    close_button = ttk.Button(
+        button_frame,
+        text="Close",
+        command=about_window.destroy,
+        style="Blue.TButton"
+    )
+    close_button.pack(side=tk.RIGHT)
+    
+    # Store window reference
+    show_about_window._window = about_window
+    
+    # Clean up on close
+    def on_close():
+        show_about_window._window = None
+        about_window.destroy()
+    
+    about_window.protocol("WM_DELETE_WINDOW", on_close)

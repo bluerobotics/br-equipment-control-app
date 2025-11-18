@@ -87,6 +87,8 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
     """
     try:
         ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)
+        # Give the port a moment to fully initialize
+        time.sleep(0.1)
         print(f"[SERIAL] Connected to {device_key} on {port_name}")
         
         # Store the serial object in the connection info
@@ -94,19 +96,66 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
             if port_name in serial_connections:
                 serial_connections[port_name]['serial'] = ser
         
+        # Debug: Track if we're receiving any data
+        last_data_time = time.time()
+        has_received_data = False
+        
+        # Chunk reassembly state
+        chunk_buffer = []  # Stores chunks: [(chunk_num, total_chunks, data), ...]
+        
         while True:
             with serial_lock:
                 if port_name not in serial_connections:
                     # Thread was stopped
                     break
+            
+            # Update last data time
+            now = time.time()
+            if has_received_data:
+                last_data_time = now
                     
-            if ser.in_waiting > 0:
+            # Read ALL available lines, not just one per loop iteration
+            while ser.in_waiting > 0:
                 try:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if line:
-                        message_callback(device_key, line, gui_refs, device_manager)
+                        has_received_data = True
+                        
+                        # Check if this is a chunked message
+                        if line.startswith("CHUNK_"):
+                            # Parse: CHUNK_1/5:data
+                            try:
+                                header_end = line.index(":")
+                                header = line[6:header_end]  # Skip "CHUNK_"
+                                chunk_num, total_chunks = map(int, header.split("/"))
+                                data = line[header_end + 1:]
+                                
+                                # Add to buffer
+                                chunk_buffer.append((chunk_num, total_chunks, data))
+                                
+                                # Check if we have all chunks
+                                if len(chunk_buffer) == total_chunks:
+                                    # Sort by chunk number and reassemble
+                                    chunk_buffer.sort(key=lambda x: x[0])
+                                    full_message = ''.join([chunk[2] for chunk in chunk_buffer])
+                                    chunk_buffer.clear()
+                                    
+                                    # Process the reassembled message
+                                    message_callback(device_key, full_message, gui_refs, device_manager)
+                                elif len(chunk_buffer) > total_chunks:
+                                    # Too many chunks, reset
+                                    chunk_buffer.clear()
+                            except (ValueError, IndexError):
+                                # Malformed chunk, ignore
+                                pass
+                        else:
+                            # Normal message (not chunked)
+                            message_callback(device_key, line, gui_refs, device_manager)
                 except Exception as e:
                     print(f"[SERIAL ERROR] {port_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    break  # Exit the while loop on error
             
             time.sleep(0.01)  # Small delay to prevent CPU hogging
         
@@ -118,6 +167,47 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         with serial_lock:
             if port_name in serial_connections:
                 del serial_connections[port_name]
+        
+        # Update device state to reflect connection failure
+        if device_manager:
+            # Only update if the device hasn't already connected via network
+            from . import comms
+            from .comms import devices_lock
+            
+            with devices_lock:
+                current_state = device_manager.get_device_state(device_key)
+                if current_state:
+                    # If device already connected via network, don't interfere
+                    if current_state.get('connected') and current_state.get('connection_method') == 'network':
+                        print(f"[SERIAL] {device_key} already connected via network, skipping USB failure cleanup")
+                        return
+                    
+                    # Device is not connected yet, so update to fall back to network
+                    device_manager.update_device_state(device_key, {
+                        "connection_method": "network",
+                        "serial_port": None,
+                        "connected": False
+                    })
+            
+            # Update UI to show disconnected state only if not already connected
+            status_var = gui_refs.get(f'status_var_{device_key}')
+            if status_var:
+                current_status = status_var.get()
+                # Don't update if status already shows a valid connection (IP or COM)
+                if "(Disconnected)" in current_status or "Attempting" in current_status or device_key.capitalize() in current_status:
+                    gui_queue = gui_refs.get('gui_queue')
+                    disconnected_text = f"{device_key.capitalize()} (Disconnected)"
+                    if gui_queue:
+                        gui_queue.put((status_var.set, (disconnected_text,), {}))
+                    else:
+                        status_var.set(disconnected_text)
+            
+            # Update searching panel visibility
+            gui_queue = gui_refs.get('gui_queue')
+            if gui_queue:
+                gui_queue.put((comms.update_searching_panel_visibility, (gui_refs,), {}))
+            else:
+                comms.update_searching_panel_visibility(gui_refs)
 
 
 def connect_serial_device(port_name, device_key, message_callback, gui_refs, device_manager):
@@ -189,9 +279,14 @@ def send_serial_command(port_name, command):
             # Use existing connection if available
             if port_name in serial_connections:
                 conn_info = serial_connections[port_name]
-                ser = conn_info['serial']
-                ser.write((command + '\n').encode('utf-8'))
-                return True
+                if 'serial' in conn_info:
+                    ser = conn_info['serial']
+                    ser.write((command + '\n').encode('utf-8'))
+                    ser.flush()  # Ensure data is sent immediately
+                    return True
+                else:
+                    # Serial object not ready yet
+                    return False
             else:
                 # No existing connection, try to open temporarily
                 ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)

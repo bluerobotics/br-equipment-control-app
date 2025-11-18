@@ -27,22 +27,24 @@ if libs_path.exists():
     lib_datas.append((str(libs_path), 'libs'))
 
 # All Python files that need to be included
+# Note: PyInstaller will automatically discover imports from main.py
+# This list is for reference/documentation
 python_files = [
     'main.py',
-    'comms.py',
-    'device_manager.py',
-    'device_actions.py',
-    'data_logger.py',
-    'script_processor.py',
-    'script_validator.py',
-    'scripting_gui.py',
-    'status_panel.py',
-    'terminal.py',
-    'theme.py',
-    'top_menu.py',
-    'command_reference.py',
-    'code_generator.py',
-    '_version.py',
+    'src/comms.py',
+    'src/device_manager.py',
+    'src/device_actions.py',
+    'src/data_logger.py',
+    'src/script_processor.py',
+    'src/script_validator.py',
+    'src/scripting_gui.py',
+    'src/status_panel.py',
+    'src/terminal.py',
+    'src/theme.py',
+    'src/top_menu.py',
+    'src/command_reference.py',
+    'src/code_generator.py',
+    'src/_version.py',
 ]
 
 a = Analysis(

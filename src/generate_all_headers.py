@@ -5,20 +5,39 @@ Run this script whenever you update commands.json or telemetry.json files.
 
 import os
 import sys
-from code_generator import (
-    load_json, 
-    generate_command_header, 
-    generate_commands_cpp,
-    generate_variables_header,
-    generate_variables_cpp,
-    generate_events_header,
-    generate_events_cpp
-)
+
+# Handle both standalone execution and module import
+try:
+    # Try relative import first (when imported as module)
+    from .code_generator import (
+        load_json, 
+        generate_command_header, 
+        generate_commands_cpp,
+        generate_variables_header,
+        generate_variables_cpp,
+        generate_events_header,
+        generate_events_cpp
+    )
+except ImportError:
+    # Fall back to absolute import (when run as script)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)
+    sys.path.insert(0, parent_dir)
+    from src.code_generator import (
+        load_json, 
+        generate_command_header, 
+        generate_commands_cpp,
+        generate_variables_header,
+        generate_variables_cpp,
+        generate_events_header,
+        generate_events_cpp
+    )
 
 def generate_headers_for_device(device_name):
     """Generate headers for a single device."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    device_dir = os.path.join(script_dir, 'devices', device_name)
+    parent_dir = os.path.dirname(script_dir)  # Go up from src/ to root
+    device_dir = os.path.join(parent_dir, 'devices', device_name)
     
     commands_json_path = os.path.join(device_dir, 'commands.json')
     telemetry_json_path = os.path.join(device_dir, 'telemetry.json')
@@ -96,7 +115,8 @@ def main():
     print()
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    devices_dir = os.path.join(script_dir, 'devices')
+    parent_dir = os.path.dirname(script_dir)  # Go up from src/ to root
+    devices_dir = os.path.join(parent_dir, 'devices')
     
     # Find all device directories
     devices = []
