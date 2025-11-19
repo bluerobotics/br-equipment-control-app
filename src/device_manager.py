@@ -552,6 +552,25 @@ class DeviceManager:
             if modules.get('script_handlers') and hasattr(modules['script_handlers'], 'HANDLERS'):
                 all_handlers.update(modules['script_handlers'].HANDLERS)
         return all_handlers
+    
+    def call_script_lifecycle_hook(self, hook_name):
+        """
+        Calls a script lifecycle hook (on_script_start, on_script_stop, etc.) 
+        for all devices that implement it.
+        
+        Args:
+            hook_name: Name of the hook ('on_script_start', 'on_script_stop', 
+                      'on_cycle_start', 'on_cycle_end')
+        """
+        for device_name, modules in self.devices.items():
+            if modules.get('script_handlers'):
+                handler = getattr(modules['script_handlers'], hook_name, None)
+                if handler and callable(handler):
+                    try:
+                        device_state = self.device_state.get(device_name, {})
+                        handler(device_state, self.shared_gui_refs)
+                    except Exception as e:
+                        print(f"[ERROR] Script lifecycle hook '{hook_name}' failed for {device_name}: {e}")
 
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""

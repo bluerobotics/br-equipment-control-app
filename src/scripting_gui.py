@@ -1607,7 +1607,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,
                                      callback,
                                      message_queue, current_commands, 
-                                     script_handlers, line_offset)
+                                     script_handlers, line_offset, device_manager)
         
         script_runner.start()
         

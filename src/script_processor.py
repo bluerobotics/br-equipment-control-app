@@ -96,7 +96,7 @@ class ScriptRunner(threading.Thread):
     Runs a script in a separate thread to avoid blocking the GUI.
     Handles script parsing, command execution, and status reporting.
     """
-    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, script_handlers, line_offset=0):
+    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, script_handlers, line_offset=0, device_manager=None):
         super().__init__(daemon=True)
         self.script_content = script_content
         self.gui_refs = shared_gui_refs
@@ -107,6 +107,7 @@ class ScriptRunner(threading.Thread):
         self.msg_q = msg_q
         self.scripting_commands = scripting_commands
         self.script_handlers = script_handlers # Store the handlers
+        self.device_manager = device_manager # Store device manager for lifecycle hooks
         self.line_offset = line_offset
         self._stop_event = threading.Event()
         self._resume_event = threading.Event()
@@ -327,6 +328,9 @@ class ScriptRunner(threading.Thread):
                         marker_line = f"# CYCLE ITERATION {iteration}/{count}"
                         expanded_list.append((marker_line, line_num))  # Use the cycle line number
                         expanded_list.extend(expanded_body)
+                        # Add end marker comment at the end of each iteration
+                        end_marker_line = f"# CYCLE END {iteration}/{count}"
+                        expanded_list.append((end_marker_line, line_num))
                     print(f"[DEBUG] After expansion, expanded_list has {len(expanded_list)} lines total")
                     
                     i = body_end_index + 1
@@ -411,6 +415,13 @@ class ScriptRunner(threading.Thread):
         """The main execution loop for the script thread."""
         self.is_running = True
         
+        # Call on_script_start lifecycle hook for all devices
+        if self.device_manager:
+            try:
+                self.device_manager.call_script_lifecycle_hook('on_script_start')
+            except Exception as e:
+                print(f"[ERROR] on_script_start hook failed: {e}")
+        
         # Clear any stale messages from the queue before starting
         cleared_count = 0
         while not self.msg_q.empty():
@@ -473,6 +484,13 @@ class ScriptRunner(threading.Thread):
                 iteration_info = line.replace('# CYCLE ITERATION ', '')
                 iteration_num = iteration_info.split('/')[0]  # Extract just the iteration number
                 
+                # Call on_cycle_start lifecycle hook for all devices
+                if self.device_manager:
+                    try:
+                        self.device_manager.call_script_lifecycle_hook('on_cycle_start')
+                    except Exception as e:
+                        print(f"[ERROR] on_cycle_start hook failed: {e}")
+                
                 # Log to both status line and terminal
                 self.status_cb(f"Cycle {iteration_num}", original_line_num)
                 
@@ -482,6 +500,17 @@ class ScriptRunner(threading.Thread):
                     comms.log_to_terminal(f"[SYSTEM] Cycle {iteration_num}", self.gui_refs)
                 except Exception:
                     pass  # Ignore if logging fails
+                
+                continue
+            
+            # Check for cycle end markers
+            if line.startswith('# CYCLE END '):
+                # Call on_cycle_end lifecycle hook for all devices
+                if self.device_manager:
+                    try:
+                        self.device_manager.call_script_lifecycle_hook('on_cycle_end')
+                    except Exception as e:
+                        print(f"[ERROR] on_cycle_end hook failed: {e}")
                 
                 continue
             
@@ -506,6 +535,14 @@ class ScriptRunner(threading.Thread):
                 break
         
         self.is_running = False
+        
+        # Call on_script_stop lifecycle hook for all devices
+        if self.device_manager:
+            try:
+                self.device_manager.call_script_lifecycle_hook('on_script_stop')
+            except Exception as e:
+                print(f"[ERROR] on_script_stop hook failed: {e}")
+        
         # Always call the completion callback when the loop finishes for any reason.
         if self.completion_cb:
             self.completion_cb()
