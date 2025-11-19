@@ -64,7 +64,19 @@ def organize_output():
     
     # Clean up old platform directory
     if platform_dir.exists():
-        shutil.rmtree(platform_dir)
+        try:
+            shutil.rmtree(platform_dir)
+        except PermissionError:
+            print(f"  [WARNING] Could not delete old build (files in use). Trying to rename...")
+            # If we can't delete, try to rename the old build
+            import time
+            temp_dir = Path(f'dist/{platform_name}.old.{int(time.time())}')
+            try:
+                platform_dir.rename(temp_dir)
+                print(f"  [OK] Moved old build to {temp_dir.name}")
+            except:
+                print(f"  [ERROR] Could not move old build. Please close any running instances and try again.")
+                return False
     platform_dir.mkdir(parents=True, exist_ok=True)
     
     # Handle macOS .app bundle differently
