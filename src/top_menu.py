@@ -14,10 +14,20 @@ def open_github_repo():
     webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, device_commands, settings_commands, autosave_var, ui_scale_var, set_ui_scale_callback):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback):
     """
     Creates the main application menu bar.
     """
+    # Import here to avoid circular dependencies
+    from .code_generator import show_code_generator
+    from .firmware_manager import open_firmware_manager
+    
+    # Create device commands
+    device_commands = {
+        'generate_cpp_code': lambda: show_code_generator(parent, gui_refs),
+        'open_firmware_manager': lambda: open_firmware_manager(parent, gui_refs)
+    }
+    
     menubar = Menu(parent, 
                    bg=theme.WIDGET_BG, 
                    fg=theme.FG_COLOR,

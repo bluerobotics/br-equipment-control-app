@@ -34,8 +34,6 @@ from _version import __version__
 # Import GUI components
 from src.top_menu import create_top_menu
 from src.command_reference import create_command_reference, AddDeviceDialog
-from src.code_generator import show_code_generator
-from src.firmware_manager import open_firmware_manager
 
 GUI_UPDATE_INTERVAL_MS = 100
 
@@ -1033,10 +1031,6 @@ class MainApplication:
         script_commands = {
             'validate': self.validate_script
         }
-        device_commands = {
-            'generate_cpp_code': lambda: show_code_generator(self.root, self.shared_gui_refs),
-            'open_firmware_manager': lambda: open_firmware_manager(self.root, self.shared_gui_refs)
-        }
         settings_commands = {
             'change_device_folder': self.change_device_folder,
             'show_paths': self.show_paths_window
@@ -1046,8 +1040,8 @@ class MainApplication:
             file_commands,
             edit_commands,
             script_commands,
-            device_commands,
             settings_commands,
+            self.shared_gui_refs,
             self.autosave_var,
             self.ui_scale_var,
             self.set_ui_scale
