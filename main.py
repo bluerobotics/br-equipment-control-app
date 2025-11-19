@@ -924,6 +924,9 @@ class MainApplication:
         # Add command reference to shared_gui_refs so it can be accessed by comms
         self.shared_gui_refs['command_reference'] = self.command_reference_instance
         
+        # Add syntax highlighter to shared_gui_refs so it can be refreshed when devices are added
+        self.shared_gui_refs['syntax_highlighter'] = self.scripting_gui_refs['syntax_highlighter']
+        
         # Dynamically adjust device pane width based on content
         def adjust_device_pane_width():
             try:
