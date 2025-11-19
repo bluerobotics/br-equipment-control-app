@@ -629,6 +629,11 @@ class DeviceManager:
         for device_name, device_state in self.device_state.items():
             print(f"[DEBUG auto_connect_usb_devices] Checking {device_name}: {device_state}")
             if device_state.get('connection_method') == 'usb' and device_state.get('serial_port'):
+                # Skip if already connected and receiving telemetry
+                if device_state.get('connected'):
+                    self.log(f"{device_name}: Already connected via USB, skipping auto-connect")
+                    continue
+                
                 port = device_state['serial_port']
                 
                 # Skip VIRTUAL_COM unless the device is actually being simulated
