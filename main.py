@@ -590,10 +590,12 @@ class MainApplication:
             # Update status variables based on current device states
             # Use get_all_device_states which handles locking properly
             all_states = self.device_manager.get_all_device_states()
+            print(f"[DEBUG _on_device_added] all_states: {all_states}")
             for device_name, device_data in self.device_modules.items():
                 status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
                 if status_var:
                     device_state = all_states.get(device_name)
+                    print(f"[DEBUG _on_device_added] {device_name} device_state: {device_state}")
                     if device_state:
                         if device_state.get('connected'):
                             # Device is connected, update status and show panel
@@ -604,12 +606,16 @@ class MainApplication:
                             else:
                                 ip = device_state.get('ip', 'Unknown')
                                 status_text = f"{device_name.capitalize()} (@{ip})"
+                            print(f"[DEBUG _on_device_added] Setting status for {device_name}: {status_text}")
                             status_var.set(status_text)
                             
                             # Show the status panel for this connected device
                             show_panel_fn = self.shared_gui_refs.get('show_panel')
+                            print(f"[DEBUG _on_device_added] show_panel_fn exists: {show_panel_fn is not None}")
                             if show_panel_fn:
+                                print(f"[DEBUG _on_device_added] Calling show_panel for {device_name}")
                                 show_panel_fn(device_name)
+                                print(f"[DEBUG _on_device_added] Called show_panel for {device_name}")
                         else:
                             # Device is disconnected, set default
                             status_var.set(f"{device_name.capitalize()}")

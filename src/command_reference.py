@@ -2926,6 +2926,16 @@ class CommandReference(ttk.Frame):
                                 except (tk.TclError, ValueError, TypeError):
                                     pass  # Skip if variable type doesn't match or doesn't exist
                         
+                        # Show panels for connected devices
+                        device_modules = self.device_manager.get_device_modules()
+                        all_states = self.device_manager.get_all_device_states()
+                        for device_name in device_modules.keys():
+                            device_state = all_states.get(device_name)
+                            if device_state and device_state.get('connected'):
+                                show_panel_fn = shared_gui_refs.get('show_panel')
+                                if show_panel_fn:
+                                    show_panel_fn(device_name)
+                        
                         # Update "searching for devices" panel visibility
                         from src.comms import update_searching_panel_visibility
                         update_searching_panel_visibility(shared_gui_refs)
