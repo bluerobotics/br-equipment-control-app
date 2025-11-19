@@ -1217,6 +1217,8 @@ class MainApplication:
         
         # Get all scripting commands
         scripting_commands = self.device_manager.get_all_scripting_commands()
+        print(f"[DEBUG validate_script] Found {len(scripting_commands)} commands")
+        print(f"[DEBUG validate_script] Commands: {list(scripting_commands.keys())[:10]}")  # Show first 10
         
         # Run validation
         errors = validate_script(script_content, scripting_commands)

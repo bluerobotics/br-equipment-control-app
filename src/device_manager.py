@@ -720,11 +720,15 @@ class DeviceManager:
         for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
             all_commands[cmd_name] = cmd_details.copy()
         
+        print(f"[DEBUG get_all_scripting_commands] devices.keys(): {list(self.devices.keys())}")
+        
         # Add device-specific commands
         for device_name, modules in self.devices.items():
+            print(f"[DEBUG get_all_scripting_commands] Checking {device_name}, has scripting_commands: {'scripting_commands' in modules}")
             # Check for commands loaded from JSON
             if modules.get('scripting_commands'):
                 device_commands = modules['scripting_commands']
+                print(f"[DEBUG get_all_scripting_commands] {device_name} has {len(device_commands)} commands")
                 # Add device information to each command
                 for cmd_name, cmd_details in device_commands.items():
                     # Check if command already has device prefix
@@ -739,6 +743,10 @@ class DeviceManager:
                     cmd_details_with_device = cmd_details.copy()
                     cmd_details_with_device['device'] = device_name
                     all_commands[full_cmd_key] = cmd_details_with_device
+            else:
+                print(f"[DEBUG get_all_scripting_commands] {device_name} has NO scripting_commands!")
+        
+        print(f"[DEBUG get_all_scripting_commands] Returning {len(all_commands)} total commands")
         return all_commands
 
     def get_device_scripting_commands(self, device_name):
