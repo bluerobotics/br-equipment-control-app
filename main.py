@@ -577,6 +577,10 @@ class MainApplication:
         if hasattr(self, 'command_reference') and self.command_reference:
             self.command_reference.refresh()
         
+        # Refresh syntax highlighter for newly added devices
+        for device_name in self.device_modules.keys():
+            self.device_manager.reload_single_device(device_name)
+        
         # Refresh status panels - rebuild device panels
         status_bar_container = self.shared_gui_refs.get('status_bar_container')
         if status_bar_container:
