@@ -4843,18 +4843,24 @@ class AddDeviceDialog(tk.Toplevel):
             
             # Check if serial connection already exists for this device
             # If so, mark it as connected immediately
-            from src import serial_comms
-            device_name = config.get('device_name') or config.get('name')
-            device_state = self.device_manager.get_device_state(device_name)
-            if device_state and device_state.get('connection_method') == 'usb':
-                serial_port = device_state.get('serial_port')
-                if serial_port:
-                    with serial_comms.serial_lock:
-                        if serial_port in serial_comms.serial_connections:
-                            # Serial connection already exists! Trigger a message to set connected status
-                            print(f"[DEBUG AddDevice] Serial connection already exists for {device_name} on {serial_port}")
-                            # Send a discovery command to trigger connection status
-                            serial_comms.send_serial_command(serial_port, "DISCOVER_DEVICE PORT=8888")
+            try:
+                from src import serial_comms
+                device_name = config.get('device_name') or config.get('name')
+                if device_name:
+                    device_state = self.device_manager.get_device_state(device_name)
+                    if device_state and device_state.get('connection_method') == 'usb':
+                        serial_port = device_state.get('serial_port')
+                        if serial_port:
+                            with serial_comms.serial_lock:
+                                if serial_port in serial_comms.serial_connections:
+                                    # Serial connection already exists! Trigger a message to set connected status
+                                    print(f"[DEBUG AddDevice] Serial connection already exists for {device_name} on {serial_port}")
+                                    # Send a discovery command to trigger connection status
+                                    serial_comms.send_serial_command(serial_port, "DISCOVER_DEVICE PORT=8888")
+            except Exception as e:
+                print(f"[DEBUG AddDevice] Error checking existing connection: {e}")
+                import traceback
+                traceback.print_exc()
             
             # Trigger auto-connect for USB devices after a delay
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
