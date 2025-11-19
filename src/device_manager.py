@@ -623,8 +623,11 @@ class DeviceManager:
         
         from .comms import update_searching_panel_visibility
         import time
+        
+        print(f"[DEBUG auto_connect_usb_devices] device_state keys: {list(self.device_state.keys())}")
 
         for device_name, device_state in self.device_state.items():
+            print(f"[DEBUG auto_connect_usb_devices] Checking {device_name}: {device_state}")
             if device_state.get('connection_method') == 'usb' and device_state.get('serial_port'):
                 port = device_state['serial_port']
                 
