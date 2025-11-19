@@ -90,6 +90,11 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)
         # Give the port a moment to fully initialize
         time.sleep(0.1)
+        
+        # Flush/drain any stale data in the buffers from previous session
+        ser.reset_input_buffer()  # Clear input (RX) buffer
+        ser.reset_output_buffer()  # Clear output (TX) buffer
+        
         if not silent:
             print(f"[SERIAL] Connected to {device_key} on {port_name}")
         

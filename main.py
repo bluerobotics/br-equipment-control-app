@@ -547,8 +547,14 @@ class MainApplication:
                 print(f"[DEBUG _show_after_add] Panel widget for {device_name}: {panel}")
                 if panel:
                     try:
-                        panel.pack(side="top", fill="x", padx=5, pady=2)
-                        print(f"[DEBUG _show_after_add] Packed panel for {device_name}")
+                        # Check if panel is already visible
+                        try:
+                            panel.pack_info()
+                            print(f"[DEBUG _show_after_add] Panel for {device_name} already visible")
+                        except tk.TclError:
+                            # Not packed yet, pack it now
+                            panel.pack(side="top", fill="x", padx=5, pady=2)
+                            print(f"[DEBUG _show_after_add] Packed panel for {device_name}")
                     except Exception as e:
                         print(f"[DEBUG _show_after_add] Error packing panel for {device_name}: {e}")
                 else:
@@ -638,7 +644,10 @@ class MainApplication:
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
                 self.root.after(500, self.device_manager.auto_connect_usb_devices)
                 # After auto-connect completes, check for connected devices and show their panels
+                # Check multiple times to catch devices that connect slowly
                 self.root.after(2000, self._show_connected_panels_after_add)
+                self.root.after(3000, self._show_connected_panels_after_add)
+                self.root.after(4000, self._show_connected_panels_after_add)
             
             # Update status variables based on current device states
             # Use get_all_device_states which handles locking properly
