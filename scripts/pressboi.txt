@@ -6,9 +6,9 @@ pressboi.retract
 queue_for_logging pressboi.current_pos pressboi.force_load_cell
 start_logging "<date> <time> t200 press" pressboi
 
-pressboi.move_abs 122 mm 5 mm/s 1 kg abort action     # approach move
+pressboi.move_abs 122 mm 5 mm/s 2 kg abort action     # approach move
 pressboi.move_abs 124 mm 5 mm/s 20 kg abort action       # alignment move
-pressboi.move_abs 140 mm 5 mm/s 500 kg retract action					# press move
+pressboi.move_abs 130 mm 5 mm/s 500 kg retract action					# press move
 
 # Throw warning if endpoint is OUTSIDE the range
 if pressboi.endpoint < 123 throw pressboi.endpoint_warning
@@ -19,10 +19,3 @@ if pressboi.joules < 1.5 throw pressboi.energy_warning
 if pressboi.joules > 3 throw pressboi.energy_warning
 
 stop_logging
-
-
-
-cycle 100 times
-	pressboi.move_abs 122 mm 5 mm/s 4 kg abort action     # approach move
-	pressboi.move_abs 124 mm 5 mm/s 20 kg abort action       # alignment move
-	pressboi.move_abs 140 mm 5 mm/s 500 kg retract action					# press move

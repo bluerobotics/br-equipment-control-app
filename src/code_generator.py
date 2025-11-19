@@ -1169,7 +1169,7 @@ class CodeGeneratorDialog(tk.Toplevel):
                 return
             
             # Find device root folder from device_manager
-            # Device paths are root folders (e.g., pressboi/), need to find definition/ subfolder
+            # Device paths are root folders (e.g., my-device/), need to find definition/ subfolder
             device_root_path = None
             definition_path = None
             device_manager = self.shared_gui_refs.get('device_manager')

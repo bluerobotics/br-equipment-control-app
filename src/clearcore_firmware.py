@@ -54,7 +54,7 @@ def _load_firmware_config(device_key, device_manager=None):
     config_path = None
     
     # First, try to get from device_manager if provided
-    # Device paths are root folders (e.g., pressboi/), need to look for definition/ subfolder
+    # Device paths are root folders (e.g., my-device/), need to look for definition/ subfolder
     if device_manager:
         for device_root_path in device_manager.device_paths:
             # Normalize paths for comparison

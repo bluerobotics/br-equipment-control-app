@@ -86,7 +86,7 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
     
     Args:
         port_name (str): The serial port to read from
-        device_key (str): The device key (e.g. 'pressboi')
+        device_key (str): The device key (e.g. 'device')
         message_callback (callable): Function to call with received messages (device_key, message, gui_refs, device_manager)
         gui_refs (dict): GUI references
         device_manager: DeviceManager instance
@@ -254,7 +254,7 @@ def connect_serial_device(port_name, device_key, message_callback, gui_refs, dev
     
     Args:
         port_name (str): The serial port to connect to
-        device_key (str): The device key (e.g. 'pressboi')
+        device_key (str): The device key (e.g. 'device')
         message_callback (callable): Function to call with received messages (device_key, message, gui_refs, device_manager)
         gui_refs (dict): GUI references
         device_manager: DeviceManager instance

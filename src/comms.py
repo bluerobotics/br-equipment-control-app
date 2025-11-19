@@ -182,7 +182,7 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
     Processes them the same way as UDP messages.
     
     Args:
-        device_key (str): The device key (e.g. 'pressboi')
+        device_key (str): The device key (e.g. 'device')
         message (str): The message received
         gui_refs (dict): GUI references
         device_manager: The device manager instance
@@ -252,7 +252,7 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
         if msg.startswith("DISCOVERY_RESPONSE:"):
             try:
                 # Parse firmware version from discovery response
-                # Format: DISCOVERY_RESPONSE: DEVICE_ID=pressboi PORT=8888 FW=1.6.0
+                # Format: DISCOVERY_RESPONSE: DEVICE_ID=my-device PORT=8888 FW=1.6.0
                 parts = msg.split()
                 for part in parts[1:]:  # Skip "DISCOVERY_RESPONSE:"
                     if "=" in part:
@@ -556,7 +556,7 @@ def is_status_message(msg, device_manager):
     
     device_modules = device_manager.get_device_modules()
     for key, data in device_modules.items():
-        # Check for standard prefixes (e.g., GANTRY_DONE:)
+        # Check for standard prefixes (e.g., DEVICE_DONE:)
         if msg.startswith(key.upper() + "_"):
             return True
             
@@ -683,7 +683,7 @@ def recv_loop(gui_refs, device_manager):
 
             if msg.startswith("DISCOVERY_RESPONSE:"):
                 try:
-                    # e.g., DISCOVERY_RESPONSE: DEVICE_ID=gantry PORT=8889
+                    # e.g., DISCOVERY_RESPONSE: DEVICE_ID=my-device PORT=8889
                     parts = msg.split()
                     device_key = None
                     device_port = None

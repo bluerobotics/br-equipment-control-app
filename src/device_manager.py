@@ -754,7 +754,7 @@ class DeviceManager:
     def get_all_device_variable_names(self):
         """
         Collects all GUI variable names from all devices and maps them back to their schema keys.
-        Returns a dictionary like: {'gantry': {'gantry_x_pos_var': 'x_p', ...}, ...}
+        Returns a dictionary like: {'device': {'device_x_pos_var': 'x_pos', ...}, ...}
         """
         all_vars = {}
         for device_name, modules in self.devices.items():
