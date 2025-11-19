@@ -198,8 +198,12 @@ class LogWriter:
     def write(self, text: str):
         """Write text with timestamp to both original stream, terminal, and log file."""
         # Always write to original stream first (preserves original behavior)
-        self.original_stream.write(text)
-        self.original_stream.flush()
+        if self.original_stream is not None:
+            try:
+                self.original_stream.write(text)
+                self.original_stream.flush()
+            except (AttributeError, OSError):
+                pass  # Stream not available (e.g., running as GUI app without console)
         
         # Log to file (preserve newlines and whitespace)
         # Strip trailing newline for processing, we'll add it back
@@ -246,7 +250,11 @@ class LogWriter:
     
     def flush(self):
         """Flush the original stream."""
-        self.original_stream.flush()
+        if self.original_stream is not None:
+            try:
+                self.original_stream.flush()
+            except (AttributeError, OSError):
+                pass  # Stream not available
     
     def __getattr__(self, name):
         """Delegate other attributes to original stream."""
