@@ -116,9 +116,8 @@ class CommandReference(ttk.Frame):
         tree_frame = ttk.Frame(self, style='TFrame')
         tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # Scrollbar - will be shown/hidden dynamically based on content
+        self.scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
         
         # Text widget with syntax highlighting support
         self.text = tk.Text(tree_frame,
@@ -131,11 +130,11 @@ class CommandReference(ttk.Frame):
                            highlightthickness=0,
                            cursor="arrow",
                            wrap=tk.NONE,
-                           yscrollcommand=scrollbar.set,
+                           yscrollcommand=self._on_text_scroll,
                            insertwidth=0,  # Hide the blinking cursor
                            insertbackground=theme.WIDGET_BG)  # Hide cursor color
         self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.text.yview)
+        self.scrollbar.config(command=self.text.yview)
         
         # Make text read-only and prevent text selection
         self.text.bind("<Key>", lambda e: "break")
@@ -205,6 +204,22 @@ class CommandReference(ttk.Frame):
         self.after(1000, self._update_connection_status)
         # Then start periodic refresh every 2 seconds
         self.after(2000, self._schedule_status_refresh)
+    
+    def _on_text_scroll(self, first, last):
+        """Handle scrollbar visibility based on content overflow."""
+        first_float = float(first)
+        last_float = float(last)
+        
+        # Show scrollbar only if content exceeds visible area
+        if first_float <= 0.0 and last_float >= 1.0:
+            # All content is visible, hide scrollbar
+            self.scrollbar.pack_forget()
+        else:
+            # Content overflows, show scrollbar
+            self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Update scrollbar position
+        self.scrollbar.set(first, last)
     
     def _create_text_widget(self, parent, widget_type):
         """Create and configure a text widget for commands, variables, or events."""
