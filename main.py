@@ -501,11 +501,34 @@ class MainApplication:
         pass
     
     def _prompt_add_device(self):
-        """Open the Add Device dialog when no devices are loaded."""
+        """Prompt user to select device folder when no devices are loaded."""
+        from tkinter import filedialog
         try:
-            AddDeviceDialog(self.root, self.device_manager, on_save=self._on_device_added)
+            # Go straight to folder browser
+            device_root_path = filedialog.askdirectory(
+                title="Select Device Folder",
+                parent=self.root
+            )
+            
+            if not device_root_path:
+                return  # User cancelled
+            
+            # Check if user selected definition/ folder - if so, use parent as root
+            import os
+            if os.path.basename(device_root_path) == 'definition':
+                device_root_path = os.path.dirname(device_root_path)
+            
+            # Add device path
+            success = add_device_path(device_root_path)
+            if success:
+                # Reload and refresh
+                self.device_manager.device_paths = get_device_paths()
+                self.device_manager.discover_devices()
+                self._on_device_added()
+            else:
+                messagebox.showerror("Error", f"Failed to add device path to config.\n\nPath: {device_root_path}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to open Add Device dialog:\n{e}")
+            messagebox.showerror("Error", f"Failed to add device:\n{e}")
     
     def _on_device_added(self):
         """Callback when a device is added - refresh the UI."""
