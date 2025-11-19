@@ -1513,18 +1513,17 @@ class MainApplication:
         if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
             return
         try:
-            # Force multiple layout updates to ensure accurate measurement
-            for _ in range(3):
-                status_container.update_idletasks()
-                self.root.update_idletasks()
+            # Force full update to ensure layout is calculated
+            status_container.update()
+            self.root.update_idletasks()
             
             required = status_container.winfo_reqwidth()
+            root_width = self.root.winfo_width()
             
-            # Use generous padding and minimum to prevent text cutoff
-            padding = 80
+            # Use moderate padding to prevent text cutoff
+            padding = 20
             desired = max(320, required + padding)
             
-            root_width = self.root.winfo_width()
             if root_width > 0:
                 desired = min(desired, int(root_width * 0.45))
             
