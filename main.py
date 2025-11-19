@@ -610,6 +610,10 @@ class MainApplication:
                 if hasattr(self, 'left_bar_frame'):
                     status_bar_container.pack(side=tk.TOP, fill='x', expand=False)
             
+            # Trigger auto-connect for USB devices
+            if hasattr(self.device_manager, 'auto_connect_usb_devices'):
+                self.root.after(500, self.device_manager.auto_connect_usb_devices)
+            
             # Update status variables based on current device states
             # Use get_all_device_states which handles locking properly
             all_states = self.device_manager.get_all_device_states()
