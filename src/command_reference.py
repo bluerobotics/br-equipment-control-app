@@ -4842,13 +4842,17 @@ class AddDeviceDialog(tk.Toplevel):
                     if root:
                         root.update_idletasks()
             
+            # Get root window for scheduling callbacks (dialog will be destroyed)
+            root = shared_gui_refs.get('root')
+            
             # Trigger auto-connect for USB devices after a delay
-            if hasattr(self.device_manager, 'auto_connect_usb_devices'):
-                self.after(500, self.device_manager.auto_connect_usb_devices)
+            if hasattr(self.device_manager, 'auto_connect_usb_devices') and root:
+                root.after(500, self.device_manager.auto_connect_usb_devices)
             
             # Also update searching panel visibility after a short delay
             from src.comms import update_searching_panel_visibility
-            self.after(100, lambda: update_searching_panel_visibility(shared_gui_refs))
+            if root:
+                root.after(100, lambda: update_searching_panel_visibility(shared_gui_refs))
             
             if self.on_save:
                 self.on_save()
