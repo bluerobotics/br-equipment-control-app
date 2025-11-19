@@ -182,9 +182,8 @@ class DeviceSimulator(threading.Thread):
     def set_state(self, main_state_key, main_state_val, axis_state_val=None):
         """Helper to set device and axis states."""
         self.state[main_state_key] = main_state_val
-        if axis_state_val and self.device_name == 'gantry':
-            for axis in ['x', 'y', 'z']:
-                self.state[f'{axis}_st'] = axis_state_val
+        # If axis_state_val is provided, devices can set it for their specific axes
+        # This is now handled by device-specific simulator.py modules
 
     def update_state(self):
         """Delegates state updates to device-specific simulator module."""
@@ -195,29 +194,10 @@ class DeviceSimulator(threading.Thread):
                 print(f"[{self.device_name}] Error in device update_state: {e}")
 
     def generate_telemetry(self):
+        """Generate telemetry string in generic format."""
         s = self.state
-        # --- Special formats for legacy parsers ---
-        if self.device_name == 'gantry':
-            s['x_t'] = random.uniform(5, 15) if s.get('gantry_state') != 'STANDBY' else 0.0
-            s['y_t'] = random.uniform(5, 15) if s.get('gantry_state') != 'STANDBY' else 0.0
-            s['z_t'] = random.uniform(5, 15) if s.get('gantry_state') != 'STANDBY' else 0.0
-            
-            # The format string is now built dynamically from the state keys
-            telem_parts = [f"{key}:{s.get(key, 0)}" for key in s.keys()]
-            # Special formatting for floats can be added here if needed, but for now, this is simpler
-            return f"GANTRY_TELEM: {','.join(telem_parts)}"
-
-        elif self.device_name == 'fillhead':
-            s['inj_t0'] = random.uniform(5, 15) if s.get('MAIN_STATE') != 'STANDBY' else 0.0
-            s['inj_t1'] = random.uniform(5, 15) if s.get('MAIN_STATE') != 'STANDBY' else 0.0
-            
-            telem_parts = [f"{key}:{s.get(key, 0)}" for key in s.keys()]
-            return f"FILLHEAD_TELEM: {','.join(telem_parts)}"
-        
-        # --- Generic Telemetry Format for all other devices ---
-        else:
-            telem_parts = [f"{key}:{value}" for key, value in s.items()]
-            return f"{self.device_name.upper()}_TELEM: {','.join(telem_parts)}"
+        telem_parts = [f"{key}:{value}" for key, value in s.items()]
+        return f"{self.device_name.upper()}_TELEM: {','.join(telem_parts)}"
 
 
 class SimulatorApp:
