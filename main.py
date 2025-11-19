@@ -535,12 +535,16 @@ class MainApplication:
         print("[DEBUG] Checking for connected devices to show panels after add...")
         device_modules = self.device_manager.get_device_modules()
         all_states = self.device_manager.get_all_device_states()
+        print(f"[DEBUG _show_after_add] device_modules: {list(device_modules.keys())}")
+        print(f"[DEBUG _show_after_add] all_states: {all_states}")
         
         for device_name in device_modules.keys():
             device_state = all_states.get(device_name, {})
+            print(f"[DEBUG _show_after_add] Checking {device_name}, connected={device_state.get('connected')}")
             if device_state.get('connected'):
                 print(f"[DEBUG _show_after_add] {device_name} is connected, showing panel")
                 panel = self.shared_gui_refs.get(f'{device_name}_panel')
+                print(f"[DEBUG _show_after_add] Panel widget for {device_name}: {panel}")
                 if panel:
                     try:
                         panel.pack(side="top", fill="x", padx=5, pady=2)
