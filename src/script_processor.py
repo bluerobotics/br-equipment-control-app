@@ -1322,15 +1322,6 @@ class ScriptRunner(threading.Thread):
                     if command_info.get("wait_for_done", True): # Assume wait unless specified otherwise
                         # Store the stripped command for DONE matching
                         commands_to_wait_for.append(cmd_to_send)
-                        
-                        # Check if command defines additional DONE messages based on parameter values
-                        additional_done_on = command_info.get("additional_done_on", {})
-                        for param_name, value_mapping in additional_done_on.items():
-                            param_value = resolved_params.get(param_name, "").lower()
-                            if param_value in value_mapping:
-                                # Add the additional commands to wait for
-                                additional_commands = value_mapping[param_value]
-                                commands_to_wait_for.extend(additional_commands)
 
             time.sleep(0.05)
 
