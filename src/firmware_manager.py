@@ -403,8 +403,9 @@ class FirmwareManagerWindow(tk.Toplevel):
 
                 self._run_on_ui(handle_success)
             except Exception as exc:
+                error_msg = str(exc)  # Capture the error message
                 def handle_failure():
-                    row['status_var'].set(f"Update check failed: {exc}")
+                    row['status_var'].set(f"Update check failed: {error_msg}")
                     row['release_var'].set('')
                     row['release_combo'].configure(values=[])
                     self._update_release_notes(row['release_notes'], "Failed to load releases.")
