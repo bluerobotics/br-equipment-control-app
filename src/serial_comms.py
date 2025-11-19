@@ -312,9 +312,11 @@ def send_serial_command(port_name, command):
                     ser = conn_info['serial']
                     ser.write((command + '\n').encode('utf-8'))
                     ser.flush()  # Ensure data is sent immediately
+                    print(f"[SERIAL] Sent command to {port_name}: {command}")
                     return True
                 else:
                     # Serial object not ready yet
+                    print(f"[SERIAL] Cannot send to {port_name}: serial object not ready")
                     return False
             else:
                 # No existing connection, try to open temporarily

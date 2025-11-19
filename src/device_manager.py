@@ -666,6 +666,7 @@ class DeviceManager:
                         import time
                         time.sleep(0.5)  # Initial delay for serial port to be ready
                         for attempt in range(3):
+                            self.log(f"{device_name}: Sending DISCOVER_DEVICE command (attempt {attempt + 1}/3)")
                             serial_comms.send_serial_command(port, "DISCOVER_DEVICE")
                             time.sleep(0.2)  # Small delay between attempts
                         
