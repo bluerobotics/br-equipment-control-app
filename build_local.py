@@ -28,9 +28,9 @@ def clean_dist():
     """Remove old dist and build folders."""
     print("Cleaning old build artifacts...")
     if Path('dist').exists():
-        shutil.rmtree('dist')
+        shutil.rmtree('dist', ignore_errors=True)
     if Path('build').exists():
-        shutil.rmtree('build')
+        shutil.rmtree('build', ignore_errors=True)
     print("  [OK] Cleaned\n")
 
 def build_executable():
@@ -57,25 +57,46 @@ def organize_output():
     """Move the built executable to the appropriate platform subfolder."""
     platform_name = get_platform_name()
     
-    # The build output is in dist/br-equipment-control-app/
-    source_dir = Path('dist/br-equipment-control-app')
-    if not source_dir.exists():
-        print(f"  [ERROR] Build output not found at {source_dir}")
-        return False
-    
     # Create platform-specific directory
     platform_dir = Path(f'dist/{platform_name}')
     
     print(f"Organizing build for {platform_name}...")
     
-    # Move the entire build to platform directory
+    # Clean up old platform directory
     if platform_dir.exists():
         shutil.rmtree(platform_dir)
+    platform_dir.mkdir(parents=True, exist_ok=True)
     
-    shutil.move(str(source_dir), str(platform_dir / 'br-equipment-control-app'))
-    
-    print(f"  [OK] Organized to dist/{platform_name}/br-equipment-control-app/\n")
-    return True
+    # Handle macOS .app bundle differently
+    if platform_name == 'macos':
+        # On macOS, PyInstaller creates a .app bundle
+        source_app = Path('dist/br-equipment-control-app.app')
+        if source_app.exists():
+            # Move the .app bundle to the platform directory
+            shutil.move(str(source_app), str(platform_dir / 'br-equipment-control-app.app'))
+            print(f"  [OK] Organized to dist/{platform_name}/br-equipment-control-app.app\n")
+            
+            # Clean up the COLLECT output directory if it exists (not needed on macOS)
+            collect_dir = Path('dist/br-equipment-control-app')
+            if collect_dir.exists():
+                shutil.rmtree(collect_dir)
+            
+            return True
+        else:
+            print(f"  [ERROR] macOS app bundle not found at {source_app}")
+            return False
+    else:
+        # For Windows/Linux, use the COLLECT directory
+        source_dir = Path('dist/br-equipment-control-app')
+        if not source_dir.exists():
+            print(f"  [ERROR] Build output not found at {source_dir}")
+            return False
+        
+        # Move the entire build to platform directory
+        shutil.move(str(source_dir), str(platform_dir / 'br-equipment-control-app'))
+        
+        print(f"  [OK] Organized to dist/{platform_name}/br-equipment-control-app/\n")
+        return True
 
 def create_placeholder_dirs():
     """Create placeholder directories for other platforms."""
@@ -109,7 +130,7 @@ def print_summary():
         exe_path = Path(f'dist/{platform_name}/br-equipment-control-app/br-equipment-control-app.exe')
         print(f"\nWindows executable: {exe_path}")
     elif platform_name == 'macos':
-        app_path = Path(f'dist/{platform_name}/br-equipment-control-app/br-equipment-control-app.app')
+        app_path = Path(f'dist/{platform_name}/br-equipment-control-app.app')
         print(f"\nmacOS app bundle: {app_path}")
     elif platform_name == 'linux':
         exe_path = Path(f'dist/{platform_name}/br-equipment-control-app/br-equipment-control-app')

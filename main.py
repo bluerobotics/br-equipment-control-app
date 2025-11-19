@@ -7,10 +7,12 @@ import os
 
 # Add libs directory to path for bundled dependencies (e.g., pyserial)
 # This allows the app to work on macOS/Linux when running from source
-project_root = os.path.dirname(os.path.abspath(__file__))
-libs_path = os.path.join(project_root, "libs")
-if os.path.exists(libs_path) and libs_path not in sys.path:
-    sys.path.insert(0, libs_path)
+# Skip this when running as a PyInstaller bundle (sys.frozen is set)
+if not getattr(sys, 'frozen', False):
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    libs_path = os.path.join(project_root, "libs")
+    if os.path.exists(libs_path) and libs_path not in sys.path:
+        sys.path.insert(0, libs_path)
 
 from src import comms
 from src.scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
