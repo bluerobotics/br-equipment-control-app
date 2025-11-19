@@ -2335,13 +2335,13 @@ class CommandReference(ttk.Frame):
         
         # Special examples for logging commands
         if command == 'queue_for_logging' or command == 'script.queue_for_logging':
-            examples.append("# Queue variables inline\nqueue_for_logging pressboi.force pressboi.current_pos pressboi.torque")
-            examples.append("# Queue variables with indented block\nqueue_for_logging\n    pressboi.force\n    pressboi.current_pos\n    pressboi.torque")
+            examples.append("# Queue variables inline\nqueue_for_logging device.force device.position device.torque")
+            examples.append("# Queue variables with indented block\nqueue_for_logging\n    device.force\n    device.position\n    device.torque")
             return examples
         
         if command == 'start_logging' or command == 'script.start_logging':
-            examples.append('# Start logging with timestamp in filename\nstart_logging "<date>-<time> data.csv" pressboi')
-            examples.append('# Complete workflow\nqueue_for_logging pressboi.force pressboi.current_pos\nstart_logging "test_data.csv" pressboi\n# Your test commands here\nstop_logging')
+            examples.append('# Start logging with timestamp in filename\nstart_logging "<date>-<time> data.csv" device')
+            examples.append('# Complete workflow\nqueue_for_logging device.force device.position\nstart_logging "test_data.csv" device\n# Your test commands here\nstop_logging')
             return examples
         
         if command == 'stop_logging' or command == 'script.stop_logging':
@@ -2349,7 +2349,7 @@ class CommandReference(ttk.Frame):
             return examples
         
         if command == 'unqueue_for_logging' or command == 'script.unqueue_for_logging':
-            examples.append("# Remove specific variables from queue\nunqueue_for_logging pressboi.force pressboi.torque")
+            examples.append("# Remove specific variables from queue\nunqueue_for_logging device.force device.torque")
             return examples
         
         def extract_unit(param_name):
@@ -3774,7 +3774,7 @@ class AddCommandDialog(tk.Toplevel):
         if not self.command_data:
             return
         
-        # Extract device name from full command name (e.g., "pressboi.move_abs" -> "pressboi")
+        # Extract device name from full command name (e.g., "device.move_abs" -> "device")
         if self.original_command_name and '.' in self.original_command_name:
             device_name = self.original_command_name.split('.')[0]
             cmd_name = self.original_command_name.split('.', 1)[1]
@@ -4693,7 +4693,7 @@ class AddDeviceDialog(tk.Toplevel):
         if not self.edit_mode:
             # For add mode, go straight to folder selection
             info_label = ttk.Label(main_frame,
-                                  text="Select the device folder (e.g., pressboi/definition).\n" +
+                                  text="Select the device folder (e.g., my-device/definition).\n" +
                                        "The folder should contain config.json and JSON files (commands.json, telemetry.json, etc.)",
                                   font=theme.FONT_SMALL,
                                   foreground=theme.COMMENT_COLOR,
@@ -4787,7 +4787,7 @@ class AddDeviceDialog(tk.Toplevel):
             self.destroy()
             return
         
-        # Device folders should point to root (e.g., pressboi/), not definition/
+        # Device folders should point to root (e.g., my-device/), not definition/
         # Check if user selected definition/ folder - if so, use parent as root
         device_root_path = folder_path
         if os.path.basename(folder_path) == 'definition':

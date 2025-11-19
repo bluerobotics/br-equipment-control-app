@@ -59,7 +59,7 @@ class DeviceManager:
     def discover_devices(self):
         """
         Loads device modules from explicitly configured device paths.
-        Each path should be a device root folder (e.g., pressboi/).
+        Each path should be a device root folder (e.g., my-device/).
         The code will look for a definition/ subfolder or use the root if it contains definition files.
         Device name is read from config.json in the definition folder.
         """
@@ -556,6 +556,34 @@ class DeviceManager:
             sender = self.get_device_sender(device_name)
             sender("cancel")
 
+    def get_device_config(self, device_name):
+        """
+        Returns the config.json data for a device.
+        
+        Args:
+            device_name: Name of the device
+            
+        Returns:
+            dict or None: Config dictionary if found, None otherwise
+        """
+        device_path = self.device_paths.get(device_name)
+        if not device_path:
+            return None
+        
+        definition_path = os.path.join(device_path, 'definition')
+        if not os.path.exists(definition_path):
+            definition_path = device_path
+        
+        config_path = os.path.join(definition_path, 'config.json')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error loading config for {device_name}: {e}")
+        
+        return None
+    
     def get_device_state(self, device_name):
         """Returns the connection state for a specific device."""
         return self.device_state.get(device_name)

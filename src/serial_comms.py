@@ -34,37 +34,43 @@ def list_serial_ports():
     return [(port.device, port.description) for port in ports]
 
 
-def detect_device_on_port(port_name, timeout=2.0):
+def detect_device_on_port(port_name, timeout=2.0, device_manager=None):
     """
     Attempts to detect what device is on a serial port by listening for messages.
+    Uses USB identifiers from device configs to match devices.
     
     Args:
         port_name (str): The serial port to check
         timeout (float): How long to wait for device identification
+        device_manager: Device manager instance to get USB identifiers from device configs
         
     Returns:
-        str or None: Device key (e.g. 'pressboi', 'fillhead') if detected, None otherwise
+        str or None: Device key if detected, None otherwise
     """
     try:
         ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)
         start_time = time.time()
         
+        # Build identifier map from device configs
+        identifier_map = {}
+        if device_manager:
+            for device_name in device_manager.get_all_device_names():
+                config = device_manager.get_device_config(device_name)
+                if config and 'usb_identifiers' in config:
+                    for identifier in config['usb_identifiers']:
+                        identifier_map[identifier.upper()] = device_name
+        
         while time.time() - start_time < timeout:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
-                # Look for device identifiers in messages
-                if 'PRESSBOI_' in line or 'Pressboi' in line:
-                    ser.close()
-                    return 'pressboi'
-                elif 'FILLHEAD_' in line or 'Fillhead' in line:
-                    ser.close()
-                    return 'fillhead'
-                elif 'GANTRY_' in line or 'Gantry' in line:
-                    ser.close()
-                    return 'gantry'
-                elif 'PRESSURIZER_' in line or 'Pressurizer' in line:
-                    ser.close()
-                    return 'pressurizer'
+                line_upper = line.upper()
+                
+                # Check against all registered USB identifiers
+                for identifier, device_name in identifier_map.items():
+                    if identifier in line_upper:
+                        ser.close()
+                        return device_name
+            
             time.sleep(0.1)
         
         ser.close()
