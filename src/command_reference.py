@@ -2786,25 +2786,143 @@ class CommandReference(ttk.Frame):
         info_window.bind('<Escape>', lambda e: info_window.destroy())
     
     def show_add_device_dialog(self):
-        """Show dialog to add a new device."""
-        def on_device_added():
-            self.refresh()
-            # Also refresh status panels and show panels for connected devices
-            shared_gui_refs = getattr(self.device_manager, 'shared_gui_refs', None)
-            if shared_gui_refs:
-                device_modules = self.device_manager.get_device_modules()
-                all_states = self.device_manager.get_all_device_states()
-                for device_name in device_modules.keys():
-                    device_state = all_states.get(device_name)
-                    if device_state and device_state.get('connected'):
-                        show_panel_fn = shared_gui_refs.get('show_panel')
-                        if show_panel_fn:
-                            show_panel_fn(device_name)
-                # Update searching panel visibility
-                from src.comms import update_searching_panel_visibility
-                update_searching_panel_visibility(shared_gui_refs)
+        """Prompt user to select device folder and add it."""
+        from tkinter import filedialog, messagebox
+        import os
+        import json
         
-        AddDeviceDialog(self, self.device_manager, on_save=on_device_added)
+        # Prompt for folder selection
+        device_root_path = filedialog.askdirectory(
+            title="Select Device Folder",
+            parent=self
+        )
+        
+        if not device_root_path:
+            return  # User cancelled
+        
+        # Check if user selected definition/ folder - if so, use parent as root
+        if os.path.basename(device_root_path) == 'definition':
+            device_root_path = os.path.dirname(device_root_path)
+        
+        # Add device path to config
+        try:
+            from main import add_device_path, get_device_paths
+            success = add_device_path(device_root_path)
+            
+            if not success:
+                messagebox.showerror("Error", f"Failed to add device path to config.\n\nPath: {device_root_path}")
+                return
+            
+            # Reload device paths from config and rediscover devices
+            self.device_manager.device_paths = get_device_paths()
+            self.device_manager.discover_devices()
+            
+            # Refresh the UI
+            self.refresh()
+            
+            # Refresh status panels and trigger auto-connect
+            self._refresh_after_device_added()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add device:\n{str(e)}")
+    
+    def _refresh_after_device_added(self):
+        """Helper to refresh UI and auto-connect after device is added."""
+        shared_gui_refs = getattr(self.device_manager, 'shared_gui_refs', None)
+        if not shared_gui_refs:
+            return
+        
+        status_bar_container = shared_gui_refs.get('status_bar_container')
+        if status_bar_container:
+            # Preserve current variable values
+            import tkinter as tk
+            preserved_values = {}
+            device_modules = self.device_manager.get_device_modules()
+            for device_name, device_data in device_modules.items():
+                device_vars_map = self.device_manager.get_all_device_variable_names().get(device_name, {})
+                for var_name, schema_key in device_vars_map.items():
+                    var = shared_gui_refs.get(var_name)
+                    if var:
+                        try:
+                            preserved_values[var_name] = var.get()
+                        except tk.TclError:
+                            pass
+                
+                telemetry_data = device_data.get('telemetry_data', {})
+                for schema_key, details in telemetry_data.items():
+                    gui_var_name = details.get('gui_var', f"{device_name}_{schema_key}_var")
+                    if gui_var_name not in preserved_values:
+                        var = shared_gui_refs.get(gui_var_name)
+                        if var:
+                            try:
+                                preserved_values[gui_var_name] = var.get()
+                            except tk.TclError:
+                                pass
+            
+            # Clear panel references and recreate
+            panel_keys_to_remove = [key for key in shared_gui_refs.keys() if key.endswith('_panel')]
+            for panel_key in panel_keys_to_remove:
+                del shared_gui_refs[panel_key]
+            
+            for widget in list(status_bar_container.winfo_children()):
+                widget.destroy()
+            self.device_manager.create_all_gui_components(status_bar_container)
+            
+            # Restore preserved values
+            for var_name, value in preserved_values.items():
+                var = shared_gui_refs.get(var_name)
+                if var:
+                    try:
+                        if isinstance(var, tk.StringVar):
+                            var.set(str(value))
+                        elif isinstance(var, tk.DoubleVar):
+                            var.set(float(value))
+                    except (tk.TclError, ValueError, TypeError):
+                        pass
+            
+            # Update searching panel visibility
+            from src.comms import update_searching_panel_visibility
+            update_searching_panel_visibility(shared_gui_refs)
+            
+            root = shared_gui_refs.get('root')
+            if root:
+                root.update_idletasks()
+        
+        # Trigger auto-connect for USB devices
+        root = shared_gui_refs.get('root')
+        if hasattr(self.device_manager, 'auto_connect_usb_devices') and root:
+            root.after(500, self.device_manager.auto_connect_usb_devices)
+            # After auto-connect, show panels for connected devices
+            root.after(2000, self._show_connected_panels_after_reconnect)
+        
+        from src.comms import update_searching_panel_visibility
+        if root:
+            root.after(100, lambda: update_searching_panel_visibility(shared_gui_refs))
+    
+    def _show_connected_panels_after_reconnect(self):
+        """Show status panels for devices that are already connected after re-add."""
+        print("[DEBUG] Checking for connected devices to show panels...")
+        
+        device_modules = self.device_manager.get_device_modules()
+        all_states = self.device_manager.get_all_device_states()
+        print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
+        print(f"[DEBUG _show_connected] all_states: {all_states}")
+        
+        # Get the panel directly and show it
+        gui_refs = self.device_manager.shared_gui_refs
+        for device_name in device_modules.keys():
+            device_state = all_states.get(device_name, {})
+            if device_state.get('connected'):
+                print(f"[DEBUG _show_connected] {device_name} is connected, showing panel")
+                panel = gui_refs.get(f'{device_name}_panel')
+                if panel:
+                    try:
+                        panel.pack(side="top", fill="x", padx=5, pady=2)
+                        print(f"[DEBUG _show_connected] Packed panel for {device_name}")
+                    except Exception as e:
+                        print(f"[DEBUG _show_connected] Error packing panel for {device_name}: {e}")
+                else:
+                    print(f"[DEBUG _show_connected] Panel widget not found for {device_name}")
     
     def edit_device(self):
         """Show dialog to edit the selected device."""
