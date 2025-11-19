@@ -302,8 +302,12 @@ class DeviceManager:
         
         # Refresh syntax highlighter if available
         if 'syntax_highlighter' in self.shared_gui_refs:
+            print(f"[DEBUG reload_single_device] Calling refresh_keywords on syntax highlighter")
             self.shared_gui_refs['syntax_highlighter'].refresh_keywords()
             self.log(f"Refreshed syntax highlighter for {device_name}")
+            print(f"[DEBUG reload_single_device] refresh_keywords completed")
+        else:
+            print(f"[DEBUG reload_single_device] No syntax_highlighter in shared_gui_refs")
         
         return True
 
