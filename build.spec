@@ -32,6 +32,7 @@ if libs_path.exists():
 python_files = [
     'main.py',
     'src/comms.py',
+    'src/serial_comms.py',
     'src/device_manager.py',
     'src/device_actions.py',
     'src/data_logger.py',
@@ -44,6 +45,7 @@ python_files = [
     'src/top_menu.py',
     'src/command_reference.py',
     'src/code_generator.py',
+    'src/clearcore_firmware.py',
     'src/_version.py',
 ]
 
@@ -59,6 +61,10 @@ a = Analysis(
         'tkinter.filedialog',
         'tkinter.messagebox',
         'tkinter.scrolledtext',
+        # Serial communication
+        'serial',
+        'serial.tools',
+        'serial.tools.list_ports',
         # Device modules
         'devices.fillhead.gui',
         'devices.fillhead.script_handlers',

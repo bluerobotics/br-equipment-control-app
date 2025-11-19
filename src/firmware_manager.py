@@ -376,16 +376,22 @@ class FirmwareManagerWindow(tk.Toplevel):
         flash_btn.configure(state=flash_btn_state)
 
     def refresh_releases(self, device_key, on_complete=None):
+        print(f"[FW MGR DEBUG] refresh_releases called for {device_key}")
         row = self.rows.get(device_key)
         if not row:
+            print(f"[FW MGR DEBUG] No row found for {device_key}")
             return
 
         self._request_device_version(device_key)
         row['status_var'].set("Fetching releases from GitHub...")
+        print(f"[FW MGR DEBUG] Starting worker thread to fetch releases")
 
         def worker():
+            print(f"[FW MGR DEBUG] Worker thread started for {device_key}")
             try:
-                releases = get_release_history(device_key, limit=8, force_refresh=True)
+                print(f"[FW MGR DEBUG] Calling get_release_history...")
+                releases = get_release_history(device_key, limit=8, force_refresh=True, device_manager=self.device_manager)
+                print(f"[FW MGR DEBUG] get_release_history returned {len(releases) if releases else 0} releases")
                 if not releases:
                     raise RuntimeError("No releases with firmware assets were found.")
 
@@ -403,8 +409,9 @@ class FirmwareManagerWindow(tk.Toplevel):
 
                 self._run_on_ui(handle_success)
             except Exception as exc:
+                error_msg = str(exc)  # Capture the error message
                 def handle_failure():
-                    row['status_var'].set(f"Update check failed: {exc}")
+                    row['status_var'].set(f"Update check failed: {error_msg}")
                     row['release_var'].set('')
                     row['release_combo'].configure(values=[])
                     self._update_release_notes(row['release_notes'], "Failed to load releases.")

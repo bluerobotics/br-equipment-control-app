@@ -50,6 +50,12 @@ devices_lock = threading.Lock() # This can still be useful to protect access to 
 
 def log_to_terminal(msg, gui_refs):
     """Safely logs a message to the GUI terminal by placing it on the queue."""
+    # Filter debug messages based on checkbox
+    if "_DEBUG:" in msg:
+        show_debug_var = gui_refs.get('show_debug_var')
+        if show_debug_var and not show_debug_var.get():
+            return  # Debug messages hidden, don't log
+    
     timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
     full_msg = f"{timestr} {msg}\n"
     
@@ -342,9 +348,28 @@ def monitor_connections(gui_refs, device_manager):
             if fw_update_in_progress:
                 # Device is expected to disconnect during firmware update - don't treat as error
                 continue
+            
+            # USB hotplug: Try to reconnect if USB configured but not connected
+            connection_method = device_state.get("connection_method", "network")
+            serial_port = device_state.get("serial_port")
+            fw_update_cooldown = device_state.get("fw_update_cooldown", 0)
+            last_rx = device_state.get("last_rx", 0)
+            time_since_disconnect = now - last_rx if last_rx > 0 else 999
+            
+            # Only try hotplug if:
+            # 1. Not in firmware update cooldown
+            # 2. Device has been disconnected for at least 2 seconds (prevents interference with initial connect)
+            # 3. USB is configured and port is known
+            if (connection_method == "usb" and serial_port and not prev_conn_status 
+                and now > fw_update_cooldown and time_since_disconnect > 2):
+                # Device is configured for USB but disconnected - try reconnecting
+                if hasattr(device_manager, 'try_usb_reconnect'):
+                    try:
+                        device_manager.try_usb_reconnect(key, serial_port, gui_refs)
+                    except Exception as e:
+                        pass  # Silently fail, will retry next cycle
 
             # Use longer timeout for USB connections (they may take longer to establish communication)
-            connection_method = device_state.get("connection_method", "network")
             timeout = TIMEOUT_THRESHOLD * 2 if connection_method == "usb" else TIMEOUT_THRESHOLD
             
             if prev_conn_status and (now - device_state["last_rx"]) > timeout:
@@ -707,27 +732,32 @@ def recv_loop(gui_refs, device_manager):
                     device_modules = device_manager.get_device_modules()
                     
                     if device_key in device_modules:
-                        # Update connection state based on telemetry
-                        # BUT: Don't mark as connected if device is configured for USB - let USB handle that
+                        # Only process network telemetry if device is configured for network connection
+                        # If USB is configured, ignore network telemetry completely
+                        with devices_lock:
+                            device_state = device_manager.get_device_state(device_key)
+                            if not device_state:
+                                continue
+                            
+                            connection_method = device_state.get('connection_method', 'network')
+                            if connection_method == 'usb':
+                                # Ignore network telemetry when USB is the configured connection
+                                continue
+                        
+                        # If we get here, device is configured for network connection
                         is_new_connection = False
                         with devices_lock:
                             device_state = device_manager.get_device_state(device_key)
                             if device_state:
-                                connection_method = device_state.get('connection_method', 'network')
                                 was_connected = device_state.get('connected', False)
                                 
-                                # Only update connection state if device is using network connection
-                                # If using USB, completely ignore network telemetry
-                                if connection_method == 'network':
-                                    if not was_connected:
-                                        is_new_connection = True
-                                    device_manager.update_device_state(device_key, {
-                                        "connected": True,
-                                        "last_rx": time.time(),
-                                        "ip": source_ip
-                                    })
-                                # If USB is configured, ignore network telemetry entirely
-                                # Don't even update the IP
+                                if not was_connected:
+                                    is_new_connection = True
+                                device_manager.update_device_state(device_key, {
+                                    "connected": True,
+                                    "last_rx": time.time(),
+                                    "ip": source_ip
+                                })
                         
                         # Update status variable if this is a new network connection
                         if is_new_connection:

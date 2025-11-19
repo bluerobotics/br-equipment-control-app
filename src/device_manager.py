@@ -799,3 +799,53 @@ class DeviceManager:
                     callback(device_name, telemetry_dict)
                 except Exception as e:
                     print(f"[ERROR] Telemetry callback error for {device_name}: {e}")
+    
+    def auto_connect_usb_devices(self):
+        """
+        Automatically connects to USB devices that are configured for USB connection.
+        Returns True if any device connected successfully.
+        """
+        from . import serial_comms
+        from . import comms
+        
+        any_connected = False
+        for device_name, device_state in self.device_state.items():
+            if device_state.get('connection_method') == 'usb':
+                serial_port = device_state.get('serial_port')
+                if serial_port:
+                    comms.log_to_terminal(f"{device_name}: Attempting USB connection on {serial_port}...", self.shared_gui_refs)
+                    success = serial_comms.connect_serial_device(
+                        serial_port,
+                        device_name,
+                        comms.handle_serial_message,
+                        self.shared_gui_refs,
+                        self
+                    )
+                    if success:
+                        any_connected = True
+        return any_connected
+    
+    def try_usb_reconnect(self, device_name, serial_port, gui_refs):
+        """
+        Attempts to reconnect a USB device. Called by monitor thread for hotplug support.
+        Silent mode - no error spam if port isn't available.
+        """
+        from . import serial_comms
+        from . import comms
+        
+        # Check if port is already connected
+        with serial_comms.serial_lock:
+            if serial_port in serial_comms.serial_connections:
+                return  # Already connected
+        
+        # Try to connect (silent mode - no error messages or success spam)
+        success = serial_comms.connect_serial_device(
+            serial_port,
+            device_name,
+            comms.handle_serial_message,
+            gui_refs,
+            self,
+            silent=True  # Suppress errors for hotplug attempts
+        )
+        
+        # Success is silent - the normal connection message will appear when telemetry arrives

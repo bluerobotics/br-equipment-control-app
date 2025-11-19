@@ -398,7 +398,10 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
                 os.remove(temp_path)
             except OSError:
                 pass
-        update_state = {"fw_update_in_progress": False}
+        update_state = {
+            "fw_update_in_progress": False,
+            "fw_update_cooldown": time.time() + 10  # 10 second cooldown to prevent hotplug spam
+        }
         if not success:
             update_state['fw_prompt_version'] = None
         device_manager.update_device_state(device_key, update_state)
@@ -558,9 +561,13 @@ def compare_versions(current, latest):
 
 def get_release_history(device_key, limit=5, force_refresh=False, device_manager=None):
     """Fetch a list of recent releases for the device, including changelog text."""
+    import sys
+    print(f"[FW DEBUG] get_release_history: loading config for {device_key}", file=sys.stderr, flush=True)
     config = _load_firmware_config(device_key, device_manager)
     if not config:
+        print(f"[FW DEBUG] get_release_history: NO CONFIG FOUND for {device_key}!", file=sys.stderr, flush=True)
         return []
+    print(f"[FW DEBUG] get_release_history: config loaded, calling _get_release_history", file=sys.stderr, flush=True)
     return _get_release_history(device_key, config, per_page=limit, force_refresh=force_refresh)
 
 
@@ -607,33 +614,46 @@ def start_manual_update(device_key, gui_refs, device_manager, release_info=None,
 
 
 def _get_release_history(device_key, config, per_page=5, force_refresh=False):
+    import sys
+    print(f"[FW DEBUG] _get_release_history called for {device_key}, repo={config['repo']}, asset_name={config['asset_name']}", file=sys.stderr, flush=True)
     cached = RELEASE_LIST_CACHE.get(device_key)
     now = time.time()
     if not force_refresh and cached and (now - cached['fetched'] < CACHE_TTL_SECONDS):
+        print(f"[FW DEBUG] Using cached releases for {device_key}", file=sys.stderr, flush=True)
         return cached['releases']
 
     api_url = f"https://api.github.com/repos/{config['repo']}/releases?per_page={per_page}"
+    print(f"[FW DEBUG] Fetching from GitHub API: {api_url}", file=sys.stderr, flush=True)
     request = urllib.request.Request(api_url, headers={"Accept": "application/vnd.github+json"})
     try:
         with urllib.request.urlopen(request, timeout=10) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-    except Exception:
+            print(f"[FW DEBUG] GitHub API returned {len(data)} releases", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"[FW DEBUG] GitHub API error: {e}", file=sys.stderr, flush=True)
         return cached['releases'] if cached else []
 
     releases = []
+    import sys
     for entry in data:
         tag_name = entry.get('tag_name') or entry.get('name')
         if not tag_name:
             continue
 
         asset_url = None
+        assets_found = [a.get('name') for a in entry.get('assets', [])]
+        print(f"[FW DEBUG] Release {tag_name}: looking for '{config['asset_name']}', found assets: {assets_found}", file=sys.stderr, flush=True)
+        
         for asset in entry.get('assets', []):
             if asset.get('name') == config['asset_name']:
                 asset_url = asset.get('browser_download_url')
                 break
 
         if not asset_url:
+            print(f"[FW DEBUG] Release {tag_name}: No matching asset found, skipping", file=sys.stderr, flush=True)
             continue
+        
+        print(f"[FW DEBUG] Release {tag_name}: Found matching asset at {asset_url}", file=sys.stderr, flush=True)
 
         releases.append({
             "version": _normalize_version(tag_name),
