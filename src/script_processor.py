@@ -40,7 +40,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "start_logging": {
-        "description": "Starts logging queued variables from specified devices to a CSV file. Use <date> and <time> tags for timestamps. Optional frequency parameter in Hz (e.g., start_logging '<date>-<time> data.csv' pressboi 10 hz). If frequency not specified, syncs with incoming telemetry.",
+        "description": "Starts logging queued variables from specified devices to a CSV file. Use <date> and <time> tags for timestamps. Optional frequency parameter in Hz (e.g., start_logging '<date>-<time> data.csv' device 10 hz). If frequency not specified, syncs with incoming telemetry.",
         "params": [
             {"parameter": "filename", "type": "string"},
             {"parameter": "devices", "type": "string", "variadic": True},
