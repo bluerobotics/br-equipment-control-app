@@ -1,9 +1,7 @@
 # Device-Specific Code Audit
 
-## Acceptable Device References
+**Status:** ✅ **Zero device-specific code in core app**
 
-### Resume Logic (`src/scripting_gui.py`)
+The Equipment Control App is **fully device-agnostic**. All device-specific configuration, commands, telemetry schemas, GUI panels, and behaviors are defined in device definition folders (e.g., `pressboi/definition/`).
 
-Resume logic contains device-specific checks because resume is a hardware capability that varies between devices. This is centralized, well-documented, and easy to extend.
-
-**Alternative:** Could add a `capabilities.json` manifest to device definitions, but current approach is simpler and works well.
+The main app code contains **no hardcoded device names or device-specific logic**. All device discovery, loading, and interaction happens dynamically through the device manager.

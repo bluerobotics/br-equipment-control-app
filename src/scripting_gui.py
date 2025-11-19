@@ -1292,16 +1292,18 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             # Resuming from hold
             status_var.set(f"Resuming from line {feed_hold_line}...")
             
-            # If we paused a device (pressboi), send resume command instead of re-executing
-            if paused_device == 'pressboi':
-                print(f"[RESUME] Sending resume to pressboi at line {feed_hold_line}")
+            # If we paused a device, send resume command instead of re-executing
+            if paused_device:
+                print(f"[RESUME] Sending resume to {paused_device} at line {feed_hold_line}")
+                device_to_resume = paused_device
                 paused_device = None
                 feed_hold_line = None
                 # Just send resume directly without ScriptRunner - don't advance line
                 # The move will continue and we'll stay on the current line
-                if 'send_pressboi' in shared_gui_refs['command_funcs']:
-                    shared_gui_refs['command_funcs']['send_pressboi']('resume')
-                    status_var.set(f"Resumed pressboi at line {resume_line_num}...")
+                send_func_name = f'send_{device_to_resume}'
+                if send_func_name in shared_gui_refs['command_funcs']:
+                    shared_gui_refs['command_funcs'][send_func_name]('resume')
+                    status_var.set(f"Resumed {device_to_resume} at line {resume_line_num}...")
                     # Set buttons to show we're not running anymore (move continues in background)
                     refresh_button_states()
                 return
@@ -1714,11 +1716,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                             except Exception as e:
                                 print(f"[HOLD] Failed to send pause to {device_name}: {e}")
             
-            # Track paused devices (for now, focus on pressboi for resume logic)
-            if 'pressboi' in paused_devices:
-                paused_device = 'pressboi'
-            elif paused_devices:
-                paused_device = paused_devices[0]  # Use first paused device
+            # Track paused device (use first paused device for resume logic)
+            if paused_devices:
+                paused_device = paused_devices[0]
             else:
                 paused_device = None
             
