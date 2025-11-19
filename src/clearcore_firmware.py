@@ -398,7 +398,10 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
                 os.remove(temp_path)
             except OSError:
                 pass
-        update_state = {"fw_update_in_progress": False}
+        update_state = {
+            "fw_update_in_progress": False,
+            "fw_update_cooldown": time.time() + 10  # 10 second cooldown to prevent hotplug spam
+        }
         if not success:
             update_state['fw_prompt_version'] = None
         device_manager.update_device_state(device_key, update_state)

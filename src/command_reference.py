@@ -2563,10 +2563,9 @@ class CommandReference(ttk.Frame):
         from . import serial_comms
         from . import comms
         
-        # Disconnect any USB connection
-        device_state = self.device_manager.get_device_state(device_name)
-        if device_state and device_state.get('serial_port'):
-            serial_comms.disconnect_serial_device(device_state['serial_port'])
+        # Keep USB connection open to prevent firmware TX buffer from filling up
+        # The serial listener will continue to read and discard USB data
+        # Only the connection_method change will make the app ignore USB messages
         
         # Set connection method to network (this will save to config)
         self.device_manager.set_connection_method(device_name, 'network')

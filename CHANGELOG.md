@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2025-11-19
+
+### Fixed
+- **USB hotplug detection**: Implemented automatic USB device reconnection without requiring app restart
+- **USB connection reliability**: Fixed multiple issues causing USB connections to fail or require power cycling
+- **Connection persistence**: Connection method (USB/Network) now properly persists across app restarts and connection changes
+- **Terminal debug filtering**: Added "Show Debug" checkbox to filter debug messages (hidden by default)
+- **GUI status panel**: Fixed double `@@` symbols in network connection display (e.g., was `@ @192.168.1.148`, now `@192.168.1.148`)
+- **Code generator directory selection**: "Save to Directory" now prompts user for target folder as intended
+- **Code generator firmware export**: "Save to Firmware" now automatically saves to device's `inc/` and `src/` folders without user prompts
+
+### Changed
+- **USB connection startup**: Improved initial USB connection logic with proper sequencing and retry handling
+- **Status panel updates**: Network connections now show `@IP_ADDRESS` format consistently
+
 ## [1.10.1] - 2025-11-17
 
 ### Changed

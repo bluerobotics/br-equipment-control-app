@@ -74,7 +74,7 @@ def detect_device_on_port(port_name, timeout=2.0):
         return None
 
 
-def serial_listener_thread(port_name, device_key, message_callback, gui_refs, device_manager):
+def serial_listener_thread(port_name, device_key, message_callback, gui_refs, device_manager, silent=False):
     """
     Background thread that reads from a serial port and processes messages.
     
@@ -84,12 +84,14 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         message_callback (callable): Function to call with received messages (device_key, message, gui_refs, device_manager)
         gui_refs (dict): GUI references
         device_manager: DeviceManager instance
+        silent (bool): If True, suppress error messages (for hotplug attempts)
     """
     try:
         ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)
         # Give the port a moment to fully initialize
         time.sleep(0.1)
-        print(f"[SERIAL] Connected to {device_key} on {port_name}")
+        if not silent:
+            print(f"[SERIAL] Connected to {device_key} on {port_name}")
         
         # Store the serial object in the connection info
         with serial_lock:
@@ -120,6 +122,23 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if line:
                         has_received_data = True
+                        
+                        # Check if device is configured for USB before processing messages
+                        # If network is configured, read and discard to drain the buffer
+                        should_process = True  # Default to processing
+                        if device_manager:
+                            try:
+                                device_state = device_manager.get_device_state(device_key)
+                                if device_state and device_state.get('connection_method') != 'usb':
+                                    # Network is configured, don't process USB messages
+                                    should_process = False
+                            except Exception:
+                                # If there's any error checking state, default to processing
+                                pass
+                        
+                        if not should_process:
+                            # Drain the buffer but don't process the message
+                            continue
                         
                         # Check if this is a chunked message
                         if line.startswith("CHUNK_"):
@@ -163,7 +182,8 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         print(f"[SERIAL] Disconnected from {device_key} on {port_name}")
         
     except Exception as e:
-        print(f"[SERIAL ERROR] Failed to connect to {port_name}: {e}")
+        if not silent:
+            print(f"[SERIAL ERROR] Failed to connect to {port_name}: {e}")
         with serial_lock:
             if port_name in serial_connections:
                 del serial_connections[port_name]
@@ -182,14 +202,12 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                         print(f"[SERIAL] {device_key} already connected via network, skipping USB failure cleanup")
                         return
                     
-                    # Device is not connected yet, so update to fall back to network
+                    # Mark as disconnected but keep serial_port and connection_method (for hotplug reconnection)
                     device_manager.update_device_state(device_key, {
-                        "connection_method": "network",
-                        "serial_port": None,
                         "connected": False
                     })
             
-            # Update UI to show disconnected state only if not already connected
+            # Update UI to show disconnected state and hide panel
             status_var = gui_refs.get(f'status_var_{device_key}')
             if status_var:
                 current_status = status_var.get()
@@ -202,6 +220,15 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                     else:
                         status_var.set(disconnected_text)
             
+            # Hide the status panel
+            reset_and_hide_fn = gui_refs.get('reset_and_hide_panel')
+            if reset_and_hide_fn:
+                gui_queue = gui_refs.get('gui_queue')
+                if gui_queue:
+                    gui_queue.put((reset_and_hide_fn, (device_key,), {}))
+                else:
+                    reset_and_hide_fn(device_key)
+            
             # Update searching panel visibility
             gui_queue = gui_refs.get('gui_queue')
             if gui_queue:
@@ -210,7 +237,7 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                 comms.update_searching_panel_visibility(gui_refs)
 
 
-def connect_serial_device(port_name, device_key, message_callback, gui_refs, device_manager):
+def connect_serial_device(port_name, device_key, message_callback, gui_refs, device_manager, silent=False):
     """
     Connects to a device on a serial port and starts listening.
     
@@ -220,19 +247,21 @@ def connect_serial_device(port_name, device_key, message_callback, gui_refs, dev
         message_callback (callable): Function to call with received messages (device_key, message, gui_refs, device_manager)
         gui_refs (dict): GUI references
         device_manager: DeviceManager instance
+        silent (bool): If True, suppress error messages (for hotplug attempts)
         
     Returns:
         bool: True if connection successful, False otherwise
     """
     with serial_lock:
         if port_name in serial_connections:
-            print(f"[SERIAL] Already connected to {port_name}")
-            return False
+            if not silent:
+                print(f"[SERIAL] Already connected to {port_name}")
+            return True  # Already connected is success, not failure
         
         # Start listener thread
         thread = threading.Thread(
             target=serial_listener_thread,
-            args=(port_name, device_key, message_callback, gui_refs, device_manager),
+            args=(port_name, device_key, message_callback, gui_refs, device_manager, silent),
             daemon=True
         )
         thread.start()

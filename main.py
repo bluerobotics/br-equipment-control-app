@@ -607,24 +607,14 @@ class MainApplication:
             self.root.update_idletasks()
         
         # Trigger auto-connect for USB devices after a delay to allow device discovery to complete
-        # Also update status after auto-connect completes
-        def trigger_auto_connect_and_update(attempt=1, max_attempts=12, retry_delay_ms=1500):
+        def trigger_auto_connect():
             from src.comms import update_searching_panel_visibility
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
-                connected = self.device_manager.auto_connect_usb_devices()
-                # Update status variables again after auto-connect (in case connection succeeded)
-                self.root.after(1000, lambda: self._update_status_variables())
-                # Also update searching panel visibility after auto-connect
-                self.root.after(1000, lambda: update_searching_panel_visibility(self.shared_gui_refs))
-                
-                if not connected and attempt < max_attempts:
-                    # Retry after a short delay to give Windows time to enumerate the USB device
-                    self.root.after(retry_delay_ms, lambda: trigger_auto_connect_and_update(attempt + 1, max_attempts, retry_delay_ms))
-            else:
-                # Auto-connect not available; ensure UI reflects current state
-                self.root.after(1000, lambda: update_searching_panel_visibility(self.shared_gui_refs))
+                self.device_manager.auto_connect_usb_devices()
+            # Update searching panel visibility
+            self.root.after(500, lambda: update_searching_panel_visibility(self.shared_gui_refs))
         
-        self.root.after(500, trigger_auto_connect_and_update)
+        self.root.after(1000, trigger_auto_connect)
         
         # Also update searching panel visibility immediately (in case no devices connect)
         self.root.after(100, lambda: update_searching_panel_visibility(self.shared_gui_refs))

@@ -88,6 +88,7 @@ def create_terminal_panel(parent, shared_gui_refs):
     # Create checkboxes for the options frame (already packed above)
     show_telemetry_var = tk.BooleanVar(value=False)
     show_discovery_var = tk.BooleanVar(value=False)
+    show_debug_var = tk.BooleanVar(value=False)  # Default to False - Debug messages hidden by default
     show_python_console_var = tk.BooleanVar(value=False)  # Default to False - Python messages hidden by default
 
     # Use a style that inherits the correct background from the theme
@@ -103,6 +104,10 @@ def create_terminal_panel(parent, shared_gui_refs):
                                      style="Terminal.TCheckbutton")
     discovery_check.pack(side=tk.LEFT, padx=5)
 
+    debug_check = ttk.Checkbutton(options_frame, text="Show Debug", variable=show_debug_var,
+                                  style="Terminal.TCheckbutton")
+    debug_check.pack(side=tk.LEFT, padx=5)
+
     python_console_check = ttk.Checkbutton(options_frame, text="Show Python Console", variable=show_python_console_var,
                                           style="Terminal.TCheckbutton")
     python_console_check.pack(side=tk.LEFT, padx=5)
@@ -114,5 +119,6 @@ def create_terminal_panel(parent, shared_gui_refs):
         'terminal_frame': bottom_frame,
         'show_telemetry_var': show_telemetry_var,
         'show_discovery_var': show_discovery_var,
+        'show_debug_var': show_debug_var,
         'show_python_console_var': show_python_console_var
     }
