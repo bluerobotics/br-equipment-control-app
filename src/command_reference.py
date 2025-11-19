@@ -2868,6 +2868,18 @@ class CommandReference(ttk.Frame):
             return
         
         try:
+            # Disconnect the device before removing it
+            device_state = self.device_manager.get_device_state(device_name)
+            if device_state:
+                connection_method = device_state.get('connection_method', 'network')
+                if connection_method == 'usb':
+                    # Disconnect USB
+                    serial_port = device_state.get('serial_port')
+                    if serial_port:
+                        from src import serial_comms
+                        serial_comms.disconnect_serial_device(serial_port, device_name, self.device_manager.shared_gui_refs, self.device_manager)
+                # For network, the connection will be cleaned up by the monitor thread when it times out
+            
             # Remove device path from config
             from main import remove_device_path, get_device_paths
             success = remove_device_path(device_path_to_remove)
