@@ -244,18 +244,24 @@ class DeviceManager:
         Reloads the JSON configuration files for a single device.
         """
         if device_name not in self.devices:
+            print(f"[DEBUG reload_single_device] {device_name} not in devices")
             return
         
         # Find the device path from configured paths
         device_path = None
+        print(f"[DEBUG reload_single_device] Looking for {device_name} in paths: {self.device_paths}")
         for path in self.device_paths:
+            print(f"[DEBUG reload_single_device] Checking path {path}, basename={os.path.basename(path)}")
             if os.path.basename(path) == device_name:
                 device_path = path
                 break
         
         if not device_path or not os.path.isdir(device_path):
             self.log(f"Device path not found for '{device_name}'")
+            print(f"[DEBUG reload_single_device] Device path not found or not a directory: {device_path}")
             return
+        
+        print(f"[DEBUG reload_single_device] Found device path: {device_path}")
         
         # Reload commands.json
         json_path = os.path.join(device_path, 'commands.json')
