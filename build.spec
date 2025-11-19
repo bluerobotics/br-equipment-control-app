@@ -34,7 +34,6 @@ python_files = [
     'src/comms.py',
     'src/serial_comms.py',
     'src/device_manager.py',
-    'src/device_actions.py',
     'src/data_logger.py',
     'src/script_processor.py',
     'src/script_validator.py',

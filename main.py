@@ -24,7 +24,6 @@ import tkinter.font as tkfont
 import platform
 import ctypes
 from queue import Queue, Empty
-from src import device_actions # Import the new device actions
 from src.device_manager import DeviceManager # Import the new DeviceManager
 from src.data_logger import DataLogger # Import the data logger
 import datetime
@@ -35,7 +34,8 @@ from _version import __version__
 # Import GUI components
 from src.top_menu import create_top_menu
 from src.command_reference import create_command_reference, AddDeviceDialog
-from src.device_actions import create_device_commands
+from src.code_generator import show_code_generator
+from src.firmware_manager import open_firmware_manager
 
 GUI_UPDATE_INTERVAL_MS = 100
 
@@ -1033,7 +1033,10 @@ class MainApplication:
         script_commands = {
             'validate': self.validate_script
         }
-        device_commands = create_device_commands(self.root, self.shared_gui_refs)
+        device_commands = {
+            'generate_cpp_code': lambda: show_code_generator(self.root, self.shared_gui_refs),
+            'open_firmware_manager': lambda: open_firmware_manager(self.root, self.shared_gui_refs)
+        }
         settings_commands = {
             'change_device_folder': self.change_device_folder,
             'show_paths': self.show_paths_window
@@ -1322,9 +1325,6 @@ class MainApplication:
             except Exception:
                 pass
             
-            # Terminate simulator if it's running
-            if device_actions.simulator_process and device_actions.simulator_process.poll() is None:
-                device_actions.simulator_process.terminate()
             self.root.destroy()
         else:
             pass  # User cancelled closing
