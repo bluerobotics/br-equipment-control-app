@@ -530,6 +530,26 @@ class MainApplication:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add device:\n{e}")
     
+    def _show_connected_panels_after_add(self):
+        """Show status panels for devices that are already connected after adding device."""
+        print("[DEBUG] Checking for connected devices to show panels after add...")
+        device_modules = self.device_manager.get_device_modules()
+        all_states = self.device_manager.get_all_device_states()
+        
+        for device_name in device_modules.keys():
+            device_state = all_states.get(device_name, {})
+            if device_state.get('connected'):
+                print(f"[DEBUG _show_after_add] {device_name} is connected, showing panel")
+                panel = self.shared_gui_refs.get(f'{device_name}_panel')
+                if panel:
+                    try:
+                        panel.pack(side="top", fill="x", padx=5, pady=2)
+                        print(f"[DEBUG _show_after_add] Packed panel for {device_name}")
+                    except Exception as e:
+                        print(f"[DEBUG _show_after_add] Error packing panel for {device_name}: {e}")
+                else:
+                    print(f"[DEBUG _show_after_add] Panel widget not found for {device_name}")
+    
     def _on_device_added(self):
         """Callback when a device is added - refresh the UI."""
         # Reload device modules
@@ -613,6 +633,8 @@ class MainApplication:
             # Trigger auto-connect for USB devices
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
                 self.root.after(500, self.device_manager.auto_connect_usb_devices)
+                # After auto-connect completes, check for connected devices and show their panels
+                self.root.after(2000, self._show_connected_panels_after_add)
             
             # Update status variables based on current device states
             # Use get_all_device_states which handles locking properly
