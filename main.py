@@ -578,8 +578,11 @@ class MainApplication:
             self.command_reference.refresh()
         
         # Refresh syntax highlighter for newly added devices (delayed to ensure editor is ready)
+        # Retry multiple times since the script editor might not be opened yet
         for device_name in self.device_modules.keys():
             self.root.after(500, lambda dn=device_name: self.device_manager.reload_single_device(dn))
+            self.root.after(2000, lambda dn=device_name: self.device_manager.reload_single_device(dn))
+            self.root.after(5000, lambda dn=device_name: self.device_manager.reload_single_device(dn))
         
         # Refresh status panels - rebuild device panels
         status_bar_container = self.shared_gui_refs.get('status_bar_container')
