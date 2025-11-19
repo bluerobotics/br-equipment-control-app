@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2025-11-19
+
+### Fixed
+- **Device removal/re-addition flow**: Fixed status panel not appearing after removing and re-adding a device without app restart
+- **Device removal/re-addition flow**: Fixed `UnboundLocalError` and `_tkinter.TclError` exceptions when removing and re-adding devices
+- **Syntax highlighting refresh**: Fixed syntax highlighting not updating after removing device, closing app, and re-adding device
+- **Script validator refresh**: Fixed script validator not recognizing device commands after device removal and re-addition
+- **Add device flow**: Simplified device addition to go directly to folder browser without intermediate dialog
+- **Connection cycling**: Fixed unnecessary disconnect/reconnect cycle on app startup when device is already connected
+- **GUI status panel resilience**: Hardened Tkinter callbacks to gracefully handle widget destruction during device removal
+
+### Changed
+- **Add device dialog**: Removed intermediate dialog, now goes directly to folder browser when adding devices
+- **Device removal notifications**: Removed "Device has been removed" confirmation messagebox for cleaner UX
+
 ## [1.11.0] - 2025-11-19
 
 ### Fixed
