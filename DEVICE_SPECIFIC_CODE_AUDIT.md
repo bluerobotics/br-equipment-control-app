@@ -46,51 +46,8 @@ Each device definition folder should contain:
 ├── events.json            # Event definitions
 ├── warnings.json          # Warning definitions
 ├── gui.py                 # Device-specific GUI panels
-├── simulator.py           # Simulation logic (optional)
-└── script_handlers.py     # Custom script behavior (optional)
+└── simulator.py           # Simulation logic (optional)
 ```
-
-### Script Handlers (Optional)
-
-Devices can provide custom script behavior by creating a `script_handlers.py` file in their definition folder.
-
-**Purpose:** Handle device-specific script events that require special logic beyond standard command execution.
-
-**Example:** `fillhead/definition/script_handlers.py`
-
-```python
-def on_script_start(device_state, shared_gui_refs):
-    """Called when a script starts executing."""
-    pass
-
-def on_script_stop(device_state, shared_gui_refs):
-    """Called when a script stops executing."""
-    pass
-
-def on_cycle_start(device_state, shared_gui_refs):
-    """Called at the start of each cycle."""
-    pass
-
-def on_cycle_end(device_state, shared_gui_refs):
-    """Called at the end of each cycle."""
-    pass
-```
-
-**Current Usage:**
-- Only `fillhead` currently implements `script_handlers.py`
-- Used for specialized press control and cycle management
-- Not required for most devices
-
-**When to Use:**
-- Device needs to perform setup/teardown during script execution
-- Device requires special handling during cycle operations
-- Device has state that needs to be managed across script commands
-
-**How It Works:**
-1. App checks for `script_handlers.py` in device definition folder
-2. If found, imports the module and calls handler functions at appropriate times
-3. Handlers receive `device_state` (current device status) and `shared_gui_refs` (GUI access)
-4. Handlers can send commands, update GUI, or modify device state
 
 ---
 

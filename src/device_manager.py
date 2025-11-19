@@ -140,9 +140,6 @@ class DeviceManager:
             if not gui_module:
                 self.log(f"Skipping {device_name}: gui.py not found (searched {definition_path} and parent)")
                 return
-            
-            # --- NEW: Optional Script Handlers ---
-            script_handlers_module = self._load_module_from_path(device_name, 'script_handlers', definition_path)
 
             # The parser module is now optional (look in parent folder if definition folder)
             parser_path = gui_path if gui_path == definition_path else definition_path
@@ -189,7 +186,6 @@ class DeviceManager:
             self.devices[device_name] = {
                 'gui': gui_module,
                 'parser': parser_module,
-                'script_handlers': script_handlers_module, # Store the module
                 'telemetry_data': telemetry_data, # Store the schema
                 'scripting_commands': scripting_commands, # Store loaded JSON data
                 'events_data': events_data, # Store events data
@@ -543,34 +539,6 @@ class DeviceManager:
         all_commands['abort'] = self.send_global_abort
         return all_commands
 
-    def get_all_script_handlers(self):
-        """
-        Aggregates script handler functions from all loaded device modules.
-        """
-        all_handlers = {}
-        for device_name, modules in self.devices.items():
-            if modules.get('script_handlers') and hasattr(modules['script_handlers'], 'HANDLERS'):
-                all_handlers.update(modules['script_handlers'].HANDLERS)
-        return all_handlers
-    
-    def call_script_lifecycle_hook(self, hook_name):
-        """
-        Calls a script lifecycle hook (on_script_start, on_script_stop, etc.) 
-        for all devices that implement it.
-        
-        Args:
-            hook_name: Name of the hook ('on_script_start', 'on_script_stop', 
-                      'on_cycle_start', 'on_cycle_end')
-        """
-        for device_name, modules in self.devices.items():
-            if modules.get('script_handlers'):
-                handler = getattr(modules['script_handlers'], hook_name, None)
-                if handler and callable(handler):
-                    try:
-                        device_state = self.device_state.get(device_name, {})
-                        handler(device_state, self.shared_gui_refs)
-                    except Exception as e:
-                        print(f"[ERROR] Script lifecycle hook '{hook_name}' failed for {device_name}: {e}")
 
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""

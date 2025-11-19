@@ -1586,9 +1586,6 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         first_line = content.split('\n')[0][:50] if content else ""
         print(f"[RUN] Starting {mode} mode: {first_line}")
         
-        # Get the latest script handlers from the device manager
-        script_handlers = device_manager.get_all_script_handlers()
-        
         # Get fresh commands for execution
         current_commands = get_current_commands()
         
@@ -1607,7 +1604,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,
                                      callback,
                                      message_queue, current_commands, 
-                                     script_handlers, line_offset, device_manager)
+                                     line_offset)
         
         script_runner.start()
         

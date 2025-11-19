@@ -96,7 +96,7 @@ class ScriptRunner(threading.Thread):
     Runs a script in a separate thread to avoid blocking the GUI.
     Handles script parsing, command execution, and status reporting.
     """
-    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, script_handlers, line_offset=0, device_manager=None):
+    def __init__(self, script_content, shared_gui_refs, status_cb, completion_cb, msg_q, scripting_commands, line_offset=0):
         super().__init__(daemon=True)
         self.script_content = script_content
         self.gui_refs = shared_gui_refs
@@ -106,8 +106,6 @@ class ScriptRunner(threading.Thread):
         self.completion_cb = completion_cb
         self.msg_q = msg_q
         self.scripting_commands = scripting_commands
-        self.script_handlers = script_handlers # Store the handlers
-        self.device_manager = device_manager # Store device manager for lifecycle hooks
         self.line_offset = line_offset
         self._stop_event = threading.Event()
         self._resume_event = threading.Event()
@@ -415,13 +413,6 @@ class ScriptRunner(threading.Thread):
         """The main execution loop for the script thread."""
         self.is_running = True
         
-        # Call on_script_start lifecycle hook for all devices
-        if self.device_manager:
-            try:
-                self.device_manager.call_script_lifecycle_hook('on_script_start')
-            except Exception as e:
-                print(f"[ERROR] on_script_start hook failed: {e}")
-        
         # Clear any stale messages from the queue before starting
         cleared_count = 0
         while not self.msg_q.empty():
@@ -484,13 +475,6 @@ class ScriptRunner(threading.Thread):
                 iteration_info = line.replace('# CYCLE ITERATION ', '')
                 iteration_num = iteration_info.split('/')[0]  # Extract just the iteration number
                 
-                # Call on_cycle_start lifecycle hook for all devices
-                if self.device_manager:
-                    try:
-                        self.device_manager.call_script_lifecycle_hook('on_cycle_start')
-                    except Exception as e:
-                        print(f"[ERROR] on_cycle_start hook failed: {e}")
-                
                 # Log to both status line and terminal
                 self.status_cb(f"Cycle {iteration_num}", original_line_num)
                 
@@ -503,15 +487,8 @@ class ScriptRunner(threading.Thread):
                 
                 continue
             
-            # Check for cycle end markers
+            # Check for cycle end markers (skip them silently)
             if line.startswith('# CYCLE END '):
-                # Call on_cycle_end lifecycle hook for all devices
-                if self.device_manager:
-                    try:
-                        self.device_manager.call_script_lifecycle_hook('on_cycle_end')
-                    except Exception as e:
-                        print(f"[ERROR] on_cycle_end hook failed: {e}")
-                
                 continue
             
             if not line or line.startswith('#'):
@@ -535,13 +512,6 @@ class ScriptRunner(threading.Thread):
                 break
         
         self.is_running = False
-        
-        # Call on_script_stop lifecycle hook for all devices
-        if self.device_manager:
-            try:
-                self.device_manager.call_script_lifecycle_hook('on_script_stop')
-            except Exception as e:
-                print(f"[ERROR] on_script_stop hook failed: {e}")
         
         # Always call the completion callback when the loop finishes for any reason.
         if self.completion_cb:
@@ -1269,19 +1239,7 @@ class ScriptRunner(threading.Thread):
                 return False
 
             # --- Handler Dispatch (for script-level commands) ---
-            handler = self.script_handlers.get(command_word)
-            if handler:
-                # Script handlers will need to be updated to expect a dict of params
-                # For now, we will adapt by creating a positional list.
-                pos_args = []
-                for param_def in command_info.get('params', []):
-                    param_name = param_def.get('parameter', param_def.get('name', ''))
-                    if param_name and param_name in resolved_params:
-                        pos_args.append(resolved_params[param_name])
-                
-                if not handler(self, pos_args, line_num): return False
-            
-            elif device == "script":
+            if device == "script":
                 # Handle built-in script commands (case-insensitive)
                 cmd_lower = command_word.lower()
                 if cmd_lower == "wait":
