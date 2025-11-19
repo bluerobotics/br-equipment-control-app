@@ -4743,30 +4743,29 @@ class AddDeviceDialog(tk.Toplevel):
         def _show_connected_panels_after_reconnect():
             """Show status panels for devices that are already connected after re-add."""
             print("[DEBUG] Checking for connected devices to show panels...")
-            # Get the gui_refs from device_manager directly
-            gui_refs = self.device_manager.shared_gui_refs
-            print(f"[DEBUG _show_connected] gui_refs is device_manager.shared_gui_refs: {gui_refs is self.device_manager.shared_gui_refs}")
-            print(f"[DEBUG _show_connected] 'show_panel' in gui_refs: {'show_panel' in gui_refs}")
             
             device_modules = self.device_manager.get_device_modules()
             all_states = self.device_manager.get_all_device_states()
             print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
             print(f"[DEBUG _show_connected] all_states: {all_states}")
             
-            show_panel_fn = gui_refs.get('show_panel')
-            if not show_panel_fn:
-                print(f"[DEBUG _show_connected] show_panel_fn not found in gui_refs!")
-                return
-            
+            # Get the panel directly and show it
+            gui_refs = self.device_manager.shared_gui_refs
             for device_name in device_modules.keys():
                 device_state = all_states.get(device_name, {})
                 if device_state.get('connected'):
                     print(f"[DEBUG _show_connected] {device_name} is connected, showing panel")
-                    try:
-                        show_panel_fn(device_name)
-                        print(f"[DEBUG _show_connected] Called show_panel for {device_name}")
-                    except Exception as e:
-                        print(f"[DEBUG _show_connected] Error calling show_panel for {device_name}: {e}")
+                    # Get the panel widget directly and pack it
+                    panel = gui_refs.get(f'{device_name}_panel')
+                    if panel:
+                        try:
+                            # Show the panel by calling pack() on it
+                            panel.pack(side="top", fill="x", padx=5, pady=2)
+                            print(f"[DEBUG _show_connected] Packed panel for {device_name}")
+                        except Exception as e:
+                            print(f"[DEBUG _show_connected] Error packing panel for {device_name}: {e}")
+                    else:
+                        print(f"[DEBUG _show_connected] Panel widget not found for {device_name}")
         
         self._show_connected_panels_after_reconnect = _show_connected_panels_after_reconnect
         
