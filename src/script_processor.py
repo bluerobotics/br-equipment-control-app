@@ -1361,30 +1361,37 @@ class ScriptRunner(threading.Thread):
                     error_type = "ERROR" if "_ERROR:" in msg else "WARNING"
                     self.status_cb(f"{error_type}: {msg} - Script held. Click Reset to clear.", line_num)
                     
-                    # Check if an automatic retract was triggered (abort action)
-                    # Continue processing messages to see if START: retract appears
-                    retract_in_progress = False
+                    # Check if an automatic safety action was triggered (e.g., retract, home, etc.)
+                    # Continue processing messages to see if a START message appears right after ERROR
+                    safety_action_in_progress = False
+                    safety_action_name = None
                     error_wait_start = time.time()
-                    while time.time() - error_wait_start < 2.0:  # Wait up to 2 seconds for START: retract
+                    while time.time() - error_wait_start < 2.0:  # Wait up to 2 seconds for START message
                         try:
                             next_msg = self.msg_q.get(timeout=0.1)
                             print(f"[DEBUG] During error hold, received: {next_msg}")
-                            if "START" in next_msg and "retract" in next_msg.lower():
-                                retract_in_progress = True
-                                self.status_cb("Auto-retract triggered. Waiting for completion...", line_num)
-                                break
+                            # Look for any START message (generic safety action)
+                            if "START" in next_msg and ":" in next_msg:
+                                # Extract the command name after the colon (e.g., "START: retract" -> "retract")
+                                parts = next_msg.split(":", 1)
+                                if len(parts) == 2:
+                                    safety_action_name = parts[1].strip()
+                                    safety_action_in_progress = True
+                                    self.status_cb(f"Safety action '{safety_action_name}' triggered. Waiting for completion...", line_num)
+                                    break
                         except queue.Empty:
                             continue
                     
-                    # If retract is in progress, wait for DONE: retract
-                    if retract_in_progress:
-                        retract_timeout = time.time() + 60  # 60 second timeout for retract
-                        while self.is_running and time.time() < retract_timeout:
+                    # If safety action is in progress, wait for its DONE message
+                    if safety_action_in_progress and safety_action_name:
+                        safety_timeout = time.time() + 60  # 60 second timeout
+                        while self.is_running and time.time() < safety_timeout:
                             try:
-                                retract_msg = self.msg_q.get(timeout=0.1)
-                                print(f"[DEBUG] Waiting for retract completion: {retract_msg}")
-                                if "DONE" in retract_msg and "retract" in retract_msg.lower():
-                                    self.status_cb("Auto-retract complete. Click Reset to clear error.", line_num)
+                                safety_msg = self.msg_q.get(timeout=0.1)
+                                print(f"[DEBUG] Waiting for safety action completion: {safety_msg}")
+                                # Check if DONE message contains the safety action name
+                                if "DONE" in safety_msg and safety_action_name.lower() in safety_msg.lower():
+                                    self.status_cb(f"Safety action '{safety_action_name}' complete. Click Reset to clear error.", line_num)
                                     break
                             except queue.Empty:
                                 continue
@@ -1404,13 +1411,8 @@ class ScriptRunner(threading.Thread):
                 # Check for failure messages first
                 if "FAILED" in msg:
                     for command_to_check in wait_list:
-                        is_failure = False
-                        if command_to_check == "VACUUM_LEAK_TEST" and "LEAK_TEST" in msg:
-                            is_failure = True
-                        elif command_to_check in msg:
-                            is_failure = True
-
-                        if is_failure:
+                        # Generic check: command name should appear in failure message
+                        if command_to_check in msg:
                             self.status_cb(
                                 f"Error on L{line_num}: Received FAILURE for {command_to_check}. Message: {msg}",
                                 line_num)
@@ -1419,31 +1421,9 @@ class ScriptRunner(threading.Thread):
                 # Check for success messages
                 for i in range(len(wait_list) - 1, -1, -1):
                     command_to_check = wait_list[i]
-                    is_complete = False
-
-                    # --- FINAL FIX ---
-                    # Added specific checks for pinch valve homing commands, as their "DONE"
-                    # messages don't contain the original command string.
-                    cmd_lower = command_to_check.lower()
                     
-                    if "leak" in cmd_lower and "LEAK_TEST" in msg and "PASSED" in msg:
-                        is_complete = True
-                    elif "inj_valve" in cmd_lower and "home" in cmd_lower and "inj_valve" in msg and "DONE" in msg:
-                        is_complete = True
-                    elif "vac_valve" in cmd_lower and "home" in cmd_lower and "vac_valve" in msg and "DONE" in msg:
-                        is_complete = True
-                    # --- FIX for Valve Open/Close ---
-                    # These also have unique DONE messages that don't contain the command name.
-                    elif "inj_valve" in cmd_lower and ("open" in cmd_lower or "close" in cmd_lower) and "inj_valve" in msg and "DONE" in msg:
-                        is_complete = True
-                    elif "vac_valve" in cmd_lower and ("open" in cmd_lower or "close" in cmd_lower) and "vac_valve" in msg and "DONE" in msg:
-                        is_complete = True
-                    # Generic fallback for other commands - case insensitive check
-                    elif command_to_check.lower() in msg.lower() and "DONE" in msg:
-                        is_complete = True
-                    # -----------------
-
-                    if is_complete:
+                    # Generic check: command name should appear in DONE message (case insensitive)
+                    if command_to_check.lower() in msg.lower() and "DONE" in msg:
                         wait_list.pop(i)
                         self.status_cb(f"L{line_num}: Received DONE for {command_to_check}", line_num)
                         break
