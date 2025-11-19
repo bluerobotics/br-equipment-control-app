@@ -4748,19 +4748,20 @@ class AddDeviceDialog(tk.Toplevel):
             print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
             print(f"[DEBUG _show_connected] all_states: {all_states}")
             
+            show_panel_fn = gui_refs.get('show_panel')
+            if not show_panel_fn:
+                print(f"[DEBUG _show_connected] show_panel_fn not found!")
+                return
+            
             for device_name in device_modules.keys():
                 device_state = all_states.get(device_name, {})
                 if device_state.get('connected'):
                     print(f"[DEBUG _show_connected] {device_name} is connected, showing panel")
-                    show_panel_fn = gui_refs.get(f'{device_name}_show_panel')
-                    if show_panel_fn:
-                        try:
-                            show_panel_fn(device_name)
-                            print(f"[DEBUG _show_connected] Called show_panel for {device_name}")
-                        except Exception as e:
-                            print(f"[DEBUG _show_connected] Error calling show_panel for {device_name}: {e}")
-                    else:
-                        print(f"[DEBUG _show_connected] show_panel_fn not found!")
+                    try:
+                        show_panel_fn(device_name)
+                        print(f"[DEBUG _show_connected] Called show_panel for {device_name}")
+                    except Exception as e:
+                        print(f"[DEBUG _show_connected] Error calling show_panel for {device_name}: {e}")
         
         self._show_connected_panels_after_reconnect = _show_connected_panels_after_reconnect
         
