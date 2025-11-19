@@ -2978,8 +2978,6 @@ class CommandReference(ttk.Frame):
                         update_searching_panel_visibility(shared_gui_refs)
             
             self.after(300, refresh_status_panels)
-            
-            messagebox.showinfo("Success", f"Device '{device_name}' has been removed from the app.")
         
         except Exception as e:
             messagebox.showerror("Error", f"Failed to remove device:\n{str(e)}")
