@@ -4740,10 +4740,14 @@ class AddDeviceDialog(tk.Toplevel):
                 return
         
         # Helper method to show panels for connected devices after reconnect
-        def _show_connected_panels_after_reconnect(gui_refs):
+        def _show_connected_panels_after_reconnect():
             """Show status panels for devices that are already connected after re-add."""
             print("[DEBUG] Checking for connected devices to show panels...")
-            print(f"[DEBUG _show_connected] gui_refs keys: {list(gui_refs.keys())}")
+            # Get the gui_refs from device_manager directly
+            gui_refs = self.device_manager.shared_gui_refs
+            print(f"[DEBUG _show_connected] gui_refs is device_manager.shared_gui_refs: {gui_refs is self.device_manager.shared_gui_refs}")
+            print(f"[DEBUG _show_connected] 'show_panel' in gui_refs: {'show_panel' in gui_refs}")
+            
             device_modules = self.device_manager.get_device_modules()
             all_states = self.device_manager.get_all_device_states()
             print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
@@ -4752,7 +4756,6 @@ class AddDeviceDialog(tk.Toplevel):
             show_panel_fn = gui_refs.get('show_panel')
             if not show_panel_fn:
                 print(f"[DEBUG _show_connected] show_panel_fn not found in gui_refs!")
-                print(f"[DEBUG _show_connected] 'show_panel' in gui_refs: {'show_panel' in gui_refs}")
                 return
             
             for device_name in device_modules.keys():
@@ -4877,7 +4880,7 @@ class AddDeviceDialog(tk.Toplevel):
             if hasattr(self.device_manager, 'auto_connect_usb_devices') and root:
                 root.after(500, self.device_manager.auto_connect_usb_devices)
                 # After auto-connect completes, check for connected devices and show their panels
-                root.after(2000, lambda: self._show_connected_panels_after_reconnect(shared_gui_refs))
+                root.after(2000, self._show_connected_panels_after_reconnect)
             
             # Also update searching panel visibility after a short delay
             from src.comms import update_searching_panel_visibility
