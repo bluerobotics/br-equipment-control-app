@@ -4739,6 +4739,31 @@ class AddDeviceDialog(tk.Toplevel):
                 self.destroy()
                 return
         
+        # Helper method to show panels for connected devices after reconnect
+        def _show_connected_panels_after_reconnect(gui_refs):
+            """Show status panels for devices that are already connected after re-add."""
+            print("[DEBUG] Checking for connected devices to show panels...")
+            device_modules = self.device_manager.get_device_modules()
+            all_states = self.device_manager.get_all_device_states()
+            print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
+            print(f"[DEBUG _show_connected] all_states: {all_states}")
+            
+            for device_name in device_modules.keys():
+                device_state = all_states.get(device_name, {})
+                if device_state.get('connected'):
+                    print(f"[DEBUG _show_connected] {device_name} is connected, showing panel")
+                    show_panel_fn = gui_refs.get(f'{device_name}_show_panel')
+                    if show_panel_fn:
+                        try:
+                            show_panel_fn(device_name)
+                            print(f"[DEBUG _show_connected] Called show_panel for {device_name}")
+                        except Exception as e:
+                            print(f"[DEBUG _show_connected] Error calling show_panel for {device_name}: {e}")
+                    else:
+                        print(f"[DEBUG _show_connected] show_panel_fn not found!")
+        
+        self._show_connected_panels_after_reconnect = _show_connected_panels_after_reconnect
+        
         # Add device root path to config (not definition path)
         try:
             from main import add_device_path, get_device_paths
@@ -4848,6 +4873,8 @@ class AddDeviceDialog(tk.Toplevel):
             # Trigger auto-connect for USB devices after a delay
             if hasattr(self.device_manager, 'auto_connect_usb_devices') and root:
                 root.after(500, self.device_manager.auto_connect_usb_devices)
+                # After auto-connect completes, check for connected devices and show their panels
+                root.after(2000, lambda: self._show_connected_panels_after_reconnect(shared_gui_refs))
             
             # Also update searching panel visibility after a short delay
             from src.comms import update_searching_panel_visibility
