@@ -2877,7 +2877,8 @@ class CommandReference(ttk.Frame):
                     serial_port = device_state.get('serial_port')
                     if serial_port:
                         from src import serial_comms
-                        serial_comms.disconnect_serial_device(serial_port, device_name, self.device_manager.shared_gui_refs, self.device_manager)
+                        serial_comms.disconnect_serial_device(serial_port)
+                        print(f"[DEBUG] Disconnected {device_name} from {serial_port}")
                 # For network, the connection will be cleaned up by the monitor thread when it times out
             
             # Remove device path from config
