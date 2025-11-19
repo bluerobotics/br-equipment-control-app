@@ -972,10 +972,16 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         scripting_area.add(ttk.Label(scripting_area, text="Error: Device Manager not found."))
         return {}
     
-    # Combine all commands for the validator and script runner
-    scripting_commands = device_manager.get_all_scripting_commands()
-    scripting_commands.update(SCRIPT_COMMANDS)
-    
+    # Helper to get fresh commands
+    def get_current_commands():
+        if not device_manager:
+            return SCRIPT_COMMANDS.copy()
+        cmds = device_manager.get_all_scripting_commands()
+        # SCRIPT_COMMANDS are already included by get_all_scripting_commands
+        # but we can update just to be safe if the manager implementation changes
+        cmds.update(SCRIPT_COMMANDS) 
+        return cmds
+
     device_modules = device_manager.get_device_modules()
 
     paned_window = ttk.PanedWindow(scripting_area, orient=tk.HORIZONTAL, style='TPanedwindow')
@@ -1254,6 +1260,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     # --- Script Execution Logic ---
     def handle_cycle_start():
         nonlocal feed_hold_line, is_held_by_user, last_block_end_line, paused_device
+        
+        # Get fresh commands for execution/validation
+        scripting_commands = get_current_commands()
         
         # Check if script runner is in held state (ERROR occurred)
         if script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held:
@@ -1580,6 +1589,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         # Get the latest script handlers from the device manager
         script_handlers = device_manager.get_all_script_handlers()
         
+        # Get fresh commands for execution
+        current_commands = get_current_commands()
+        
         # Simple approach: callbacks just refresh state, state machine handles everything
         def callback():
             print(f"[CALLBACK] Completion callback fired (mode: {mode})")
@@ -1594,7 +1606,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         # Create the runner
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,
                                      callback,
-                                     message_queue, scripting_commands, 
+                                     message_queue, current_commands, 
                                      script_handlers, line_offset)
         
         script_runner.start()
@@ -1638,8 +1650,10 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_editor.tag_remove("error_highlight", "1.0", tk.END)
 
     def check_script_validity(show_success=False):
-        script_content = script_editor.get("1.0", tk.END);
-        errors = validate_script(script_content, scripting_commands);
+        script_content = script_editor.get("1.0", tk.END)
+        # Get fresh commands for validation
+        current_commands = get_current_commands()
+        errors = validate_script(script_content, current_commands)
         clear_error_highlighting() # Always clear previous errors
         
         # Check that all connected devices support pause, reset, and resume
@@ -1978,6 +1992,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         "load_specific_script": load_specific_script,
         "script_editor": script_editor, # Expose the script editor widget
         "syntax_highlighter": script_editor.highlighter, # Expose for refreshing
-        "scripting_commands": scripting_commands, # Expose for command reference
-        "device_modules": device_modules # Expose for command reference
+        "scripting_commands": get_current_commands(), # Expose for command reference (snapshot)
+        "device_modules": device_modules, # Expose for command reference
+        "get_script_content": lambda: script_editor.get("1.0", tk.END)
     }

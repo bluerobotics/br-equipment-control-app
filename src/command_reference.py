@@ -3077,19 +3077,12 @@ class CommandReference(ttk.Frame):
                         # Show panels for connected devices
                         device_modules = self.device_manager.get_device_modules()
                         all_states = self.device_manager.get_all_device_states()
-                        print(f"[DEBUG refresh_status_panels] device_modules: {list(device_modules.keys())}")
-                        print(f"[DEBUG refresh_status_panels] all_states: {all_states}")
                         for device_name in device_modules.keys():
                             device_state = all_states.get(device_name)
-                            print(f"[DEBUG refresh_status_panels] {device_name} state: {device_state}")
                             if device_state and device_state.get('connected'):
-                                print(f"[DEBUG refresh_status_panels] {device_name} is connected, showing panel")
                                 show_panel_fn = shared_gui_refs.get('show_panel')
                                 if show_panel_fn:
                                     show_panel_fn(device_name)
-                                    print(f"[DEBUG refresh_status_panels] Called show_panel for {device_name}")
-                                else:
-                                    print(f"[DEBUG refresh_status_panels] show_panel_fn not found!")
                         
                         # Update "searching for devices" panel visibility
                         from src.comms import update_searching_panel_visibility

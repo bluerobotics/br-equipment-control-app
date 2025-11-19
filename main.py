@@ -532,33 +532,30 @@ class MainApplication:
     
     def _show_connected_panels_after_add(self):
         """Show status panels for devices that are already connected after adding device."""
-        print("[DEBUG] Checking for connected devices to show panels after add...")
         device_modules = self.device_manager.get_device_modules()
         all_states = self.device_manager.get_all_device_states()
-        print(f"[DEBUG _show_after_add] device_modules: {list(device_modules.keys())}")
-        print(f"[DEBUG _show_after_add] all_states: {all_states}")
         
         for device_name in device_modules.keys():
             device_state = all_states.get(device_name, {})
-            print(f"[DEBUG _show_after_add] Checking {device_name}, connected={device_state.get('connected')}")
             if device_state.get('connected'):
-                print(f"[DEBUG _show_after_add] {device_name} is connected, showing panel")
                 panel = self.shared_gui_refs.get(f'{device_name}_panel')
-                print(f"[DEBUG _show_after_add] Panel widget for {device_name}: {panel}")
                 if panel:
                     try:
                         # Check if panel is already visible
                         try:
                             panel.pack_info()
-                            print(f"[DEBUG _show_after_add] Panel for {device_name} already visible")
                         except tk.TclError:
                             # Not packed yet, pack it now
                             panel.pack(side="top", fill="x", padx=5, pady=2)
-                            print(f"[DEBUG _show_after_add] Packed panel for {device_name}")
                     except Exception as e:
-                        print(f"[DEBUG _show_after_add] Error packing panel for {device_name}: {e}")
-                else:
-                    print(f"[DEBUG _show_after_add] Panel widget not found for {device_name}")
+                        print(f"Error packing panel for {device_name}: {e}")
+        
+        # Adjust status panel width to accommodate new panels
+        if hasattr(self, 'adjust_status_panel_width'):
+            # Call multiple times with increasing delays to handle async layout
+            self.root.after(50, self.adjust_status_panel_width)
+            self.root.after(200, self.adjust_status_panel_width)
+            self.root.after(500, self.adjust_status_panel_width)
     
     def _on_device_added(self):
         """Callback when a device is added - refresh the UI."""
@@ -659,12 +656,10 @@ class MainApplication:
             # Update status variables based on current device states
             # Use get_all_device_states which handles locking properly
             all_states = self.device_manager.get_all_device_states()
-            print(f"[DEBUG _on_device_added] all_states: {all_states}")
             for device_name, device_data in self.device_modules.items():
                 status_var = self.shared_gui_refs.get(f'status_var_{device_name}')
                 if status_var:
                     device_state = all_states.get(device_name)
-                    print(f"[DEBUG _on_device_added] {device_name} device_state: {device_state}")
                     if device_state:
                         if device_state.get('connected'):
                             # Device is connected, update status and show panel
@@ -675,16 +670,12 @@ class MainApplication:
                             else:
                                 ip = device_state.get('ip', 'Unknown')
                                 status_text = f"{device_name.capitalize()} (@{ip})"
-                            print(f"[DEBUG _on_device_added] Setting status for {device_name}: {status_text}")
                             status_var.set(status_text)
                             
                             # Show the status panel for this connected device
                             show_panel_fn = self.shared_gui_refs.get('show_panel')
-                            print(f"[DEBUG _on_device_added] show_panel_fn exists: {show_panel_fn is not None}")
                             if show_panel_fn:
-                                print(f"[DEBUG _on_device_added] Calling show_panel for {device_name}")
                                 show_panel_fn(device_name)
-                                print(f"[DEBUG _on_device_added] Called show_panel for {device_name}")
                         else:
                             # Device is disconnected, set default
                             status_var.set(f"{device_name.capitalize()}")
@@ -701,6 +692,14 @@ class MainApplication:
             from src.comms import update_searching_panel_visibility
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
                 self.device_manager.auto_connect_usb_devices()
+            
+            # Check for connected devices and show their panels
+            # Also adjusts status panel width
+            self.root.after(1000, self._show_connected_panels_after_add)
+            self.root.after(2000, self._show_connected_panels_after_add)
+            self.root.after(3000, self._show_connected_panels_after_add)
+            self.root.after(5000, self._show_connected_panels_after_add)
+            
             # Update searching panel visibility
             self.root.after(500, lambda: update_searching_panel_visibility(self.shared_gui_refs))
         
@@ -808,7 +807,7 @@ class MainApplication:
 
         # Left-side container for the status bar (as a child of the top-level splitter)
         left_bar_frame = ttk.Frame(splitter, style='TFrame')
-        left_bar_frame.pack_propagate(False)
+        left_bar_frame.pack_propagate(True)
         self.left_bar_frame = left_bar_frame
         splitter.add(left_bar_frame, weight=0)
         
@@ -1217,8 +1216,6 @@ class MainApplication:
         
         # Get all scripting commands
         scripting_commands = self.device_manager.get_all_scripting_commands()
-        print(f"[DEBUG validate_script] Found {len(scripting_commands)} commands")
-        print(f"[DEBUG validate_script] Commands: {list(scripting_commands.keys())[:10]}")  # Show first 10
         
         # Run validation
         errors = validate_script(script_content, scripting_commands)
@@ -1516,16 +1513,25 @@ class MainApplication:
         if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
             return
         try:
-            self.root.update_idletasks()
+            # Force multiple layout updates to ensure accurate measurement
+            for _ in range(3):
+                status_container.update_idletasks()
+                self.root.update_idletasks()
+            
             required = status_container.winfo_reqwidth()
-            padding = 40
-            desired = max(220, required + padding)
+            
+            # Use generous padding and minimum to prevent text cutoff
+            padding = 80
+            desired = max(320, required + padding)
+            
             root_width = self.root.winfo_width()
             if root_width > 0:
                 desired = min(desired, int(root_width * 0.45))
-            self.left_bar_frame.config(width=desired)
+            
+            # Set the sash position
             self.splitter.sashpos(0, desired)
-        except Exception:
+        except Exception as e:
+            # Silently handle errors but don't completely fail
             pass
 
     def show_paths_window(self):

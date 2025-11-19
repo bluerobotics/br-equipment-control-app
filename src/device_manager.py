@@ -244,24 +244,18 @@ class DeviceManager:
         Reloads the JSON configuration files for a single device.
         """
         if device_name not in self.devices:
-            print(f"[DEBUG reload_single_device] {device_name} not in devices")
             return
         
         # Find the device path from configured paths
         device_path = None
-        print(f"[DEBUG reload_single_device] Looking for {device_name} in paths: {self.device_paths}")
         for path in self.device_paths:
-            print(f"[DEBUG reload_single_device] Checking path {path}, basename={os.path.basename(path)}")
             if os.path.basename(path) == device_name:
                 device_path = path
                 break
         
         if not device_path or not os.path.isdir(device_path):
             self.log(f"Device path not found for '{device_name}'")
-            print(f"[DEBUG reload_single_device] Device path not found or not a directory: {device_path}")
             return
-        
-        print(f"[DEBUG reload_single_device] Found device path: {device_path}")
         
         # Reload commands.json
         json_path = os.path.join(device_path, 'commands.json')
@@ -302,12 +296,8 @@ class DeviceManager:
         
         # Refresh syntax highlighter if available
         if 'syntax_highlighter' in self.shared_gui_refs:
-            print(f"[DEBUG reload_single_device] Calling refresh_keywords on syntax highlighter")
             self.shared_gui_refs['syntax_highlighter'].refresh_keywords()
             self.log(f"Refreshed syntax highlighter for {device_name}")
-            print(f"[DEBUG reload_single_device] refresh_keywords completed")
-        else:
-            print(f"[DEBUG reload_single_device] No syntax_highlighter in shared_gui_refs")
         
         return True
 
@@ -634,10 +624,7 @@ class DeviceManager:
         from .comms import update_searching_panel_visibility
         import time
         
-        print(f"[DEBUG auto_connect_usb_devices] device_state keys: {list(self.device_state.keys())}")
-
         for device_name, device_state in self.device_state.items():
-            print(f"[DEBUG auto_connect_usb_devices] Checking {device_name}: {device_state}")
             if device_state.get('connection_method') == 'usb' and device_state.get('serial_port'):
                 # Skip if already connected and receiving telemetry
                 if device_state.get('connected'):
@@ -720,15 +707,11 @@ class DeviceManager:
         for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
             all_commands[cmd_name] = cmd_details.copy()
         
-        print(f"[DEBUG get_all_scripting_commands] devices.keys(): {list(self.devices.keys())}")
-        
         # Add device-specific commands
         for device_name, modules in self.devices.items():
-            print(f"[DEBUG get_all_scripting_commands] Checking {device_name}, has scripting_commands: {'scripting_commands' in modules}")
             # Check for commands loaded from JSON
             if modules.get('scripting_commands'):
                 device_commands = modules['scripting_commands']
-                print(f"[DEBUG get_all_scripting_commands] {device_name} has {len(device_commands)} commands")
                 # Add device information to each command
                 for cmd_name, cmd_details in device_commands.items():
                     # Check if command already has device prefix
@@ -743,10 +726,7 @@ class DeviceManager:
                     cmd_details_with_device = cmd_details.copy()
                     cmd_details_with_device['device'] = device_name
                     all_commands[full_cmd_key] = cmd_details_with_device
-            else:
-                print(f"[DEBUG get_all_scripting_commands] {device_name} has NO scripting_commands!")
         
-        print(f"[DEBUG get_all_scripting_commands] Returning {len(all_commands)} total commands")
         return all_commands
 
     def get_device_scripting_commands(self, device_name):
