@@ -4842,7 +4842,7 @@ class AddDeviceDialog(tk.Toplevel):
                             # Serial connection already exists! Trigger a message to set connected status
                             print(f"[DEBUG AddDevice] Serial connection already exists for {device_name} on {serial_port}")
                             # Send a discovery command to trigger connection status
-                            serial_comms.send_serial_command(serial_port, "DISCOVER_DEVICE PORT=8888", device_name, shared_gui_refs, self.device_manager)
+                            serial_comms.send_serial_command(serial_port, "DISCOVER_DEVICE PORT=8888")
             
             # Trigger auto-connect for USB devices after a delay
             if hasattr(self.device_manager, 'auto_connect_usb_devices'):
