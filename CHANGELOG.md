@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2025-11-19
+
+### Changed
+- **Codebase cleanup**: Removed unused `download_release.py` and `device_actions.py` utility files
+- **Device-agnostic documentation**: All comments and examples now use generic device names instead of specific device references
+- **Code organization**: Moved device menu commands into `top_menu.py` for better separation of concerns
+- **Script processor**: Removed device-specific workarounds for fillhead/injector valve commands (will be fixed in firmware)
+- **Script processor**: Replaced hardcoded "retract" safety action with generic START/DONE detection for any safety action
+
+### Fixed
+- **Firmware v1.9.0 compatibility**: App now expects single DONE message per command (firmware handles multi-step commands internally)
+
 ## [1.12.0] - 2025-11-19
 
 ### Fixed
