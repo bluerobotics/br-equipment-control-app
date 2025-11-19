@@ -19,7 +19,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "wait_for": {
-        "description": "Waits until a variable reaches a target value (e.g., wait_for fillhead.temp_c = 70).",
+        "description": "Waits until a variable reaches a target value (e.g., wait_for device.temp_c = 70).",
         "params": [
             {"parameter": "variable", "type": "string"},
             {"parameter": "operator", "type": "string"},
@@ -58,7 +58,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "queue_for_logging": {
-        "description": "Queues variables for logging (e.g., queue_for_logging fillhead.temp_c gantry.x_pos).",
+        "description": "Queues variables for logging (e.g., queue_for_logging device.temp_c device.position).",
         "params": [
             {"parameter": "variables", "type": "string", "variadic": True}
         ],
@@ -66,7 +66,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "unqueue_for_logging": {
-        "description": "Removes variables from the logging queue (e.g., unqueue_for_logging fillhead.temp_c).",
+        "description": "Removes variables from the logging queue (e.g., unqueue_for_logging device.temp_c).",
         "params": [
             {"parameter": "variables", "type": "string", "variadic": True}
         ],
@@ -74,7 +74,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "if": {
-        "description": "Conditional statement with comparison operators (e.g., if 3 > pressboi.joules < 1.5 throw pressboi.energy_warning).",
+        "description": "Conditional statement with comparison operators (e.g., if 3 > device.energy < 1.5 throw device.energy_warning).",
         "params": [
             {"parameter": "condition", "type": "string", "variadic": True}
         ],
@@ -82,7 +82,7 @@ SCRIPT_COMMANDS = {
         "device": "script"
     },
     "throw": {
-        "description": "Throws a warning to halt script execution (e.g., throw pressboi.energy_warning).",
+        "description": "Throws a warning to halt script execution (e.g., throw device.energy_warning).",
         "params": [
             {"parameter": "warning", "type": "string"}
         ],
@@ -148,11 +148,11 @@ class ScriptRunner(threading.Thread):
         
         For example:
             queue_for_logging
-                fillhead.temp_c
-                fillhead.heater_setpoint
+                device.temp_c
+                device.heater_setpoint
         
         Becomes:
-            queue_for_logging fillhead.temp_c fillhead.heater_setpoint
+            queue_for_logging device.temp_c device.heater_setpoint
         """
         lines = content.splitlines()
         result_lines = []
@@ -993,7 +993,7 @@ class ScriptRunner(threading.Thread):
             return "error"
 
     def _evaluate_condition(self, tokens, line_num):
-        """Evaluate a chained comparison like '3 > pressboi.joules < 1.5' or 'pressboi.joules > 3'"""
+        """Evaluate a chained comparison like '3 > device.energy < 1.5' or 'device.energy > 3'"""
         try:
             # Resolve variables to their values
             resolved = []
@@ -1080,7 +1080,7 @@ class ScriptRunner(threading.Thread):
             return None
 
     def _get_variable_value(self, var_name):
-        """Get the current value of a variable like pressboi.joules"""
+        """Get the current value of a variable like device.energy"""
         try:
             print(f"[DEBUG] _get_variable_value: looking up '{var_name}'")
             device_name, field_name = var_name.split('.', 1)
@@ -1318,7 +1318,7 @@ class ScriptRunner(threading.Thread):
 
                 if not self.is_running: return False
 
-                # Strip device prefix if present (e.g., "pressboi.disable" -> "disable")
+                # Strip device prefix if present (e.g., "device.disable" -> "disable")
                 cmd_to_send = command_word.split('.', 1)[1] if '.' in command_word else command_word
                 final_command_str = f"{cmd_to_send} {' '.join(final_args)}" if final_args else cmd_to_send
                 send_func = self.command_funcs.get(f"send_{device}")

@@ -410,7 +410,7 @@ class SyntaxHighlighter:
 
         # Highlight device commands (support dot notation)
         if self.device_keywords:
-            # Match word characters and dots for commands like "pressboi.move"
+            # Match word characters and dots for commands like "device.move"
             # Allow whitespace, comma, or start of line before, and whitespace, comma, or end after
             keyword_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(k) for k in self.device_keywords) + r')(?=\s|,|$)'
             for match in re.finditer(keyword_pattern, content, re.IGNORECASE | re.MULTILINE):
@@ -887,28 +887,28 @@ class CommandHelpWindow(tk.Toplevel):
         self.details_text.insert(tk.END, "Examples:\n", "section")
         
         if cmd_name == "queue_for_logging":
-            example = """  queue_for_logging pressboi.force pressboi.current_pos
+            example = """  queue_for_logging device.force device.position
   
   This queues variables for logging. They will be written
   to CSV when start_logging is called. You can also use
   an indented block:
   
   queue_for_logging
-      pressboi.force
-      pressboi.current_pos
-      pressboi.torque"""
+      device.force
+      device.position
+      device.torque"""
             self.details_text.insert(tk.END, example, "code")
         
         elif cmd_name == "start_logging":
-            example = """  start_logging "test_data.csv" pressboi
-  start_logging "<date>-<time> data.csv" fillhead gantry
+            example = """  start_logging "test_data.csv" device
+  start_logging "<date>-<time> data.csv" device1 device2
   
   Starts logging queued variables to a CSV file.
   Use <date> and <time> tags for automatic timestamps.
   
   Example workflow:
-  queue_for_logging pressboi.force pressboi.current_pos
-  start_logging "my_data.csv" pressboi
+  queue_for_logging device.force device.position
+  start_logging "my_data.csv" device
   # Your test commands here
   stop_logging"""
             self.details_text.insert(tk.END, example, "code")
@@ -921,7 +921,7 @@ class CommandHelpWindow(tk.Toplevel):
             self.details_text.insert(tk.END, example, "code")
         
         elif cmd_name == "unqueue_for_logging":
-            example = """  unqueue_for_logging pressboi.force
+            example = """  unqueue_for_logging device.force
   
   Removes specific variables from the logging queue."""
             self.details_text.insert(tk.END, example, "code")
@@ -935,9 +935,9 @@ class CommandHelpWindow(tk.Toplevel):
         
         elif cmd_name == "cycle":
             example = """  cycle 5
-      pressboi.move_abs 50 mm 10 mm/s
+      device.move_abs 50 mm 10 mm/s
       wait 1 sec
-      pressboi.retract 20 mm/s
+      device.retract 20 mm/s
   
   Repeats the indented block 5 times."""
             self.details_text.insert(tk.END, example, "code")
@@ -1666,7 +1666,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 if device_state and device_state.get('connected'):
                     # Check if this device supports all required commands
                     for required_cmd in required_commands:
-                        # Commands are stored with device prefix (e.g., "pressboi.pause")
+                        # Commands are stored with device prefix (e.g., "device.pause")
                         full_cmd_name = f"{device_name}.{required_cmd}"
                         
                         if full_cmd_name not in all_commands:
