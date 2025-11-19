@@ -596,7 +596,7 @@ class MainApplication:
                     device_state = all_states.get(device_name)
                     if device_state:
                         if device_state.get('connected'):
-                            # Device is connected, update status
+                            # Device is connected, update status and show panel
                             conn_method = device_state.get('connection_method', 'network')
                             if conn_method == 'usb':
                                 serial_port = device_state.get('serial_port', 'USB')
@@ -605,6 +605,11 @@ class MainApplication:
                                 ip = device_state.get('ip', 'Unknown')
                                 status_text = f"{device_name.capitalize()} (@{ip})"
                             status_var.set(status_text)
+                            
+                            # Show the status panel for this connected device
+                            show_panel_fn = self.shared_gui_refs.get('show_panel')
+                            if show_panel_fn:
+                                show_panel_fn(device_name)
                         else:
                             # Device is disconnected, set default
                             status_var.set(f"{device_name.capitalize()}")
