@@ -4743,6 +4743,7 @@ class AddDeviceDialog(tk.Toplevel):
         def _show_connected_panels_after_reconnect(gui_refs):
             """Show status panels for devices that are already connected after re-add."""
             print("[DEBUG] Checking for connected devices to show panels...")
+            print(f"[DEBUG _show_connected] gui_refs keys: {list(gui_refs.keys())}")
             device_modules = self.device_manager.get_device_modules()
             all_states = self.device_manager.get_all_device_states()
             print(f"[DEBUG _show_connected] device_modules: {list(device_modules.keys())}")
@@ -4750,7 +4751,8 @@ class AddDeviceDialog(tk.Toplevel):
             
             show_panel_fn = gui_refs.get('show_panel')
             if not show_panel_fn:
-                print(f"[DEBUG _show_connected] show_panel_fn not found!")
+                print(f"[DEBUG _show_connected] show_panel_fn not found in gui_refs!")
+                print(f"[DEBUG _show_connected] 'show_panel' in gui_refs: {'show_panel' in gui_refs}")
                 return
             
             for device_name in device_modules.keys():
