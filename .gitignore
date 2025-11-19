@@ -32,3 +32,4 @@ logs/
 recent_files.json
 app_config.json
 
+.DS_Store
