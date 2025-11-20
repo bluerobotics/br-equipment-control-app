@@ -20,11 +20,15 @@
 
 ## Officially Supported Devices
 
+<div align="center">
+
 | Device | Description | Repository |
 |:------:|:-----------:|:----------:|
 | **Pressboi** | Dual-motor servo press | [bluerobotics/pressboi](https://github.com/bluerobotics/pressboi) |
 | **Fillhead** | Automated encapsulation system | [bluerobotics/fillhead](https://github.com/bluerobotics/fillhead) |
 | **Gantry** | Three-axis gantry | [bluerobotics/gantry](https://github.com/bluerobotics/gantry) |
+
+</div>
 
 ---
 
