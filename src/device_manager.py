@@ -57,8 +57,23 @@ class DeviceManager:
         # Discover devices using registry
         self.registry.discover_devices()
         
-        # Initialize state for each discovered device
+        # Initialize state and GUI vars for each discovered device
         for device_name, device_data in self.registry.get_device_modules().items():
+            # Create status_var for this device
+            if 'status_var' not in device_data or device_data['status_var'] is None:
+                device_data['status_var'] = tk.StringVar(value=f'{device_name.capitalize()}')
+            
+            # Dynamically create GUI variables from telemetry schema
+            telemetry_data = device_data.get('telemetry_data', {})
+            for key, details in telemetry_data.items():
+                # Auto-generate gui_var if not provided: device_key_var
+                gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
+                if gui_var_name not in self.shared_gui_refs:
+                    # Check if there's a default value in the schema
+                    default_value = details.get('default', "---")
+                    self.shared_gui_refs[gui_var_name] = tk.StringVar(value=default_value)
+                # If variable already exists, don't reset it - preserve the current value
+            
             # Load saved connection config
             saved_config = connection_config.load_connection_config(device_name)
             connection_method = 'network'
@@ -93,8 +108,20 @@ class DeviceManager:
         """
         Reloads the JSON configuration files for a single device.
         """
-        success = self.registry.reload_single_device(device_name, self.shared_gui_refs)
+        success = self.registry.reload_single_device(device_name)
         if success:
+            # Update GUI variables if telemetry schema changed
+            device_data = self.registry.get_device_modules().get(device_name)
+            if device_data:
+                telemetry_data = device_data.get('telemetry_data', {})
+                for key, details in telemetry_data.items():
+                    gui_var_name = details.get('gui_var', f"{device_name}_{key}_var")
+                    if gui_var_name not in self.shared_gui_refs:
+                        default_value = details.get('default', "---")
+                        self.shared_gui_refs[gui_var_name] = tk.StringVar(value=default_value)
+                    # If variable already exists, don't reset it - preserve the current value
+                self.log(f"Reloaded telemetry.json for {device_name}")
+            
             # Refresh syntax highlighter if available
             if 'syntax_highlighter' in self.shared_gui_refs:
                 self.shared_gui_refs['syntax_highlighter'].refresh_keywords()

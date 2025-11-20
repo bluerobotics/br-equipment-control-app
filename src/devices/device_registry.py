@@ -159,16 +159,28 @@ class DeviceRegistry:
             # Load Python modules (gui, simulator)
             gui_module = self._load_module_from_path(device_name, 'gui', definition_path)
             simulator_module = self._load_module_from_path(device_name, 'simulator', definition_path)
+            parser_module = self._load_module_from_path(device_name, 'parser', definition_path)
             
-            # Store device data
+            # Load warnings from JSON (always from definition folder)
+            warnings_data = {}
+            warnings_path = os.path.join(definition_path, 'warnings.json')
+            if os.path.exists(warnings_path):
+                with open(warnings_path, 'r') as f:
+                    warnings_data = json.load(f)
+            
+            # Store device data (use old key names for backward compatibility)
             self.devices[device_name] = {
                 'name': device_name,
                 'path': definition_path,
+                'gui': gui_module,  # Use 'gui' not 'gui_module' for compatibility
+                'parser': parser_module,
+                'simulator': simulator_module,
                 'scripting_commands': scripting_commands,
                 'telemetry_data': telemetry_data,
                 'events_data': events_data,
-                'gui_module': gui_module,
-                'simulator_module': simulator_module,
+                'warnings': warnings_data,
+                'config': {},  # Keep for consistent structure
+                'status_var': None,  # Will be created during GUI init
             }
             
             return True
@@ -186,7 +198,7 @@ class DeviceRegistry:
         """Reload a single device's definition files."""
         if device_name not in self.devices:
             self.log(f"Device '{device_name}' not found for reload")
-            return
+            return False
         
         device_path = self.devices[device_name]['path']
         
@@ -210,6 +222,15 @@ class DeviceRegistry:
             with open(events_path, 'r') as f:
                 self.devices[device_name]['events_data'] = json.load(f)
                 self.log(f"Reloaded events.json for {device_name}")
+        
+        # Reload warnings.json
+        warnings_path = os.path.join(device_path, 'warnings.json')
+        if os.path.exists(warnings_path):
+            with open(warnings_path, 'r') as f:
+                self.devices[device_name]['warnings'] = json.load(f)
+                self.log(f"Reloaded warnings.json for {device_name}")
+        
+        return True
     
     def get_device_modules(self):
         """Get all loaded device modules."""
