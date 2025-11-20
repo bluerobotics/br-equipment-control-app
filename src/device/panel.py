@@ -2839,7 +2839,7 @@ class DevicePanel(ttk.Frame):
         
         # Add device path to config
         try:
-            from main import add_device_path, get_device_paths
+            from ..config import add_device_path, get_device_paths
             success = add_device_path(device_root_path)
             
             if not success:
@@ -4956,7 +4956,7 @@ class AddDeviceDialog(tk.Toplevel):
         
         # Add device root path to config (not definition path)
         try:
-            from main import add_device_path, get_device_paths
+            from ..config import add_device_path, get_device_paths
             success = add_device_path(device_root_path)
             
             if not success:
@@ -5121,7 +5121,7 @@ class AddDeviceDialog(tk.Toplevel):
                     
                     # Add device path to config
                     try:
-                        from main import add_device_path
+                        from ..config import add_device_path
                         add_device_path(device_path)
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to add device path to config:\n{e}")
@@ -5302,7 +5302,7 @@ def create_device_panel(parent, device_manager):
                     
                     # Add device path to config
                     try:
-                        from main import add_device_path
+                        from ..config import add_device_path
                         add_device_path(device_path)
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to add device path to config:\n{e}")
