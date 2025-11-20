@@ -714,8 +714,8 @@ class MainApplication:
                 if saved_device_width:
                     target_pos = splitter_width - saved_device_width
                 else:
-                    # Use platform default initially (will be adjusted later to match status panel)
-                    default_width = 500 if platform.system() == 'Darwin' else 800
+                    # Use compact default width that matches typical status panel width
+                    default_width = 420
                     target_pos = splitter_width - default_width
                 
                 if target_pos > 0:
@@ -789,13 +789,7 @@ class MainApplication:
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
-        # Hide panels by default (redundant but safe)
-        for device_name in self.device_modules.keys():
-            panel = self.shared_gui_refs.get(f'{device_name}_panel')
-            if panel:
-                panel.pack_forget()
-
-        # Adjust device pane width to match status panel width on first startup
+        # Measure status container width BEFORE hiding panels (for first startup sizing)
         def adjust_device_pane_width_on_startup():
             """On first startup (no saved width), match device pane to status panel width."""
             saved_device_width = self.config_data.get('device_pane_width')
@@ -803,6 +797,7 @@ class MainApplication:
                 try:
                     status_container = self.shared_gui_refs.get('status_bar_container')
                     if status_container:
+                        # Force update to get accurate measurements
                         status_container.update()
                         self.root.update_idletasks()
                         required = status_container.winfo_reqwidth()
@@ -822,9 +817,17 @@ class MainApplication:
                 except Exception as e:
                     pass  # Silently fail
         
-        # Call after panels are laid out (multiple attempts for reliability)
-        self.root.after(200, adjust_device_pane_width_on_startup)
-        self.root.after(400, adjust_device_pane_width_on_startup)
+        # Measure width while panels are still visible, then hide them
+        self.root.after(50, adjust_device_pane_width_on_startup)
+        
+        # Hide panels by default (after measuring)
+        def hide_panels():
+            for device_name in self.device_modules.keys():
+                panel = self.shared_gui_refs.get(f'{device_name}_panel')
+                if panel:
+                    panel.pack_forget()
+        
+        self.root.after(100, hide_panels)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
