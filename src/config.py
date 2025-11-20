@@ -143,3 +143,39 @@ def get_devices_path():
         return device_paths[0]
     return None
 
+
+def get_font_family():
+    """Get the preferred font family from config."""
+    config = load_config()
+    return config.get('font_family', None)  # None means use default
+
+
+def set_font_family(font_family):
+    """Save the preferred font family to config."""
+    try:
+        config = load_config()
+        config['font_family'] = font_family
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving font family: {e}")
+        return False
+
+
+def get_font_size():
+    """Get the preferred font size from config."""
+    config = load_config()
+    return config.get('font_size', 11)  # Default to 11pt
+
+
+def set_font_size(font_size):
+    """Save the preferred font size to config."""
+    try:
+        config = load_config()
+        config['font_size'] = font_size
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving font size: {e}")
+        return False
+

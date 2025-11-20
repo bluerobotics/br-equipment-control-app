@@ -4,6 +4,7 @@ import time
 import datetime
 import tkinter as tk
 import json
+import sys
 from queue import Empty
 from . import serial
 from src.logging import log_to_terminal
@@ -40,7 +41,7 @@ try:
     sock.settimeout(0.1)
 except OSError as e:
     print(f"ERROR binding socket: {e}. Port {CLIENT_PORT} may be in use by another application.")
-    exit()
+    sys.exit(1)
 
 # MODIFIED: Added a threading lock to prevent race conditions on the socket.
 socket_lock = threading.Lock()
