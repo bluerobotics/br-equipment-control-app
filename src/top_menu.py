@@ -20,7 +20,7 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     """
     # Import here to avoid circular dependencies
     from .codegen.generator import show_code_generator
-    from .firmware_manager import open_firmware_manager
+    from .firmware import open_firmware_manager
     
     # Create device commands
     device_commands = {

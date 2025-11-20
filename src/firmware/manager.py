@@ -46,8 +46,8 @@ def _import_pyserial():
 
 list_ports = _import_pyserial()
 
-from . import theme
-from .clearcore_firmware import (
+from .. import theme
+from .clearcore import (
     get_device_firmware_configs,
     compare_versions,
     get_release_history,

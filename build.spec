@@ -45,7 +45,8 @@ python_files = [
     'src/command_reference.py',
     'src/codegen/generator.py',
     'src/codegen/batch.py',
-    'src/clearcore_firmware.py',
+    'src/firmware/clearcore.py',
+    'src/firmware/manager.py',
     'src/_version.py',
 ]
 

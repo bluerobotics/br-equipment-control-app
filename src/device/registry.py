@@ -78,7 +78,7 @@ class DeviceRegistry:
         
         # Clear firmware config cache when devices are rediscovered
         try:
-            from ..clearcore_firmware import clear_firmware_config_cache
+            from ..firmware import clear_firmware_config_cache
             clear_firmware_config_cache()
         except Exception:
             pass  # Ignore if firmware module not available
