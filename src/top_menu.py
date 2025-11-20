@@ -9,11 +9,6 @@ import platform
 from _version import __version__
 
 
-def open_github_repo():
-    """Opens the GitHub repository in the browser."""
-    webbrowser.open('https://github.com/bluerobotics/br-equipment-control-app')
-
-
 def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback):
     """
     Creates the main application menu bar.
@@ -161,7 +156,6 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     help_menu = tk.Menu(menubar, tearoff=0, bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
                        activebackground=theme.PRIMARY_ACCENT,
                        activeforeground=theme.FG_COLOR)
-    help_menu.add_command(label="GitHub Repository", command=open_github_repo)
     help_menu.add_command(label="About", command=lambda: show_about_window(parent))
     menubar.add_cascade(label="Help", menu=help_menu)
 
@@ -180,7 +174,7 @@ def show_about_window(parent):
     
     about_window = tk.Toplevel(parent)
     about_window.title("About BR Equipment Control App")
-    about_window.geometry("500x350")
+    about_window.geometry("600x450")
     about_window.configure(bg=theme.BG_COLOR)
     about_window.resizable(False, False)
     about_window.transient(parent)
