@@ -508,10 +508,14 @@ class MainApplication:
             # Add device path
             success = add_device_path(device_root_path)
             if success:
+                print(f"[DEBUG _prompt_add_device] Path added successfully: {device_root_path}")
                 # Reload and refresh
                 self.device_manager.device_paths = get_device_paths()
+                print(f"[DEBUG _prompt_add_device] Updated paths: {self.device_manager.device_paths}")
                 self.device_manager.discover_devices()
+                print(f"[DEBUG _prompt_add_device] Discovered devices: {list(self.device_manager.get_all_device_names())}")
                 self._on_device_added()
+                print(f"[DEBUG _prompt_add_device] Called _on_device_added()")
             else:
                 messagebox.showerror("Error", f"Failed to add device path to config.\n\nPath: {device_root_path}")
         except Exception as e:
@@ -546,8 +550,10 @@ class MainApplication:
     
     def _on_device_added(self):
         """Callback when a device is added - refresh the UI."""
+        print(f"[DEBUG _on_device_added] Starting...")
         # Reload device modules
         self.device_modules = self.device_manager.get_device_modules()
+        print(f"[DEBUG _on_device_added] Device modules: {list(self.device_modules.keys())}")
         
         # Update shared refs
         for device_name, device_data in self.device_modules.items():
@@ -558,8 +564,11 @@ class MainApplication:
         self.shared_gui_refs['command_funcs'] = self.command_funcs
         
         # Refresh command reference if it exists
+        print(f"[DEBUG _on_device_added] Has command_reference_instance: {hasattr(self, 'command_reference_instance')}")
         if hasattr(self, 'command_reference_instance') and self.command_reference_instance:
+            print(f"[DEBUG _on_device_added] Refreshing command reference...")
             self.command_reference_instance.refresh()
+            print(f"[DEBUG _on_device_added] Command reference refreshed")
         
         # Refresh syntax highlighter for newly added devices (delayed to ensure editor is ready)
         # Retry multiple times since the script editor might not be opened yet
