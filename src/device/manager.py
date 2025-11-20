@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from .. import connection_config
+from ..comms import config as connection_config
 from .registry import DeviceRegistry
 from .state import DeviceState
 from .simulator import DeviceSimulatorManager

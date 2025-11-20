@@ -83,9 +83,9 @@ class DeviceState:
             self.device_state[device_name]['serial_port'] = serial_port
         
         # Save to config
-        from .. import connection_config
+        from ..comms import save_connection_config
         try:
-            connection_config.save_connection_method(device_name, method, serial_port)
+            save_connection_config(device_name, method, serial_port)
         except Exception as e:
             print(f"Failed to save connection config for {device_name}: {e}")
     

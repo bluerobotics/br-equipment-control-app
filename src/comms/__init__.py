@@ -21,6 +21,14 @@ from .network import (
     discovery_loop
 )
 
+# Import from config module (was connection_config.py)
+from .config import (
+    save_connection_config,
+    load_connection_config,
+    load_all_connection_configs,
+    clear_connection_config
+)
+
 # Import from serial module (was serial_comms.py)
 from .serial import (
     serial_lock,
@@ -34,6 +42,11 @@ from .serial import (
 )
 
 __all__ = [
+    # Connection config
+    'save_connection_config',
+    'load_connection_config',
+    'load_all_connection_configs',
+    'clear_connection_config',
     # Network comms
     'devices_lock',
     'handle_serial_message',
