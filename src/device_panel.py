@@ -3022,6 +3022,9 @@ class DevicePanel(ttk.Frame):
                         print(f"[DEBUG] Disconnected {device_name} from {serial_port}")
                 # For network, the connection will be cleaned up by the monitor thread when it times out
             
+            # Log device removal to terminal
+            log_to_terminal(f"[SYSTEM] {device_name}: Device removed from app", self.device_manager.shared_gui_refs)
+            
             # Remove device path from config
             from main import remove_device_path, get_device_paths
             success = remove_device_path(device_path_to_remove)
