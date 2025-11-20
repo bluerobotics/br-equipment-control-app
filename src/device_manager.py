@@ -54,6 +54,9 @@ class DeviceManager:
         """
         self.log("Loading devices from configured paths...")
         
+        # Clear existing state to pick up deletions/renames
+        self.state.clear_all()
+        
         # Discover devices using registry
         self.registry.discover_devices()
         
