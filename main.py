@@ -456,18 +456,7 @@ class MainApplication:
         self.discovery_logs = self.device_manager.get_discovery_logs()
         self.shared_gui_refs['device_manager'] = self.device_manager
         
-        # Check if no devices are loaded and prompt user to add one
-        if not self.device_modules:
-            response = messagebox.askyesno(
-                "No Devices Loaded",
-                "You don't have any devices loaded.\n\n"
-                "Would you like to add a device now?\n\n"
-                "You can add devices later from the Devices pane.",
-                icon='question'
-            )
-            if response:
-                # Schedule the dialog to open after the window is created
-                self.root.after(100, self._prompt_add_device)
+        # Prompt for device will be checked later, after GUI is fully created
         
         # --- Data Logger ---
         self.data_logger = DataLogger(self.shared_gui_refs)
@@ -1349,6 +1338,23 @@ class MainApplication:
         
         # Auto-connect to devices that were last connected via USB
         self.root.after(1000, self.device_manager.auto_connect_usb_devices)
+        
+        # Check if no devices are loaded and prompt user to add one
+        # This is done AFTER GUI is fully created to ensure device pane exists
+        if not self.device_modules:
+            def check_and_prompt():
+                response = messagebox.askyesno(
+                    "No Devices Loaded",
+                    "You don't have any devices loaded.\n\n"
+                    "Would you like to add a device now?\n\n"
+                    "You can add devices later from the Devices pane.",
+                    icon='question'
+                )
+                if response:
+                    self._prompt_add_device()
+            
+            # Schedule after GUI is ready
+            self.root.after(500, check_and_prompt)
         
         self.animate_searching_text()
         self.process_gui_queue()
