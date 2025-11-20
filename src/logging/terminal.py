@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from . import theme
+from .. import theme
 import re
 import datetime
 
