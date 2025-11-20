@@ -3050,7 +3050,7 @@ class DevicePanel(ttk.Frame):
                 # For network, the connection will be cleaned up by the monitor thread when it times out
             
             # Remove device path from config
-            from main import remove_device_path, get_device_paths
+            from ..config import remove_device_path, get_device_paths
             success = remove_device_path(device_path_to_remove)
             
             if not success:
