@@ -18,7 +18,7 @@
 
 ---
 
-## Known Devices
+## Officially Supported Devices
 
 | Device | Description | Repository |
 |--------|-------------|------------|
