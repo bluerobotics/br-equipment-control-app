@@ -52,21 +52,14 @@ class SystemLogger:
         self._gui_refs = gui_refs
     
     def _get_default_logs_dir(self) -> Path:
-        """Get the default logs directory."""
+        """Get the configured system logs directory."""
         try:
-            if sys.platform == 'win32':
-                base_dir = Path(os.environ.get('APPDATA', Path.home() / '.br-equipment-control-app'))
-                logs_dir = base_dir / 'BR Equipment Control' / 'logs'
-            elif sys.platform == 'darwin':
-                logs_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control' / 'logs'
-            else:
-                base_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share'))
-                logs_dir = base_dir / 'br-equipment-control-app' / 'logs'
+            from src.config import get_system_logs_dir
+            return get_system_logs_dir()
         except Exception:
             # Fallback to logs directory in app folder
             logs_dir = Path(__file__).parent.parent / 'logs'
-        
-        return logs_dir
+            return logs_dir
     
     def _start_logging(self):
         """Start logging by opening the log file and redirecting stdout/stderr."""

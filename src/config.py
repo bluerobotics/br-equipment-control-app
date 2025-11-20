@@ -179,3 +179,100 @@ def set_font_size(font_size):
         print(f"Error saving font size: {e}")
         return False
 
+
+def _get_default_system_logs_dir():
+    """Get the default system logs directory based on OS."""
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', Path.home() / '.br-equipment-control-app'))
+            logs_dir = base_dir / 'BR Equipment Control' / 'system_logs'
+        elif sys.platform == 'darwin':
+            logs_dir = Path.home() / 'Library' / 'Logs' / 'BR Equipment Control'
+        else:
+            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
+            logs_dir = base_dir / 'br-equipment-control-app' / 'system_logs'
+    except Exception:
+        logs_dir = Path.home() / '.br-equipment-control-app' / 'system_logs'
+    return logs_dir
+
+
+def _get_default_data_logs_dir():
+    """Get the default data logs directory based on OS."""
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', Path.home() / '.br-equipment-control-app'))
+            logs_dir = base_dir / 'BR Equipment Control' / 'data_logs'
+        elif sys.platform == 'darwin':
+            logs_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control' / 'data_logs'
+        else:
+            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
+            logs_dir = base_dir / 'br-equipment-control-app' / 'data_logs'
+    except Exception:
+        logs_dir = Path.home() / '.br-equipment-control-app' / 'data_logs'
+    return logs_dir
+
+
+def get_system_logs_dir():
+    """Get the system logs directory from config, or default if not set."""
+    config = load_config()
+    logs_dir_str = config.get('system_logs_dir')
+    
+    if logs_dir_str:
+        logs_dir = Path(logs_dir_str)
+    else:
+        logs_dir = _get_default_system_logs_dir()
+    
+    # Ensure directory exists
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating system logs directory at {logs_dir}: {e}")
+        logs_dir = _get_default_system_logs_dir()
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    return logs_dir
+
+
+def set_system_logs_dir(logs_dir):
+    """Save the system logs directory to config."""
+    try:
+        config = load_config()
+        config['system_logs_dir'] = str(Path(logs_dir))
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving system logs directory: {e}")
+        return False
+
+
+def get_data_logs_dir():
+    """Get the data logs directory from config, or default if not set."""
+    config = load_config()
+    logs_dir_str = config.get('data_logs_dir')
+    
+    if logs_dir_str:
+        logs_dir = Path(logs_dir_str)
+    else:
+        logs_dir = _get_default_data_logs_dir()
+    
+    # Ensure directory exists
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating data logs directory at {logs_dir}: {e}")
+        logs_dir = _get_default_data_logs_dir()
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    return logs_dir
+
+
+def set_data_logs_dir(logs_dir):
+    """Save the data logs directory to config."""
+    try:
+        config = load_config()
+        config['data_logs_dir'] = str(Path(logs_dir))
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving data logs directory: {e}")
+        return False

@@ -1550,16 +1550,19 @@ class MainApplication:
             pass
 
     def show_paths_window(self):
-        """Display a window listing key application file paths."""
+        """Display a window listing key application file paths with editable log directories."""
         if hasattr(self, '_paths_window') and self._paths_window and self._paths_window.winfo_exists():
             self._paths_window.lift()
             return
 
-        paths = [
+        from src.config import get_system_logs_dir, get_data_logs_dir, set_system_logs_dir, set_data_logs_dir
+        from tkinter import filedialog
+        
+        # Readonly paths
+        readonly_paths = [
             ("Config File", CONFIG_FILE),
             ("Config Directory", CONFIG_FILE.parent),
             ("Recent Files", RECENT_FILES_PATH),
-            ("Logs Directory", getattr(self.data_logger, 'logs_path', 'Unknown')),
             ("Device Folders", ", ".join([str(Path(p)) for p in get_device_paths()]) if self.device_manager else "Unknown"),
             ("Executable", Path(sys.executable).resolve()),
             ("Working Directory", Path.cwd()),
@@ -1575,34 +1578,142 @@ class MainApplication:
         frame.pack(fill=tk.BOTH, expand=True)
         frame.columnconfigure(1, weight=1)
 
+        row_idx = 0
+        
+        # Header
         ttk.Label(
             frame,
-            text="Key application paths vary by operating system. Copy as needed.",
+            text="Configure log directories and view application paths.",
             style='Subtle.TLabel'
-        ).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0, 10))
+        ).grid(row=row_idx, column=0, columnspan=3, sticky='w', pady=(0, 15))
+        row_idx += 1
+        
+        # Editable log directories section
+        ttk.Label(
+            frame,
+            text="Log Directories (Editable)",
+            font=('TkDefaultFont', 10, 'bold'),
+            style='TLabel'
+        ).grid(row=row_idx, column=0, columnspan=3, sticky='w', pady=(0, 5))
+        row_idx += 1
+        
+        # System Logs Directory
+        system_logs_var = tk.StringVar(value=str(get_system_logs_dir()))
+        
+        ttk.Label(frame, text="System Logs:", style='Subtle.TLabel').grid(
+            row=row_idx, column=0, sticky='nw', padx=(0, 8), pady=4)
+        
+        system_logs_entry = ttk.Entry(frame, width=80, textvariable=system_logs_var)
+        system_logs_entry.grid(row=row_idx, column=1, sticky='we', pady=4)
+        
+        def browse_system_logs():
+            dir_path = filedialog.askdirectory(
+                title="Select System Logs Directory",
+                initialdir=system_logs_var.get()
+            )
+            if dir_path:
+                system_logs_var.set(dir_path)
+        
+        ttk.Button(
+            frame,
+            text="Browse",
+            style='Blue.TButton',
+            command=browse_system_logs
+        ).grid(row=row_idx, column=2, sticky='e', padx=(8, 0), pady=4)
+        row_idx += 1
+        
+        # Data Logs Directory
+        data_logs_var = tk.StringVar(value=str(get_data_logs_dir()))
+        
+        ttk.Label(frame, text="Data Logs:", style='Subtle.TLabel').grid(
+            row=row_idx, column=0, sticky='nw', padx=(0, 8), pady=4)
+        
+        data_logs_entry = ttk.Entry(frame, width=80, textvariable=data_logs_var)
+        data_logs_entry.grid(row=row_idx, column=1, sticky='we', pady=4)
+        
+        def browse_data_logs():
+            dir_path = filedialog.askdirectory(
+                title="Select Data Logs Directory",
+                initialdir=data_logs_var.get()
+            )
+            if dir_path:
+                data_logs_var.set(dir_path)
+        
+        ttk.Button(
+            frame,
+            text="Browse",
+            style='Blue.TButton',
+            command=browse_data_logs
+        ).grid(row=row_idx, column=2, sticky='e', padx=(8, 0), pady=4)
+        row_idx += 1
+        
+        # Separator
+        ttk.Separator(frame, orient='horizontal').grid(
+            row=row_idx, column=0, columnspan=3, sticky='ew', pady=(15, 10))
+        row_idx += 1
+        
+        # Readonly paths section
+        ttk.Label(
+            frame,
+            text="Application Paths (Read-Only)",
+            font=('TkDefaultFont', 10, 'bold'),
+            style='TLabel'
+        ).grid(row=row_idx, column=0, columnspan=3, sticky='w', pady=(0, 5))
+        row_idx += 1
 
-        for idx, (label, path_obj) in enumerate(paths, start=1):
+        for label, path_obj in readonly_paths:
             path_str = str(path_obj)
-            ttk.Label(frame, text=f"{label}:", style='Subtle.TLabel').grid(row=idx, column=0, sticky='nw', padx=(0, 8), pady=4)
+            ttk.Label(frame, text=f"{label}:", style='Subtle.TLabel').grid(
+                row=row_idx, column=0, sticky='nw', padx=(0, 8), pady=4)
 
             entry = ttk.Entry(frame, width=80)
             entry.insert(0, path_str)
             entry.configure(state='readonly')
-            entry.grid(row=idx, column=1, sticky='we', pady=4)
+            entry.grid(row=row_idx, column=1, sticky='we', pady=4)
 
             ttk.Button(
                 frame,
                 text="Copy",
                 style='Blue.TButton',
                 command=lambda p=path_str: self.copy_to_clipboard(p)
-            ).grid(row=idx, column=2, sticky='e', padx=(8, 0), pady=4)
-
+            ).grid(row=row_idx, column=2, sticky='e', padx=(8, 0), pady=4)
+            row_idx += 1
+        
+        # Buttons frame
+        button_frame = ttk.Frame(frame, style='TFrame')
+        button_frame.grid(row=row_idx, column=0, columnspan=3, sticky='e', pady=(12, 0))
+        
+        def save_and_close():
+            # Save log directories
+            if set_system_logs_dir(system_logs_var.get()):
+                print(f"System logs directory set to: {system_logs_var.get()}")
+            if set_data_logs_dir(data_logs_var.get()):
+                print(f"Data logs directory set to: {data_logs_var.get()}")
+            
+            # Close window
+            self._paths_window.destroy()
+            
+            # Show message
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "Paths Saved",
+                "Log directory changes will take effect the next time the application starts.",
+                parent=self.root
+            )
+        
         ttk.Button(
-            frame,
-            text="Close",
+            button_frame,
+            text="Save",
+            style='Blue.TButton',
+            command=save_and_close
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+        
+        ttk.Button(
+            button_frame,
+            text="Cancel",
             style='Ghost.TButton',
             command=self._paths_window.destroy
-        ).grid(row=len(paths) + 1, column=2, sticky='e', pady=(12, 0))
+        ).pack(side=tk.RIGHT)
 
 
 

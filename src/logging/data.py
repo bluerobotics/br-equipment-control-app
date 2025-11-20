@@ -18,33 +18,21 @@ from .terminal import log_to_terminal
 
 def _resolve_logs_directory() -> Path:
     """
-    Determine a writable location for log files across platforms.
-    Mirrors the logic used for config storage so Finder/DMG launches
-    (which run from a read-only bundle) can still create log files.
+    Get the configured data logs directory.
+    Uses OS-specific defaults if not configured.
     """
-    fallback_dir = Path.home() / '.br-equipment-control-app' / 'logs'
-
     try:
-        if sys.platform == 'win32':
-            base_dir = Path(os.environ.get('APPDATA', fallback_dir.parent))
-            logs_dir = base_dir / 'BR Equipment Control' / 'logs'
-        elif sys.platform == 'darwin':
-            logs_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control' / 'logs'
-        else:
-            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
-            logs_dir = base_dir / 'br-equipment-control-app' / 'logs'
+        from src.config import get_data_logs_dir
+        return get_data_logs_dir()
     except Exception as e:
-        print(f"Warning determining log directory: {e}")
-        logs_dir = fallback_dir
-
-    try:
-        logs_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        print(f"Warning creating log directory at {logs_dir}: {e}")
-        logs_dir = fallback_dir
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-    return logs_dir
+        print(f"Warning getting data logs directory: {e}")
+        # Fallback
+        fallback_dir = Path.home() / '.br-equipment-control-app' / 'data_logs'
+        try:
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        return fallback_dir
 
 class DataLogger:
     """
