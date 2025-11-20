@@ -240,6 +240,88 @@ class DeviceRegistry:
         """Get list of all loaded device names."""
         return list(self.devices.keys())
     
+    def get_all_scripting_commands(self):
+        """
+        Aggregates scripting command definitions from all discovered devices.
+        Also includes built-in script commands.
+        """
+        all_commands = {}
+        
+        # Add built-in script commands
+        from ..script_processor import SCRIPT_COMMANDS
+        for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
+            all_commands[cmd_name] = cmd_details.copy()
+        
+        # Add device-specific commands
+        for device_name, modules in self.devices.items():
+            # Check for commands loaded from JSON
+            if modules.get('scripting_commands'):
+                device_commands = modules['scripting_commands']
+                # Add device information to each command
+                for cmd_name, cmd_details in device_commands.items():
+                    # Check if command already has device prefix
+                    if cmd_name.startswith(f"{device_name}."):
+                        # Command already has device prefix, use it as-is
+                        full_cmd_key = cmd_name
+                    else:
+                        # Command doesn't have device prefix, add it
+                        full_cmd_key = f"{device_name}.{cmd_name}"
+                    
+                    # Add device information to command details
+                    cmd_details_with_device = cmd_details.copy()
+                    cmd_details_with_device['device'] = device_name
+                    all_commands[full_cmd_key] = cmd_details_with_device
+        
+        return all_commands
+
+    def get_device_scripting_commands(self, device_name):
+        """Returns the scripting commands for a specific device."""
+        device = self.devices.get(device_name)
+        if device:
+            return device.get('scripting_commands', {})
+        return {}
+
+    def get_all_device_variable_names(self):
+        """
+        Collects all GUI variable names from all devices and maps them back to their schema keys.
+        Returns a dictionary like: {'device': {'device_x_pos_var': 'x_pos', ...}, ...}
+        """
+        all_vars = {}
+        for device_name, modules in self.devices.items():
+            device_map = {}
+            # Reconstruct the mapping from the stored telemetry_data
+            telemetry_data = modules.get('telemetry_data', {})
+            for schema_key, details in telemetry_data.items():
+                if 'gui_var' in details:
+                    device_map[details['gui_var']] = schema_key
+            all_vars[device_name] = device_map
+        return all_vars
+
+    def get_all_events(self):
+        """
+        Aggregates event definitions from all discovered devices.
+        Returns a dictionary with event names as keys and their details as values.
+        """
+        all_events = {}
+        for device_name, modules in self.devices.items():
+            if modules.get('events_data'):
+                device_events = modules['events_data']
+                for event_name, event_details in device_events.items():
+                    # Add device prefix to event name
+                    full_event_key = f"{device_name}.{event_name}"
+                    # Add device information to event details
+                    event_details_with_device = event_details.copy()
+                    event_details_with_device['device'] = device_name
+                    all_events[full_event_key] = event_details_with_device
+        return all_events
+
+    def get_device_events(self, device_name):
+        """Returns the events for a specific device."""
+        device = self.devices.get(device_name)
+        if device:
+            return device.get('events_data', {})
+        return {}
+    
     def get_device_config(self, device_name):
         """
         Returns the config.json data for a device.
