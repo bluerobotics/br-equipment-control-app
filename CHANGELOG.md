@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.14.2] - 2025-11-20
 
 ### Added
 - **Configurable log directories**: System logs and data logs now use separate directories that can be configured via Settings → Show Application Paths
