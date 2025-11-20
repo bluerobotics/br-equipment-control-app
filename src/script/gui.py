@@ -1220,8 +1220,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if current_filepath and current_filepath.startswith(tempfile.gettempdir()):
             old_temp_file = current_filepath
         
-        filepath = filedialog.asksaveasfilename(title="Save Script As", defaultextension=".txt",
-                                                filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+        filepath = filedialog.asksaveasfilename(title="Save Script As", defaultextension=".brs",
+                                                filetypes=(("BR Script files", "*.brs"), ("Text files", "*.txt"), ("All files", "*.*")))
         if not filepath:
             return False
         
@@ -1264,7 +1264,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def load_script():
         filepath = filedialog.askopenfilename(title="Open Script File",
-                                              filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+                                              filetypes=(("BR Script files", "*.brs"), ("Text files", "*.txt"), ("All files", "*.*")))
         if not filepath: return
         load_specific_script(filepath)
 
