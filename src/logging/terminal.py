@@ -20,7 +20,7 @@ def log_to_terminal(msg, gui_refs):
     # Also log to system logger if available
     # The logger will see the timestamp in full_msg and won't add another one
     try:
-        from .system_logger import get_system_logger
+        from .system import get_system_logger
         logger = get_system_logger()
         if logger:
             # Pass message with timestamp - logger will detect it and not add another

@@ -4,7 +4,7 @@ from ..comms import config as connection_config
 from .registry import DeviceRegistry
 from .state import DeviceState
 from .simulator import DeviceSimulatorManager
-from ..terminal import log_to_terminal
+from ..logging import log_to_terminal
 
 
 class DeviceManager:

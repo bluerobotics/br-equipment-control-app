@@ -4,7 +4,7 @@ import re
 from .. import theme
 from ..script import SCRIPT_COMMANDS
 from ..comms import devices_lock
-from ..terminal import log_to_terminal
+from ..logging import log_to_terminal
 
 class Tooltip:
     """

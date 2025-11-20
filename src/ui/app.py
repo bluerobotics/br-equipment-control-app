@@ -22,9 +22,8 @@ from pathlib import Path
 from .. import comms, theme
 from ..script import create_scripting_interface, load_recent_files, RECENT_FILES_PATH, validate_script, ScriptRunner
 from .status_panel import create_status_bar
-from ..terminal import create_terminal_panel
+from ..logging import create_terminal_panel, DataLogger
 from ..device import DeviceManager, create_device_panel
-from ..data_logger import DataLogger
 from ..top_menu import create_top_menu
 from ..config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
 
@@ -346,7 +345,7 @@ class MainApplication:
         
         # Set GUI references in system logger so Python console messages appear in terminal
         try:
-            from src.system_logger import get_system_logger
+            from ..logging import get_system_logger
             logger = get_system_logger()
             if logger:
                 logger.set_gui_refs(self.shared_gui_refs)
@@ -392,7 +391,7 @@ class MainApplication:
                 
                 # Log device addition to terminal
                 device_name = os.path.basename(device_root_path)
-                from src.terminal import log_to_terminal
+                from ..logging import log_to_terminal
                 log_to_terminal(f"[SYSTEM] {device_name}: Device added to app", self.shared_gui_refs)
                 
                 self._on_device_added()
@@ -861,7 +860,7 @@ class MainApplication:
         def show_latest_system_log():
             """Open the latest system log file in a text viewer."""
             try:
-                from src.system_logger import get_system_logger
+                from ..logging import get_system_logger
                 logger = get_system_logger()
                 log_path = None
                 
@@ -877,7 +876,7 @@ class MainApplication:
                     logs_dir = logger.logs_dir
                 else:
                     # Fallback: try to determine logs directory
-                    from src.system_logger import SystemLogger
+                    from ..logging import SystemLogger
                     temp_logger = SystemLogger()
                     logs_dir = temp_logger.logs_dir
                     temp_logger.stop_logging()
@@ -1187,7 +1186,7 @@ class MainApplication:
         if check_result:
             # Stop system logger
             try:
-                from src.system_logger import stop_system_logger
+                from ..logging import stop_system_logger
                 stop_system_logger()
             except Exception:
                 pass

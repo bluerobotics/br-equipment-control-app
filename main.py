@@ -32,7 +32,7 @@ def main():
     """
     # Initialize system logger first (before any print statements)
     try:
-        from src.system_logger import initialize_system_logger
+        from src.logging import initialize_system_logger
         system_logger = initialize_system_logger()
         print(f"[SYSTEM] Session log started: {system_logger.get_log_file_path()}")
     except Exception as e:

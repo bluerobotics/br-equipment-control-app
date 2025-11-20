@@ -4,7 +4,7 @@ import queue
 import tkinter as tk  # For TclError and StringVar
 import re
 import shlex
-from ..terminal import log_to_terminal
+from ..logging import log_to_terminal
 
 # --- Built-in Script Commands ---
 # These are commands handled directly by the ScriptRunner, not sent to devices.
