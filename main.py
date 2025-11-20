@@ -24,7 +24,7 @@ import tkinter.font as tkfont
 import platform
 import ctypes
 from queue import Queue, Empty
-from src.device_manager import DeviceManager # Import the new DeviceManager
+from src.device import DeviceManager # Import the DeviceManager
 from src.data_logger import DataLogger # Import the data logger
 import datetime
 from pathlib import Path
@@ -33,7 +33,7 @@ from _version import __version__
 
 # Import GUI components
 from src.top_menu import create_top_menu
-from src.device_panel import create_command_reference, AddDeviceDialog
+from src.device import create_device_panel
 
 GUI_UPDATE_INTERVAL_MS = 100
 
@@ -912,7 +912,7 @@ class MainApplication:
         )
         
         # Now that the script editor exists, populate the command reference
-        self.command_reference_instance = create_command_reference(
+        self.command_reference_instance = create_device_panel(
             cmd_ref_content, 
             self.scripting_gui_refs['script_editor'],
             self.device_manager

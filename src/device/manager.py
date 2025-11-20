@@ -1,8 +1,10 @@
 import os
 import tkinter as tk
-from . import connection_config
-from .devices import DeviceRegistry, DeviceState, DeviceSimulatorManager
-from .terminal import log_to_terminal
+from .. import connection_config
+from .registry import DeviceRegistry
+from .state import DeviceState
+from .simulator import DeviceSimulatorManager
+from ..terminal import log_to_terminal
 
 
 class DeviceManager:
@@ -240,12 +242,12 @@ class DeviceManager:
 
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""
-        from . import comms  # Local import to avoid circular dependency
+        from .. import comms  # Local import to avoid circular dependency
         return lambda msg: comms.send_to_device(device_name, msg, self.shared_gui_refs)
 
     def send_global_abort(self):
         """Sends a cancel command to all connected devices."""
-        from . import comms  # Local import
+        from .. import comms  # Local import
         # Pass the entire shared_gui_refs dictionary to the logger
         log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
         
@@ -294,12 +296,12 @@ class DeviceManager:
         Returns:
             bool: True if at least one device connected successfully, False otherwise.
         """
-        from . import serial_comms
-        from . import comms
+        from .. import serial_comms
+        from .. import comms
         
         any_usb_connected = False
         
-        from .comms import update_searching_panel_visibility
+        from ..comms import update_searching_panel_visibility
         import time
         
         all_states = self.state.get_all_states()
@@ -379,8 +381,8 @@ class DeviceManager:
         Attempts to reconnect a USB device. Called by monitor thread for hotplug support.
         Silent mode - no error spam if port isn't available.
         """
-        from . import serial_comms
-        from . import comms
+        from .. import serial_comms
+        from .. import comms
         
         # Check if port is already connected
         with serial_comms.serial_lock:

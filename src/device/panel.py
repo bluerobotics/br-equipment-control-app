@@ -1,10 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 import re
-from . import theme
-from .script_processor import SCRIPT_COMMANDS
-from .comms import devices_lock
-from .terminal import log_to_terminal
+from .. import theme
+from ..script_processor import SCRIPT_COMMANDS
+from ..comms import devices_lock
+from ..terminal import log_to_terminal
 
 class Tooltip:
     """
@@ -942,7 +942,7 @@ class DevicePanel(ttk.Frame):
                                  activeforeground=theme.FG_COLOR)
             
             # List available serial ports
-            from . import serial_comms
+            from .. import serial_comms
             ports = serial_comms.list_serial_ports()
             if ports:
                 for port, description in ports:
@@ -1135,7 +1135,7 @@ class DevicePanel(ttk.Frame):
             device_commands[device].append((cmd, details))
         
         # Add script commands
-        from .script_processor import SCRIPT_COMMANDS
+        from ..script_processor import SCRIPT_COMMANDS
         if 'script' not in device_commands:
             device_commands['script'] = []
         for cmd, details in SCRIPT_COMMANDS.items():
@@ -1749,7 +1749,7 @@ class DevicePanel(ttk.Frame):
         
         # If not found, check SCRIPT_COMMANDS directly (for script-only commands)
         if not cmd_details:
-            from .script_processor import SCRIPT_COMMANDS
+            from ..script_processor import SCRIPT_COMMANDS
             cmd_details = SCRIPT_COMMANDS.get(command)
         
         if not cmd_details:
@@ -2580,8 +2580,8 @@ class DevicePanel(ttk.Frame):
     
     def set_connection_network(self, device_name):
         """Switch device to network (UDP) connection."""
-        from . import serial_comms
-        from . import comms
+        from .. import serial_comms
+        from .. import comms
         
         # Keep USB connection open to prevent firmware TX buffer from filling up
         # The serial listener will continue to read and discard USB data
@@ -2602,7 +2602,7 @@ class DevicePanel(ttk.Frame):
             reset_and_hide_fn(device_name)
         
         # Update searching panel visibility
-        from . import comms
+        from .. import comms
         comms.update_searching_panel_visibility(gui_refs)
         
         # Log the change
@@ -2625,8 +2625,8 @@ class DevicePanel(ttk.Frame):
     
     def set_connection_usb(self, device_name, port):
         """Switch device to USB serial connection."""
-        from . import serial_comms
-        from . import comms
+        from .. import serial_comms
+        from .. import comms
         
         gui_refs = self.device_manager.shared_gui_refs
         
@@ -5220,7 +5220,7 @@ This module contains device-specific GUI components and panels.
 
 import tkinter as tk
 from tkinter import ttk
-from src import theme
+from .. import theme
 
 def create_device_panel(parent, device_manager):
     """
@@ -5310,9 +5310,13 @@ def create_device_panel(parent, device_manager):
             messagebox.showerror("Error", f"Failed to save device:\n{str(e)}")
 
 
+def create_device_panel(parent, script_editor_widget, device_manager):
+    """Creates a DevicePanel."""
+    return DevicePanel(parent, script_editor_widget, device_manager)
+
 def create_command_reference(parent, script_editor_widget, device_manager):
     """Legacy function name for backward compatibility. Creates a DevicePanel."""
-    return DevicePanel(parent, script_editor_widget, device_manager)
+    return create_device_panel(parent, script_editor_widget, device_manager)
 
 # --- Themed Right-click Menu for Command Reference ---
 class ThemedContextMenu(tk.Menu):
