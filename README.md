@@ -379,15 +379,7 @@ Creates `logs/` directory on first run.
 
 ---
 
-## 13. License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-Copyright (c) 2025 Blue Robotics
-
----
-
-## 14. Contributing
+## 13. Contributing
 
 For issues, feature requests, or contributions, please open an issue or pull request on GitHub.
 
