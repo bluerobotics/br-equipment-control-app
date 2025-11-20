@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.1] - 2025-11-20
+
+### Changed
+- **Script file extension**: Changed from `.brs` to `.breq` (BR Equipment) to avoid conflict with BrightScript
+
 ## [1.14.0] - 2025-11-20
 
 ### Added
@@ -9,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - **USB connection robustness**: DTR/RTS toggling and 2-second buffer draining eliminates "ghost data" from previous sessions
 
 ### Changed
-- **Script file extension**: Changed from `.txt` to `.brs` (BR Script) for clearer file association and branding
+- **Script file extension**: Changed from `.txt` to `.breq` (BR Equipment) for clearer file association and branding
 - **Terminal capture**: Error log window tracks position to show only new messages, preventing duplicate entries from previous dumps
 - **UI structure**: Moved `app.py` from `src/ui/` to `src/` and removed unused UI files
 
