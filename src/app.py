@@ -107,10 +107,11 @@ class CollapsiblePanel(ttk.Frame):
         self.after(10, self._update_parent_sash) # Let geometry manager update before moving sash
 
 class MainApplication:
-    def __init__(self, root):
+    def __init__(self, root, startup_file=None):
         self.root = root
         self.root.title(f"BR Equipment Control App - v{__version__}")
         self.root.configure(bg=theme.BG_COLOR)
+        self.startup_file = startup_file
 
         # Thread-safe queue for GUI updates
         self.gui_queue = Queue()
@@ -1197,8 +1198,17 @@ class MainApplication:
     def load_last_script(self):
         """
         Loads the most recently opened script on startup if one exists.
+        If a startup_file was provided via command-line, load that instead.
         """
         try:
+            # Priority 1: Command-line argument (e.g., file association)
+            if self.startup_file:
+                if os.path.exists(self.startup_file):
+                    print(f"[SYSTEM] Loading script from command-line: {self.startup_file}")
+                    self.root.after(100, lambda: self.scripting_gui_refs['load_specific_script'](self.startup_file))
+                    return
+            
+            # Priority 2: Most recent file
             recent_files = load_recent_files()
             if recent_files:
                 last_script_path = recent_files[0]

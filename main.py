@@ -30,6 +30,14 @@ def main():
     Initializes the main application window, creates the primary UI layout,
     and starts the communication threads.
     """
+    # Check for command-line arguments (e.g., file association)
+    startup_file = None
+    if len(sys.argv) > 1:
+        startup_file = sys.argv[1]
+        if not os.path.exists(startup_file):
+            print(f"[SYSTEM WARNING] File not found: {startup_file}")
+            startup_file = None
+    
     # Initialize system logger first (before any print statements)
     try:
         from src.logging import initialize_system_logger
@@ -78,7 +86,7 @@ def main():
     except Exception as e:
         print(f"An error occurred while setting the icon: {e}")
         
-    app = MainApplication(root)
+    app = MainApplication(root, startup_file=startup_file)
     app.run()
 
 

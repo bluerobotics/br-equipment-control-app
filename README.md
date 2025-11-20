@@ -10,7 +10,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/bluerobotics/br-equipment-control-app/build.yml?style=flat-square)](https://github.com/bluerobotics/br-equipment-control-app/actions)
 [![downloads](https://img.shields.io/github/downloads/bluerobotics/br-equipment-control-app/total?style=flat-square&color=red)](https://github.com/bluerobotics/br-equipment-control-app/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![scripts](https://img.shields.io/badge/scripts-breq--scripts-green.svg?style=flat-square)](https://github.com/bluerobotics/breq-scripts)
+[![scripts](https://img.shields.io/badge/scripts-breq--scripts-darkgreen.svg?style=flat-square)](https://github.com/bluerobotics/breq-scripts)
 
 [View Changelog](CHANGELOG.md) • [Download Latest Release](https://github.com/bluerobotics/br-equipment-control-app/releases/latest)
 
