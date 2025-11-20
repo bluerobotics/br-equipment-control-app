@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from . import connection_config
 from .devices import DeviceRegistry, DeviceState, DeviceSimulatorManager
+from .terminal import log_to_terminal
 
 
 class DeviceManager:
@@ -246,7 +247,7 @@ class DeviceManager:
         """Sends a cancel command to all connected devices."""
         from . import comms  # Local import
         # Pass the entire shared_gui_refs dictionary to the logger
-        comms.log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
+        log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
         
         devices = self.registry.get_device_modules()
         for device_name in devices.keys():
@@ -332,7 +333,7 @@ class DeviceManager:
                     )
                     
                     if success:
-                        comms.log_to_terminal(f"{device_name}: Attempting USB connection on {port}...", self.shared_gui_refs)
+                        log_to_terminal(f"{device_name}: Attempting USB connection on {port}...", self.shared_gui_refs)
                         any_usb_connected = True
 
                         # Don't mark as connected yet - wait for first message to confirm
@@ -356,7 +357,7 @@ class DeviceManager:
                         # Don't update status_var or show panel yet - wait for actual connection
                         # The panel will be shown and status updated when the first message arrives
                     else:
-                        comms.log_to_terminal(f"{device_name}: Failed to auto-connect to {port}", self.shared_gui_refs)
+                        log_to_terminal(f"{device_name}: Failed to auto-connect to {port}", self.shared_gui_refs)
                         
                         # Reset device state to network on failure
                         self.update_device_state(device_name, {
@@ -369,7 +370,7 @@ class DeviceManager:
                         if status_var:
                             status_var.set(f"{device_name.capitalize()} (Disconnected)")
                 except Exception as e:
-                    comms.log_to_terminal(f"{device_name}: Error auto-connecting to {port}: {e}", self.shared_gui_refs)
+                    log_to_terminal(f"{device_name}: Error auto-connecting to {port}: {e}", self.shared_gui_refs)
         
         return any_usb_connected
 

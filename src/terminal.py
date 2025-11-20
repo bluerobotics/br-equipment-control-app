@@ -2,6 +2,42 @@ import tkinter as tk
 from tkinter import ttk
 from . import theme
 import re
+import datetime
+
+
+def log_to_terminal(msg, gui_refs):
+    """Safely logs a message to the GUI terminal by placing it on the queue."""
+    # Filter debug messages based on checkbox
+    if "_DEBUG:" in msg:
+        show_debug_var = gui_refs.get('show_debug_var')
+        if show_debug_var and not show_debug_var.get():
+            return  # Debug messages hidden, don't log
+    
+    # Create timestamp with milliseconds (keep closing bracket)
+    timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f")[:-3] + "]"
+    full_msg = f"{timestr} {msg}\n"
+    
+    # Also log to system logger if available
+    # The logger will see the timestamp in full_msg and won't add another one
+    try:
+        from .system_logger import get_system_logger
+        logger = get_system_logger()
+        if logger:
+            # Pass message with timestamp - logger will detect it and not add another
+            logger.log_message(full_msg.rstrip('\n'), is_error=False)
+    except Exception:
+        pass  # Ignore errors in logging system
+    
+    terminal_cb = gui_refs.get('terminal_cb')
+    gui_queue = gui_refs.get('gui_queue')
+
+    if terminal_cb and gui_queue:
+        # The terminal_cb function itself is what needs to run in the main thread.
+        gui_queue.put((terminal_cb, (full_msg,), {}))
+    else:
+        # Fallback for when GUI elements aren't available
+        print(full_msg)
+
 
 def create_terminal_panel(parent, shared_gui_refs):
     """

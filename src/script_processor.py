@@ -4,6 +4,7 @@ import queue
 import tkinter as tk  # For TclError and StringVar
 import re
 import shlex
+from .terminal import log_to_terminal
 
 # --- Built-in Script Commands ---
 # These are commands handled directly by the ScriptRunner, not sent to devices.
@@ -481,7 +482,7 @@ class ScriptRunner(threading.Thread):
                 # Also log to terminal as a system message
                 try:
                     from . import comms
-                    comms.log_to_terminal(f"[SYSTEM] Cycle {iteration_num}", self.gui_refs)
+                    log_to_terminal(f"[SYSTEM] Cycle {iteration_num}", self.gui_refs)
                 except Exception:
                     pass  # Ignore if logging fails
                 

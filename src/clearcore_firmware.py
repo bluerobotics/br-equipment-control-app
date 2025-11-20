@@ -7,6 +7,7 @@ import time
 import tempfile
 import urllib.request
 from typing import Callable, Optional
+from .terminal import log_to_terminal
 
 
 # Cache for dynamically loaded firmware configs
@@ -541,7 +542,7 @@ def _show_error_message(title, message):
 def _log(gui_refs, message):
     try:
         from . import comms
-        comms.log_to_terminal(message, gui_refs)
+        log_to_terminal(message, gui_refs)
     except Exception:
         pass
 

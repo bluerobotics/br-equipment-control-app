@@ -4,6 +4,7 @@ import re
 from . import theme
 from .script_processor import SCRIPT_COMMANDS
 from .comms import devices_lock
+from .terminal import log_to_terminal
 
 class Tooltip:
     """
@@ -2605,7 +2606,7 @@ class DevicePanel(ttk.Frame):
         comms.update_searching_panel_visibility(gui_refs)
         
         # Log the change
-        comms.log_to_terminal(f"{device_name}: Switched to network connection", gui_refs)
+        log_to_terminal(f"{device_name}: Switched to network connection", gui_refs)
         
         # Update status variable to reflect network mode
         device_state = self.device_manager.get_device_state(device_name)
@@ -2653,7 +2654,7 @@ class DevicePanel(ttk.Frame):
         )
         
         if success:
-            comms.log_to_terminal(f"{device_name}: Connected via USB on {port}", gui_refs)
+            log_to_terminal(f"{device_name}: Connected via USB on {port}", gui_refs)
             
             # Mark as disconnected so first USB message triggers connection UI update
             self.device_manager.update_device_state(device_name, {
@@ -2674,7 +2675,7 @@ class DevicePanel(ttk.Frame):
             # But schedule one anyway as a fallback
             self.after(1000, self.refresh)
         else:
-            comms.log_to_terminal(f"{device_name}: Failed to connect to {port}", gui_refs)
+            log_to_terminal(f"{device_name}: Failed to connect to {port}", gui_refs)
             # Refresh immediately on failure
             self.refresh()
     
