@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - **Terminal height on macOS**: Reduced default terminal height from 220px to 180px for better screen space utilization
+- **Default font size**: Changed from 11pt to 12pt for improved readability on all platforms
+- **Terminal font**: Now respects the font size setting from Settings menu
+
+### Fixed
+- **Device pane collapse state**: Fixed auto-expand logic overriding saved collapsed state on restart
+- **Device pane width persistence**: Panel width now properly updates and saves when manually resized via splitter
+- **Terminal font size**: Terminal text now uses the configured font size instead of hardcoded 9pt
 
 **Note**: Font size changes require an application restart to rebuild all UI components with the new font. This is expected behavior.
 

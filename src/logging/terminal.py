@@ -58,10 +58,11 @@ def create_terminal_panel(parent, shared_gui_refs):
     terminal_container.grid_columnconfigure(0, weight=1)
 
     # Remove fixed height - let the PanedWindow control the size
+    # Use theme's monospace font and size for consistency with font settings
     terminal = tk.Text(terminal_container, bg=theme.WIDGET_BG, fg=theme.TERMINAL_FG_COLOR, 
                        insertbackground=theme.FG_COLOR, wrap="word",
                        highlightbackground=theme.SECONDARY_ACCENT, highlightthickness=1, bd=0, 
-                       font=("Consolas", 9))
+                       font=(theme.MONOSPACE_FONT, theme.get_font_size()))
     terminal.grid(row=0, column=0, sticky="nsew")
 
     scrollbar = ttk.Scrollbar(terminal_container, command=terminal.yview)

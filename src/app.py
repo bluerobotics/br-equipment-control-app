@@ -827,6 +827,17 @@ class MainApplication:
         # Save sash positions when user manually resizes (debounced)
         self._sash_save_timer = None
         def on_sash_moved(event=None):
+            # Update the CollapsiblePanel width to match current actual width
+            try:
+                if not cmd_ref_collapsible.is_collapsed:
+                    actual_width = cmd_ref_collapsible.winfo_width()
+                    trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
+                    content_width = actual_width - trigger_width
+                    if content_width > 50:  # Sanity check
+                        cmd_ref_collapsible.width = content_width
+            except Exception as e:
+                pass  # Ignore geometry errors during resize
+            
             # Cancel any pending save
             if self._sash_save_timer:
                 self.root.after_cancel(self._sash_save_timer)
@@ -878,16 +889,17 @@ class MainApplication:
             except Exception:
                 pass  # Silently ignore errors adjusting pane width
         
-        # Expand the devices panel by default (after content is created and laid out)
+        # Only expand the devices panel if not explicitly collapsed by user
         def expand_devices_panel():
-            if cmd_ref_collapsible.is_collapsed:
+            # Respect saved collapsed state - only auto-expand on first launch
+            if cmd_ref_collapsible.is_collapsed and not self.config_data.get('device_pane_collapsed'):
                 cmd_ref_collapsible.toggle_panel()
         
         # Schedule width adjustment and expansion
         self.root.after(100, adjust_device_pane_width)
-        self.root.after(150, expand_devices_panel)
-        self.root.after(200, adjust_device_pane_width)  # Adjust again after expansion
-        self.root.after(400, expand_devices_panel)
+        # Only try to expand once if needed
+        if not self.config_data.get('device_pane_collapsed'):
+            self.root.after(150, expand_devices_panel)
         
         # --- Shared GUI References ---
         # This MUST be set AFTER the command_reference_instance is created.

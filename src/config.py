@@ -165,7 +165,7 @@ def set_font_family(font_family):
 def get_font_size():
     """Get the preferred font size from config."""
     config = load_config()
-    return config.get('font_size', 11)  # Default to 11pt
+    return config.get('font_size', 12)  # Default to 12pt
 
 
 def set_font_size(font_size):
