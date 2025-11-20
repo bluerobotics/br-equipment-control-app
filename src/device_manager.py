@@ -52,7 +52,7 @@ class DeviceManager:
         The code will look for a definition/ subfolder or use the root if it contains definition files.
         Device name is read from config.json in the definition folder.
         """
-        self.log("Loading devices from configured paths...")
+        # Note: registry.discover_devices() handles logging
         
         # Clear existing state to pick up deletions/renames
         self.state.clear_all()
@@ -91,7 +91,7 @@ class DeviceManager:
                 'connection_method': connection_method,
             })
             
-            self.log(f"Successfully loaded device module: {device_name}")
+            # Note: "Successfully loaded" message already logged by registry
             
             # Auto-connect to USB if that was the saved preference
             if connection_method == 'usb' and serial_port:
