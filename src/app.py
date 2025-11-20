@@ -707,35 +707,16 @@ class MainApplication:
             splitter.unbind("<Configure>")
 
             def position_sash():
-                """Calculates and sets the sash position to match status panel width."""
+                """Calculates and sets the sash position."""
                 splitter_width = splitter.winfo_width()
                 # Use saved device pane width if available
                 saved_device_width = self.config_data.get('device_pane_width')
                 if saved_device_width:
                     target_pos = splitter_width - saved_device_width
                 else:
-                    # Calculate device pane width based on status panel width
-                    status_container = self.shared_gui_refs.get('status_bar_container')
-                    if status_container:
-                        try:
-                            status_container.update()
-                            self.root.update_idletasks()
-                            required = status_container.winfo_reqwidth()
-                            padding = 20
-                            device_pane_width = max(320, required + padding)
-                            # Cap at 45% of window width
-                            root_width = self.root.winfo_width()
-                            if root_width > 0:
-                                device_pane_width = min(device_pane_width, int(root_width * 0.45))
-                            target_pos = splitter_width - device_pane_width
-                        except Exception:
-                            # Fallback to platform default
-                            default_width = 500 if platform.system() == 'Darwin' else 800
-                            target_pos = splitter_width - default_width
-                    else:
-                        # Fallback to platform default
-                        default_width = 500 if platform.system() == 'Darwin' else 800
-                        target_pos = splitter_width - default_width
+                    # Use platform default initially (will be adjusted later to match status panel)
+                    default_width = 500 if platform.system() == 'Darwin' else 800
+                    target_pos = splitter_width - default_width
                 
                 if target_pos > 0:
                     splitter.sashpos(0, target_pos)
@@ -814,7 +795,36 @@ class MainApplication:
             if panel:
                 panel.pack_forget()
 
-        self.root.after(150, self.adjust_status_panel_width)
+        # Adjust device pane width to match status panel width on first startup
+        def adjust_device_pane_width_on_startup():
+            """On first startup (no saved width), match device pane to status panel width."""
+            saved_device_width = self.config_data.get('device_pane_width')
+            if not saved_device_width and hasattr(self, 'splitter'):
+                try:
+                    status_container = self.shared_gui_refs.get('status_bar_container')
+                    if status_container:
+                        status_container.update()
+                        self.root.update_idletasks()
+                        required = status_container.winfo_reqwidth()
+                        padding = 20
+                        device_pane_width = max(320, required + padding)
+                        # Cap at 45% of window width
+                        root_width = self.root.winfo_width()
+                        if root_width > 0:
+                            device_pane_width = min(device_pane_width, int(root_width * 0.45))
+                        
+                        # Set the sash position
+                        splitter_width = self.splitter.winfo_width()
+                        if splitter_width > 0:
+                            target_pos = splitter_width - device_pane_width
+                            if target_pos > 0:
+                                self.splitter.sashpos(0, target_pos)
+                except Exception as e:
+                    pass  # Silently fail
+        
+        # Call after panels are laid out (multiple attempts for reliability)
+        self.root.after(200, adjust_device_pane_width_on_startup)
+        self.root.after(400, adjust_device_pane_width_on_startup)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
