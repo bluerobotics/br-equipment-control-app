@@ -696,9 +696,6 @@ class MainApplication:
 
         # --- Populate UI Components ---
         # Device panel lives in the splitter (right pane), resizable
-        # Use platform-appropriate default width (macOS needs smaller default)
-        device_pane_width = 500 if platform.system() == 'Darwin' else 800
-        
         # Create device pane (simple frame - users can hide by resizing to zero width)
         device_pane_frame = ttk.Frame(splitter, style='TFrame')
         splitter.add(device_pane_frame) # Add the pane
@@ -710,15 +707,36 @@ class MainApplication:
             splitter.unbind("<Configure>")
 
             def position_sash():
-                """Calculates and sets the sash position."""
+                """Calculates and sets the sash position to match status panel width."""
                 splitter_width = splitter.winfo_width()
-                # Use saved device pane width if available, otherwise use default
+                # Use saved device pane width if available
                 saved_device_width = self.config_data.get('device_pane_width')
                 if saved_device_width:
                     target_pos = splitter_width - saved_device_width
                 else:
-                    # Use default width
-                    target_pos = splitter_width - device_pane_width
+                    # Calculate device pane width based on status panel width
+                    status_container = self.shared_gui_refs.get('status_bar_container')
+                    if status_container:
+                        try:
+                            status_container.update()
+                            self.root.update_idletasks()
+                            required = status_container.winfo_reqwidth()
+                            padding = 20
+                            device_pane_width = max(320, required + padding)
+                            # Cap at 45% of window width
+                            root_width = self.root.winfo_width()
+                            if root_width > 0:
+                                device_pane_width = min(device_pane_width, int(root_width * 0.45))
+                            target_pos = splitter_width - device_pane_width
+                        except Exception:
+                            # Fallback to platform default
+                            default_width = 500 if platform.system() == 'Darwin' else 800
+                            target_pos = splitter_width - default_width
+                    else:
+                        # Fallback to platform default
+                        default_width = 500 if platform.system() == 'Darwin' else 800
+                        target_pos = splitter_width - default_width
+                
                 if target_pos > 0:
                     splitter.sashpos(0, target_pos)
 
