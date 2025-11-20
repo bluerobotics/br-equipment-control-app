@@ -182,6 +182,26 @@ def show_about_window(parent):
     main_frame = ttk.Frame(about_window, padding=30)
     main_frame.pack(fill=tk.BOTH, expand=True)
     
+    # Logo
+    try:
+        import os
+        import sys
+        script_dir = os.path.dirname(os.path.abspath(sys.argv[0] if getattr(sys, 'frozen', False) else __file__))
+        # Go up to project root if we're in src/
+        if os.path.basename(script_dir) == 'src':
+            script_dir = os.path.dirname(script_dir)
+        icon_path = os.path.join(script_dir, 'assets', 'icon.png')
+        
+        if os.path.exists(icon_path):
+            logo_img = tk.PhotoImage(file=icon_path)
+            # Subsample to make it smaller (reduce by factor of 2)
+            logo_img = logo_img.subsample(2, 2)
+            logo_label = ttk.Label(main_frame, image=logo_img)
+            logo_label.image = logo_img  # Keep a reference
+            logo_label.pack(pady=(0, 20))
+    except Exception as e:
+        print(f"Could not load logo for About window: {e}")
+    
     # App name
     app_name_label = ttk.Label(
         main_frame,
