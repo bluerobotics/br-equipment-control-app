@@ -34,11 +34,12 @@ GUI_UPDATE_INTERVAL_MS = 100
 
 class CollapsiblePanel(ttk.Frame):
     """A collapsible panel with a side trigger bar."""
-    def __init__(self, parent, text="Controls", width=350, start_collapsed=True, **kwargs):
+    def __init__(self, parent, text="Controls", width=350, start_collapsed=True, on_toggle_callback=None, **kwargs):
         super().__init__(parent, style='TFrame', **kwargs)
         self.text = text
         self.width = width
         self.is_collapsed = start_collapsed
+        self.on_toggle_callback = on_toggle_callback
 
         self.trigger_canvas = tk.Canvas(self, width=30, bg=theme.SECONDARY_ACCENT, highlightthickness=0)
         self.trigger_canvas.pack(side=tk.LEFT, fill=tk.Y)
@@ -105,6 +106,10 @@ class CollapsiblePanel(ttk.Frame):
         self.is_collapsed = not self.is_collapsed
         self.draw_trigger_text()
         self.after(10, self._update_parent_sash) # Let geometry manager update before moving sash
+        
+        # Call callback if provided
+        if self.on_toggle_callback:
+            self.on_toggle_callback(self.is_collapsed)
 
 class MainApplication:
     def __init__(self, root, startup_file=None):
@@ -740,8 +745,14 @@ class MainApplication:
                 try:
                     total_height = content_paned.winfo_height()
                     if total_height > 100:
-                        # Set sash so terminal is exactly 220px (about 13-14 lines)
-                        content_paned.sashpos(0, total_height - 220)
+                        # Load saved sash position or use platform-specific default
+                        saved_terminal_height = self.config_data.get('terminal_height')
+                        if saved_terminal_height:
+                            terminal_height = saved_terminal_height
+                        else:
+                            # macOS: 180px, others: 220px (about 11 vs 13-14 lines)
+                            terminal_height = 180 if platform.system() == 'Darwin' else 220
+                        content_paned.sashpos(0, total_height - terminal_height)
                 except Exception as e:
                     pass
             
@@ -766,7 +777,18 @@ class MainApplication:
         # Commands panel lives in the splitter (right pane), resizable
         # Use platform-appropriate default width (macOS needs smaller default)
         device_pane_width = 500 if platform.system() == 'Darwin' else 800
-        cmd_ref_collapsible = CollapsiblePanel(splitter, text="Devices", width=device_pane_width, start_collapsed=False)
+        
+        # Load device pane collapsed state from config (default: expanded/False)
+        device_pane_collapsed = self.config_data.get('device_pane_collapsed', False)
+        
+        # Create device pane with callback to save state
+        cmd_ref_collapsible = CollapsiblePanel(
+            splitter, 
+            text="Devices", 
+            width=device_pane_width, 
+            start_collapsed=device_pane_collapsed,
+            on_toggle_callback=self.on_device_pane_toggle
+        )
         splitter.add(cmd_ref_collapsible) # Add the pane
         cmd_ref_collapsible.get_content_frame().pack_propagate(True)
 
@@ -784,8 +806,13 @@ class MainApplication:
                     # leaving a few pixels for the sash handle itself.
                     target_pos = splitter_width - (trigger_width + 5)
                 else:
-                    # Keep sash wide enough to show the full panel width.
-                    target_pos = splitter_width - cmd_ref_collapsible.width
+                    # Use saved device pane width if available, otherwise use default
+                    saved_device_width = self.config_data.get('device_pane_width')
+                    if saved_device_width:
+                        target_pos = splitter_width - saved_device_width
+                    else:
+                        # Keep sash wide enough to show the full panel width.
+                        target_pos = splitter_width - cmd_ref_collapsible.width
                 if target_pos > 0:
                     splitter.sashpos(0, target_pos)
 
@@ -796,6 +823,19 @@ class MainApplication:
 
         # Bind to the splitter's configure event, which fires when it's first sized.
         splitter.bind("<Configure>", set_initial_sash_pos, add="+")
+        
+        # Save sash positions when user manually resizes (debounced)
+        self._sash_save_timer = None
+        def on_sash_moved(event=None):
+            # Cancel any pending save
+            if self._sash_save_timer:
+                self.root.after_cancel(self._sash_save_timer)
+            # Schedule save after 500ms of inactivity
+            self._sash_save_timer = self.root.after(500, self.save_sash_positions)
+        
+        # Bind to ButtonRelease on the splitters to detect manual resizing
+        splitter.bind("<ButtonRelease-1>", on_sash_moved, add="+")
+        content_paned.bind("<ButtonRelease-1>", on_sash_moved, add="+")
 
         # Populate the collapsible panels' content frames
         cmd_ref_content = cmd_ref_collapsible.get_content_frame()
@@ -1214,6 +1254,12 @@ class MainApplication:
         # Ask the scripting GUI to check for unsaved changes before closing
         check_result = self.scripting_gui_refs['check_unsaved']()
         if check_result:
+            # Save sash positions before closing
+            try:
+                self.save_sash_positions()
+            except Exception as e:
+                print(f"Error saving sash positions on close: {e}")
+            
             # Stop system logger
             try:
                 from src.logging import stop_system_logger
@@ -1418,6 +1464,40 @@ class MainApplication:
         )
         if response:
             self.restart_application()
+    
+    def on_device_pane_toggle(self, is_collapsed):
+        """Callback when device pane is toggled - save state to config."""
+        try:
+            config = load_config()
+            config['device_pane_collapsed'] = is_collapsed
+            save_config(config)
+        except Exception as e:
+            print(f"Error saving device pane state: {e}")
+    
+    def save_sash_positions(self):
+        """Save current sash positions to config."""
+        try:
+            config = load_config()
+            
+            # Save terminal height (vertical sash)
+            if hasattr(self, 'content_paned'):
+                total_height = self.content_paned.winfo_height()
+                sash_pos = self.content_paned.sashpos(0)
+                terminal_height = total_height - sash_pos
+                if terminal_height > 0:
+                    config['terminal_height'] = terminal_height
+            
+            # Save device pane width (horizontal sash)
+            if hasattr(self, 'splitter'):
+                total_width = self.splitter.winfo_width()
+                sash_pos = self.splitter.sashpos(0)
+                device_pane_width = total_width - sash_pos
+                if device_pane_width > 0:
+                    config['device_pane_width'] = device_pane_width
+            
+            save_config(config)
+        except Exception as e:
+            print(f"Error saving sash positions: {e}")
     
     def restart_application(self):
         """Restart the application process safely."""

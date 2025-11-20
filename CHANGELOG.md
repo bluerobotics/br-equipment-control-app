@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **UI persistence**: Device pane collapsed state is now saved and restored across sessions
+- **Sash position persistence**: Splitter positions (device pane width, terminal height) are now saved and restored across sessions
+- **Auto-save sash positions**: Splitter positions are automatically saved when manually resized by the user
+
+### Changed
+- **Terminal height on macOS**: Reduced default terminal height from 220px to 180px for better screen space utilization
+
+**Note**: Font size changes require an application restart to rebuild all UI components with the new font. This is expected behavior.
+
 ## [1.14.2] - 2025-11-20
 
 ### Added

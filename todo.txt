@@ -1,0 +1,39 @@
+ - ui improvements in macos
+
+- usb and connection hotplugging testing in macos
+
+- implement serial number system
+    - serial incrementing to filenames
+    - barcode/QR code scanner support via USB and bluetooth
+
+- implement report system
+    - start with press report
+    - new section in the devices in the device pane, under warning
+    - white text for this "reports" header
+    - what format?  open office, excel, matplotlib, other??
+    - everything needs to be very pretty
+    - display serial number
+    - time, date, etc
+    - device information, app information (incl. versions)
+    - a big PASS/FAIL visual
+    - graph of force over distance for a specific press
+    - press kg thresholds (also as visual on graph)
+    - energy (with a visual)
+    - start point (with visual on graph)
+    - end point (with visual on graph)
+    - energy and endpoint visuals
+    - raw data for the log available
+    - all the files that define and generate the report must live in a folder in the device repo (root/definition)
+    - there should be a new path for reports next to the other logs (same directory in appdata).  also equivalent for macos and linux.
+
+- new "views" section in device
+    - idk what colour the text should be this section (maybe lavendar/pastel)
+    - operator UI's that are defined in the device
+    - hooks to control script, and display any other custom functionality
+    - right-click -> display on app startup (displays the operator view by default if this device is connected).  app saves this persistent option
+    - a way to exit operator view (protected with an "are you sure")
+    - current command display bar, and just "run, hold, reset" buttons
+    - eventually, there can be views for both the pressboi and the injector
+
+- linux testing
+    - no testing has been done on linux.  maybe we should just omit the linux builds for now
