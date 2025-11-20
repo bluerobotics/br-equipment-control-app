@@ -3026,8 +3026,10 @@ class DevicePanel(ttk.Frame):
                 messagebox.showerror("Error", f"Failed to remove device path from config.\n\nPath: {device_path_to_remove}")
                 return
             
-            # Update device_manager's paths list
-            self.device_manager.device_paths = get_device_paths()
+            # Update device_manager's paths list (both manager and registry)
+            updated_paths = get_device_paths()
+            self.device_manager.device_paths = updated_paths
+            self.device_manager.registry.device_paths = updated_paths
             
             # Remove device from internal structures (without re-discovering)
             # This prevents the device from being auto-reconnected

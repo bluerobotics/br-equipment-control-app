@@ -509,9 +509,12 @@ class MainApplication:
             success = add_device_path(device_root_path)
             if success:
                 print(f"[DEBUG _prompt_add_device] Path added successfully: {device_root_path}")
-                # Reload and refresh
-                self.device_manager.device_paths = get_device_paths()
+                # Reload and refresh - update paths in BOTH device_manager AND registry
+                updated_paths = get_device_paths()
+                self.device_manager.device_paths = updated_paths
+                self.device_manager.registry.device_paths = updated_paths
                 print(f"[DEBUG _prompt_add_device] Updated paths: {self.device_manager.device_paths}")
+                print(f"[DEBUG _prompt_add_device] Registry paths: {self.device_manager.registry.device_paths}")
                 self.device_manager.discover_devices()
                 print(f"[DEBUG _prompt_add_device] Discovered devices: {list(self.device_manager.get_all_device_names())}")
                 self._on_device_added()
