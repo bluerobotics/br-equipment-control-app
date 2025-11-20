@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 from datetime import datetime
 from typing import Dict, Any
-from .. import theme
+from src import theme
 
 
 def load_json(filepath: str) -> Dict:

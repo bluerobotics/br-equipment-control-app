@@ -6,7 +6,7 @@ import tkinter as tk
 import json
 from queue import Empty
 from . import serial
-from ..logging import log_to_terminal
+from src.logging import log_to_terminal
 
 try:
     from ..firmware.clearcore import schedule_version_check

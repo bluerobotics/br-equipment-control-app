@@ -7,7 +7,7 @@ import time
 import tempfile
 import urllib.request
 from typing import Callable, Optional
-from ..logging import log_to_terminal
+from src.logging import log_to_terminal
 
 
 # Cache for dynamically loaded firmware configs

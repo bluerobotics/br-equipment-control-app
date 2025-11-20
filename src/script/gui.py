@@ -13,8 +13,8 @@ import webbrowser
 
 from .validator import validate_single_line, validate_script
 from .processor import ScriptRunner, SCRIPT_COMMANDS
-from .. import theme
-from ..comms import devices_lock
+from src import theme
+from src.comms import devices_lock
 
 # --- Find/Replace Frame ---
 class FindReplaceFrame(ttk.Frame):
