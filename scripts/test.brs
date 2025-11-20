@@ -1,4 +1,0 @@
-# Example Script
-# Type commands here or load a file.
-
-
