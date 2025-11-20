@@ -178,7 +178,7 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
     if is_new_connection:
         serial_port = device_state.get('serial_port', 'USB')
         status_text = f"{device_key.capitalize()} ({serial_port})"
-        log_to_terminal(f"{device_key.capitalize()} connected ({serial_port})", gui_refs)
+        log_to_terminal(f"[SYSTEM] {device_key}: Connected via USB on {serial_port}", gui_refs)
         
         gui_queue = gui_refs.get('gui_queue')
         
@@ -474,7 +474,7 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
 
     if is_new_connection:
         status_text = f"{device_key.capitalize()} ({source_ip})"
-        log_to_terminal(f"{device_key}: Connected via Ethernet on {source_ip}", gui_refs)
+        log_to_terminal(f"[SYSTEM] {device_key}: Connected via Ethernet on {source_ip}", gui_refs)
         
         status_var = gui_refs.get(f'status_var_{device_key}')
         if status_var:
