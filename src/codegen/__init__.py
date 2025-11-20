@@ -17,7 +17,7 @@ from .generator import (
     generate_variables_cpp,
     generate_events_header,
     generate_events_cpp,
-    open_code_generator
+    show_code_generator
 )
 
 __all__ = [
@@ -28,6 +28,6 @@ __all__ = [
     'generate_variables_cpp',
     'generate_events_header',
     'generate_events_cpp',
-    'open_code_generator'
+    'show_code_generator'
 ]
 
