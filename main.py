@@ -853,13 +853,8 @@ class MainApplication:
         terminal_widgets = create_terminal_panel(terminal_pane, self.shared_gui_refs)
         self.shared_gui_refs.update(terminal_widgets)
 
-        # --- Log device discovery messages to the GUI terminal ---
-        if 'terminal_cb' in self.shared_gui_refs:
-            terminal_cb = self.shared_gui_refs['terminal_cb']
-            for log_msg in self.discovery_logs:
-                timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
-                full_msg = f"{timestr} [SYSTEM] {log_msg}\n"
-                terminal_cb(full_msg)
+        # Device discovery messages are automatically logged through system logger
+        # No need to manually send them to terminal here
 
         terminal_widgets['terminal_frame'].pack(fill=tk.BOTH, expand=True)
 

@@ -56,7 +56,8 @@ def log_to_terminal(msg, gui_refs):
         if show_debug_var and not show_debug_var.get():
             return  # Debug messages hidden, don't log
     
-    timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
+    # Create timestamp with milliseconds (keep closing bracket)
+    timestr = datetime.datetime.now().strftime("[%H:%M:%S.%f")[:-3] + "]"
     full_msg = f"{timestr} {msg}\n"
     
     # Also log to system logger if available
