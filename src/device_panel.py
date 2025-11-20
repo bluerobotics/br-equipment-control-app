@@ -2840,6 +2840,10 @@ class DevicePanel(ttk.Frame):
             self.device_manager.registry.device_paths = updated_paths
             self.device_manager.discover_devices()
             
+            # Log device addition to terminal
+            device_name = os.path.basename(device_root_path)
+            log_to_terminal(f"[SYSTEM] {device_name}: Device added to app", self.device_manager.shared_gui_refs)
+            
             # Refresh the UI
             self.refresh()
             
