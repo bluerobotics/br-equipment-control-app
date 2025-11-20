@@ -701,33 +701,7 @@ class MainApplication:
         splitter.add(device_pane_frame) # Add the pane
         device_pane_frame.pack_propagate(True)
 
-        def set_initial_sash_pos(event=None):
-            # This function runs once after the window is drawn to set the sash.
-            # We unbind immediately to ensure it's not called again on resize.
-            splitter.unbind("<Configure>")
-
-            def position_sash():
-                """Calculates and sets the sash position."""
-                splitter_width = splitter.winfo_width()
-                # Use saved device pane width if available
-                saved_device_width = self.config_data.get('device_pane_width')
-                if saved_device_width:
-                    target_pos = splitter_width - saved_device_width
-                else:
-                    # Use compact default width that matches typical status panel width
-                    default_width = 420
-                    target_pos = splitter_width - default_width
-                
-                if target_pos > 0:
-                    splitter.sashpos(0, target_pos)
-
-            # Schedule this to run after a short delay. This allows the Tkinter
-            # event loop to process all initial geometry calculations, ensuring
-            # winfo_width() returns a correct, stable value.
-            splitter.after(10, position_sash)
-
-        # Bind to the splitter's configure event, which fires when it's first sized.
-        splitter.bind("<Configure>", set_initial_sash_pos, add="+")
+        # Don't set initial sash position here - will be handled after status panels are measured
         
         # Save sash positions when user manually resizes (debounced)
         self._sash_save_timer = None
@@ -789,12 +763,20 @@ class MainApplication:
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
-        # Measure status container width BEFORE hiding panels (for first startup sizing)
-        def adjust_device_pane_width_on_startup():
-            """On first startup (no saved width), match device pane to status panel width."""
-            saved_device_width = self.config_data.get('device_pane_width')
-            if not saved_device_width and hasattr(self, 'splitter'):
-                try:
+        # Set device pane width based on saved width OR measured status panel width
+        def set_device_pane_width():
+            """Set device pane width: use saved width if available, otherwise measure status panel."""
+            if not hasattr(self, 'splitter'):
+                return
+            
+            try:
+                saved_device_width = self.config_data.get('device_pane_width')
+                
+                if saved_device_width:
+                    # Use saved width
+                    device_pane_width = saved_device_width
+                else:
+                    # Measure status panel width
                     status_container = self.shared_gui_refs.get('status_bar_container')
                     if status_container:
                         # Force update to get accurate measurements
@@ -807,27 +789,29 @@ class MainApplication:
                         root_width = self.root.winfo_width()
                         if root_width > 0:
                             device_pane_width = min(device_pane_width, int(root_width * 0.45))
-                        
-                        # Set the sash position
-                        splitter_width = self.splitter.winfo_width()
-                        if splitter_width > 0:
-                            target_pos = splitter_width - device_pane_width
-                            if target_pos > 0:
-                                self.splitter.sashpos(0, target_pos)
-                except Exception as e:
-                    pass  # Silently fail
+                    else:
+                        # Fallback
+                        device_pane_width = 420
+                
+                # Set the sash position
+                splitter_width = self.splitter.winfo_width()
+                if splitter_width > 0 and device_pane_width > 0:
+                    target_pos = splitter_width - device_pane_width
+                    if target_pos > 0:
+                        self.splitter.sashpos(0, target_pos)
+            except Exception as e:
+                print(f"Error setting device pane width: {e}")
         
-        # Measure width while panels are still visible, then hide them
-        self.root.after(50, adjust_device_pane_width_on_startup)
-        
-        # Hide panels by default (after measuring)
-        def hide_panels():
+        # Set width after panels are laid out, then hide them
+        def set_width_then_hide():
+            set_device_pane_width()
+            # Hide panels after measuring
             for device_name in self.device_modules.keys():
                 panel = self.shared_gui_refs.get(f'{device_name}_panel')
                 if panel:
                     panel.pack_forget()
         
-        self.root.after(100, hide_panels)
+        self.root.after(100, set_width_then_hide)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
