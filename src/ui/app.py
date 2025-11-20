@@ -24,7 +24,7 @@ from ..script import create_scripting_interface, load_recent_files, RECENT_FILES
 from .status_panel import create_status_bar
 from ..logging import create_terminal_panel, DataLogger
 from ..device import DeviceManager, create_device_panel
-from ..top_menu import create_top_menu
+from ..menu_bar import create_top_menu
 from ..config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
 
 from _version import __version__
