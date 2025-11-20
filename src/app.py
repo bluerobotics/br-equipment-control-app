@@ -32,85 +32,6 @@ from _version import __version__
 GUI_UPDATE_INTERVAL_MS = 100
 
 
-class CollapsiblePanel(ttk.Frame):
-    """A collapsible panel with a side trigger bar."""
-    def __init__(self, parent, text="Controls", width=350, start_collapsed=True, on_toggle_callback=None, **kwargs):
-        super().__init__(parent, style='TFrame', **kwargs)
-        self.text = text
-        self.width = width
-        self.is_collapsed = start_collapsed
-        self.on_toggle_callback = on_toggle_callback
-
-        self.trigger_canvas = tk.Canvas(self, width=30, bg=theme.SECONDARY_ACCENT, highlightthickness=0)
-        self.trigger_canvas.pack(side=tk.LEFT, fill=tk.Y)
-
-        self.content_panel = ttk.Frame(self, width=self.width, style='TFrame')
-        self.content_panel.pack_propagate(False)
-        if self.is_collapsed:
-            # Start collapsed: don't pack content
-            self.configure(width=int(self.trigger_canvas.cget('width')))
-        else:
-            self.content_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            self.configure(width=self.width)
-            self.after(10, self._update_parent_sash)
-
-        self.draw_trigger_text()
-        self.trigger_canvas.bind("<Button-1>", self.toggle_panel)
-        self.trigger_canvas.bind("<Enter>", lambda e: self.trigger_canvas.config(bg=theme.PRIMARY_ACCENT))
-        self.trigger_canvas.bind("<Leave>", lambda e: self.trigger_canvas.config(bg=theme.SECONDARY_ACCENT))
-
-    def get_content_frame(self):
-        return self.content_panel
-
-    def draw_trigger_text(self):
-        self.trigger_canvas.delete("all")
-        display_text = "Show " + self.text if self.is_collapsed else "Hide " + self.text
-        self.trigger_canvas.create_text(15, 150, text=display_text, angle=90, font=theme.FONT_BOLD, fill=theme.FG_COLOR, anchor="center")
-
-    def _update_parent_sash(self):
-        """If this panel is in a Panedwindow, update the sash position."""
-        self.update_idletasks()
-        try:
-            pw = self.master
-            if isinstance(pw, ttk.Panedwindow):
-                panes = pw.panes()
-                if str(self) in panes:
-                    sash_index = panes.index(str(self)) - 1
-                    if sash_index >= 0:
-                        trigger_width = self.trigger_canvas.winfo_width()
-                        total_width = pw.winfo_width()
-                        
-                        if self.is_collapsed:
-                            # Move sash to make this pane only trigger_width wide
-                            target_pos = total_width - trigger_width
-                            # Add a small buffer for the sash itself
-                            if target_pos < total_width - 5:
-                                target_pos -= 5
-                            pw.sashpos(sash_index, target_pos)
-                        else:
-                            # Move sash to make this pane its full configured width
-                            target_pos = total_width - self.width
-                            pw.sashpos(sash_index, target_pos)
-        except Exception:
-            pass # Fail silently
-
-    def toggle_panel(self, event=None):
-        if self.is_collapsed:
-            # Expand to configured width
-            self.content_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            self.configure(width=self.width)
-        else:
-            # Collapse to trigger width
-            self.content_panel.pack_forget()
-            self.configure(width=int(self.trigger_canvas.cget('width')))
-        self.is_collapsed = not self.is_collapsed
-        self.draw_trigger_text()
-        self.after(10, self._update_parent_sash) # Let geometry manager update before moving sash
-        
-        # Call callback if provided
-        if self.on_toggle_callback:
-            self.on_toggle_callback(self.is_collapsed)
-
 class MainApplication:
     def __init__(self, root, startup_file=None):
         self.root = root
@@ -774,23 +695,14 @@ class MainApplication:
 
 
         # --- Populate UI Components ---
-        # Commands panel lives in the splitter (right pane), resizable
+        # Device panel lives in the splitter (right pane), resizable
         # Use platform-appropriate default width (macOS needs smaller default)
         device_pane_width = 500 if platform.system() == 'Darwin' else 800
         
-        # Load device pane collapsed state from config (default: expanded/False)
-        device_pane_collapsed = self.config_data.get('device_pane_collapsed', False)
-        
-        # Create device pane with callback to save state
-        cmd_ref_collapsible = CollapsiblePanel(
-            splitter, 
-            text="Devices", 
-            width=device_pane_width, 
-            start_collapsed=device_pane_collapsed,
-            on_toggle_callback=self.on_device_pane_toggle
-        )
-        splitter.add(cmd_ref_collapsible) # Add the pane
-        cmd_ref_collapsible.get_content_frame().pack_propagate(True)
+        # Create device pane (simple frame - users can hide by resizing to zero width)
+        device_pane_frame = ttk.Frame(splitter, style='TFrame')
+        splitter.add(device_pane_frame) # Add the pane
+        device_pane_frame.pack_propagate(True)
 
         def set_initial_sash_pos(event=None):
             # This function runs once after the window is drawn to set the sash.
@@ -800,19 +712,13 @@ class MainApplication:
             def position_sash():
                 """Calculates and sets the sash position."""
                 splitter_width = splitter.winfo_width()
-                trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
-                if cmd_ref_collapsible.is_collapsed:
-                    # Position sash so the right pane is only trigger_width wide,
-                    # leaving a few pixels for the sash handle itself.
-                    target_pos = splitter_width - (trigger_width + 5)
+                # Use saved device pane width if available, otherwise use default
+                saved_device_width = self.config_data.get('device_pane_width')
+                if saved_device_width:
+                    target_pos = splitter_width - saved_device_width
                 else:
-                    # Use saved device pane width if available, otherwise use default
-                    saved_device_width = self.config_data.get('device_pane_width')
-                    if saved_device_width:
-                        target_pos = splitter_width - saved_device_width
-                    else:
-                        # Keep sash wide enough to show the full panel width.
-                        target_pos = splitter_width - cmd_ref_collapsible.width
+                    # Use default width
+                    target_pos = splitter_width - device_pane_width
                 if target_pos > 0:
                     splitter.sashpos(0, target_pos)
 
@@ -827,17 +733,6 @@ class MainApplication:
         # Save sash positions when user manually resizes (debounced)
         self._sash_save_timer = None
         def on_sash_moved(event=None):
-            # Update the CollapsiblePanel width to match current actual width
-            try:
-                if not cmd_ref_collapsible.is_collapsed:
-                    actual_width = cmd_ref_collapsible.winfo_width()
-                    trigger_width = int(cmd_ref_collapsible.trigger_canvas.cget('width'))
-                    content_width = actual_width - trigger_width
-                    if content_width > 50:  # Sanity check
-                        cmd_ref_collapsible.width = content_width
-            except Exception as e:
-                pass  # Ignore geometry errors during resize
-            
             # Cancel any pending save
             if self._sash_save_timer:
                 self.root.after_cancel(self._sash_save_timer)
@@ -848,8 +743,8 @@ class MainApplication:
         splitter.bind("<ButtonRelease-1>", on_sash_moved, add="+")
         content_paned.bind("<ButtonRelease-1>", on_sash_moved, add="+")
 
-        # Populate the collapsible panels' content frames
-        cmd_ref_content = cmd_ref_collapsible.get_content_frame()
+        # Device pane content frame
+        cmd_ref_content = device_pane_frame
 
         # Create scripting GUI in the scripting pane
         self.scripting_gui_refs = create_scripting_interface(
@@ -873,33 +768,6 @@ class MainApplication:
         
         # Add syntax highlighter to shared_gui_refs so it can be refreshed when devices are added
         self.shared_gui_refs['syntax_highlighter'] = self.scripting_gui_refs['syntax_highlighter']
-        
-        # Dynamically adjust device pane width based on content
-        def adjust_device_pane_width():
-            try:
-                self.root.update_idletasks()
-                # Get the required width of the command reference content
-                req_width = self.command_reference_instance.winfo_reqwidth()
-                # Add some padding for scrollbar and margins
-                desired_width = req_width + 40
-                # Cap it at reasonable limits (350-700px)
-                desired_width = max(350, min(desired_width, 700))
-                # Update the collapsible panel width
-                cmd_ref_collapsible.width = desired_width
-            except Exception:
-                pass  # Silently ignore errors adjusting pane width
-        
-        # Only expand the devices panel if not explicitly collapsed by user
-        def expand_devices_panel():
-            # Respect saved collapsed state - only auto-expand on first launch
-            if cmd_ref_collapsible.is_collapsed and not self.config_data.get('device_pane_collapsed'):
-                cmd_ref_collapsible.toggle_panel()
-        
-        # Schedule width adjustment and expansion
-        self.root.after(100, adjust_device_pane_width)
-        # Only try to expand once if needed
-        if not self.config_data.get('device_pane_collapsed'):
-            self.root.after(150, expand_devices_panel)
         
         # --- Shared GUI References ---
         # This MUST be set AFTER the command_reference_instance is created.
@@ -1476,15 +1344,6 @@ class MainApplication:
         )
         if response:
             self.restart_application()
-    
-    def on_device_pane_toggle(self, is_collapsed):
-        """Callback when device pane is toggled - save state to config."""
-        try:
-            config = load_config()
-            config['device_pane_collapsed'] = is_collapsed
-            save_config(config)
-        except Exception as e:
-            print(f"Error saving device pane state: {e}")
     
     def save_sash_positions(self):
         """Save current sash positions to config."""

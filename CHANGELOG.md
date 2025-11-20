@@ -5,7 +5,6 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **UI persistence**: Device pane collapsed state is now saved and restored across sessions
 - **Sash position persistence**: Splitter positions (device pane width, terminal height) are now saved and restored across sessions
 - **Auto-save sash positions**: Splitter positions are automatically saved when manually resized by the user
 
@@ -14,8 +13,10 @@ All notable changes to this project will be documented in this file.
 - **Default font size**: Changed from 11pt to 12pt for improved readability on all platforms
 - **Terminal font size**: Terminal text is now 2pt smaller than the main font size for more compact display (e.g., 10pt terminal when main font is 12pt)
 
+### Removed
+- **Device pane collapse trigger bar**: Removed collapsible panel trigger bar - users can now hide the device pane by simply resizing it to zero width (position is saved)
+
 ### Fixed
-- **Device pane collapse state**: Fixed auto-expand logic overriding saved collapsed state on restart
 - **Device pane width persistence**: Panel width now properly updates and saves when manually resized via splitter
 - **Terminal font size**: Terminal text now uses the configured font size instead of hardcoded 9pt
 
