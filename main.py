@@ -33,7 +33,7 @@ from _version import __version__
 
 # Import GUI components
 from src.top_menu import create_top_menu
-from src.command_reference import create_command_reference, AddDeviceDialog
+from src.device_panel import create_command_reference, AddDeviceDialog
 
 GUI_UPDATE_INTERVAL_MS = 100
 

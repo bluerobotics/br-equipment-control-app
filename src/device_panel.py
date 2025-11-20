@@ -83,7 +83,11 @@ class Tooltip:
         if tw:
             tw.destroy()
 
-class CommandReference(ttk.Frame):
+class DevicePanel(ttk.Frame):
+    """
+    Right-side panel for managing devices, browsing commands/variables/events,
+    and controlling device connections and simulators.
+    """
     def __init__(self, parent, script_editor_widget, device_manager, **kwargs):
         super().__init__(parent, **kwargs)
         self.script_editor_widget = script_editor_widget
@@ -5263,8 +5267,8 @@ def create_device_panel(parent, device_manager):
 
 
 def create_command_reference(parent, script_editor_widget, device_manager):
-    # This is now a wrapper for the class
-    return CommandReference(parent, script_editor_widget, device_manager)
+    """Legacy function name for backward compatibility. Creates a DevicePanel."""
+    return DevicePanel(parent, script_editor_widget, device_manager)
 
 # --- Themed Right-click Menu for Command Reference ---
 class ThemedContextMenu(tk.Menu):
