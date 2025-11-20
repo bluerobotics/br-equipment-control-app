@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Panel visibility on reconnection**: Added robust error handling in GUI queue processing to prevent silent failures
+- **Device panel desync**: Implemented automatic monitoring and recovery when connected devices don't have visible panels
+- **Connection resilience**: Added safeguards to ensure device panels show correctly after USB reconnection, especially during watchdog recovery states
+- **GUI queue errors**: Individual task failures no longer break the entire queue; errors are logged and processing continues
+
 ## [1.14.1] - 2025-11-20
 
 ### Changed

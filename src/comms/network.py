@@ -200,10 +200,19 @@ def handle_serial_message(device_key, message, gui_refs, device_manager):
         # Queue showing the panel first
         show_panel_fn = gui_refs.get('show_panel')
         if show_panel_fn:
+            print(f"[DEBUG] Queueing show_panel for {device_key}")
             if gui_queue:
                 gui_queue.put((show_panel_fn, (device_key,), {}))
             else:
-                show_panel_fn(device_key)
+                print(f"[DEBUG] No gui_queue, calling show_panel directly")
+                try:
+                    show_panel_fn(device_key)
+                except Exception as e:
+                    print(f"[ERROR] Direct show_panel call failed for {device_key}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            print(f"[ERROR] No show_panel function found in gui_refs!")
         
         # Then update the status variable
         status_var = gui_refs.get(f'status_var_{device_key}')

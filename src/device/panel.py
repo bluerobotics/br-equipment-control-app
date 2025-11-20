@@ -2687,6 +2687,20 @@ class DevicePanel(ttk.Frame):
             # The USB message handler will trigger a refresh when data arrives
             # But schedule one anyway as a fallback
             self.after(1000, self.refresh)
+            
+            # Schedule a panel visibility check as an additional safeguard
+            # This ensures the panel shows even if the normal connection flow has issues
+            def ensure_panel_visible():
+                device_state = self.device_manager.get_device_state(device_name)
+                if device_state and device_state.get('connected'):
+                    show_panel_fn = gui_refs.get('show_panel')
+                    if show_panel_fn:
+                        try:
+                            show_panel_fn(device_name)
+                        except Exception as e:
+                            print(f"[ERROR] Safeguard panel show failed for {device_name}: {e}")
+            
+            self.after(2000, ensure_panel_visible)
         else:
             log_to_terminal(f"{device_name}: Failed to connect to {port}", gui_refs)
             # Refresh immediately on failure

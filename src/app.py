@@ -653,8 +653,22 @@ class MainApplication:
         """Makes a device's status panel visible."""
         panel = self.shared_gui_refs.get(f'{device_key}_panel')
         if panel:
-            panel.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
-            self.root.after_idle(self.adjust_status_panel_width)
+            try:
+                # Check if panel is already packed
+                if panel.winfo_ismapped():
+                    # Panel is already visible, no action needed
+                    return
+                
+                panel.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
+                self.root.after_idle(self.adjust_status_panel_width)
+                print(f"[DEBUG] Successfully showed panel for {device_key}")
+            except Exception as e:
+                print(f"[ERROR] Failed to show panel for {device_key}: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"[ERROR] No panel found for {device_key} in shared_gui_refs")
+            print(f"[DEBUG] Available panels: {[k for k in self.shared_gui_refs.keys() if '_panel' in k]}")
 
     def initialize_command_functions(self):
         # This method is now obsolete and can be removed.
@@ -1250,6 +1264,7 @@ class MainApplication:
         
         self.animate_searching_text()
         self.process_gui_queue()
+        self.monitor_panel_state()
         self.root.mainloop()
 
     def animate_searching_text(self):
@@ -1270,11 +1285,43 @@ class MainApplication:
         try:
             while True:
                 task, args, kwargs = self.gui_queue.get_nowait()
-                task(*args, **kwargs)
+                try:
+                    task(*args, **kwargs)
+                except Exception as e:
+                    # Log but don't let one failed task break the entire queue
+                    print(f"[GUI QUEUE ERROR] Task {task.__name__ if hasattr(task, '__name__') else task} failed: {e}")
+                    import traceback
+                    traceback.print_exc()
         except Empty:
             pass  # Queue is empty, do nothing
         finally:
             self.root.after(100, self.process_gui_queue)
+    
+    def monitor_panel_state(self):
+        """
+        Periodically checks for desync between device connection state and panel visibility.
+        Auto-recovers by showing panels for connected devices that aren't visible.
+        """
+        try:
+            device_states = self.device_manager.get_all_device_states()
+            for device_name, state in device_states.items():
+                if state.get('connected', False):
+                    # Device is connected, check if panel is visible
+                    panel = self.shared_gui_refs.get(f'{device_name}_panel')
+                    if panel:
+                        try:
+                            if not panel.winfo_ismapped():
+                                # Panel exists but isn't visible - auto-recover
+                                print(f"[AUTO-RECOVER] Device {device_name} is connected but panel is hidden. Showing panel.")
+                                self.show_panel(device_name)
+                        except Exception as e:
+                            # Panel might be destroyed or invalid
+                            print(f"[MONITOR WARNING] Panel check failed for {device_name}: {e}")
+        except Exception as e:
+            print(f"[MONITOR ERROR] Panel state monitoring failed: {e}")
+        finally:
+            # Check every 5 seconds
+            self.root.after(5000, self.monitor_panel_state)
 
     def set_ui_scale(self, value: float):
         """Adjust tk scaling/font size, update the variable, and persist the choice."""
