@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Configurable log directories**: System logs and data logs now use separate directories that can be configured via Settings → Show Application Paths
 - **Application Paths dialog**: Updated to allow editing system and data log directories with Browse buttons and Save/Cancel actions
+- **USB disconnect detection**: Serial listener now detects physical USB disconnections via port status checks and data timeout monitoring
 
 ### Changed
 - **Log directory defaults**: System logs now go to OS-specific system log locations (e.g., `~/Library/Logs` on macOS), data logs go to `data_logs` subdirectory
@@ -17,6 +18,9 @@ All notable changes to this project will be documented in this file.
 - **Device panel desync**: Implemented automatic monitoring and recovery when connected devices don't have visible panels
 - **Connection resilience**: Added safeguards to ensure device panels show correctly after USB reconnection, especially during watchdog recovery states
 - **GUI queue errors**: Individual task failures no longer break the entire queue; errors are logged and processing continues
+- **USB disconnect logging**: USB disconnections now consistently logged to GUI terminal with proper device state cleanup and panel hiding
+- **Zombie serial threads**: Fixed serial listener threads not terminating on USB disconnect, causing thread accumulation on replug
+- **Inconsistent disconnect messages**: USB disconnect detection now works reliably via `is_open` checks and 3-second data timeout
 
 ## [1.14.1] - 2025-11-20
 
