@@ -3026,9 +3026,33 @@ class DevicePanel(ttk.Frame):
                 messagebox.showerror("Error", f"Failed to remove device path from config.\n\nPath: {device_path_to_remove}")
                 return
             
-            # Reload device paths from config and rediscover devices
+            # Update device_manager's paths list
             self.device_manager.device_paths = get_device_paths()
-            self.device_manager.discover_devices()
+            
+            # Remove device from internal structures (without re-discovering)
+            # This prevents the device from being auto-reconnected
+            if device_name in self.device_manager.registry.devices:
+                del self.device_manager.registry.devices[device_name]
+            
+            # Remove device state
+            self.device_manager.state.remove_device(device_name)
+            
+            # Remove device's GUI panel reference
+            panel_key = f'{device_name}_panel'
+            if panel_key in self.device_manager.shared_gui_refs:
+                # Destroy the panel widget if it exists
+                panel = self.device_manager.shared_gui_refs[panel_key]
+                if panel and hasattr(panel, 'destroy'):
+                    try:
+                        panel.destroy()
+                    except tk.TclError:
+                        pass  # Already destroyed
+                del self.device_manager.shared_gui_refs[panel_key]
+            
+            # Remove device's status variable
+            status_var_key = f'status_var_{device_name}'
+            if status_var_key in self.device_manager.shared_gui_refs:
+                del self.device_manager.shared_gui_refs[status_var_key]
             
             # Refresh UI after a short delay to ensure device_manager has updated
             self.after(200, self.refresh)
