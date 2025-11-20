@@ -146,19 +146,21 @@ Use this to diagnose intermittent connectivity issues, watchdog timeouts, or fir
 
 Scripts use the `.breq` (BR Equipment) file extension and are plain text files.
 
-### 5.1. Built-In Commands
+### 6.1. Built-In Commands
 
 | Command | Example |
 |---------|---------|
 | `wait` | `wait 5` |
 | `wait_for` | `wait_for gantry.x_pos > 100` |
 | `cycle` | `cycle 10` |
+| `if` | `if device.temp_c > 100 throw device.overheat` |
+| `throw` | `throw device.error_warning` |
 | `queue_for_logging` | `queue_for_logging fillhead.temp_c` |
 | `unqueue_for_logging` | `unqueue_for_logging fillhead.temp_c` |
 | `start_logging` | `start_logging "data.csv" fillhead gantry` |
 | `stop_logging` | `stop_logging` |
 
-### 5.2. Syntax
+### 6.2. Syntax
 
 ```
 # Comments start with #
