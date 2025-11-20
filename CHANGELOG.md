@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Configurable log directories**: System logs and data logs now use separate directories that can be configured via Settings → Show Application Paths
+- **Application Paths dialog**: Updated to allow editing system and data log directories with Browse buttons and Save/Cancel actions
+
+### Changed
+- **Log directory defaults**: System logs now go to OS-specific system log locations (e.g., `~/Library/Logs` on macOS), data logs go to `data_logs` subdirectory
+- **Log directory separation**: System logs (stdout/stderr) and data logs (CSV telemetry) now stored in different configurable directories
+
 ### Fixed
 - **Panel visibility on reconnection**: Added robust error handling in GUI queue processing to prevent silent failures
 - **Device panel desync**: Implemented automatic monitoring and recovery when connected devices don't have visible panels
