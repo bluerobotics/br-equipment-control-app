@@ -17,7 +17,8 @@ from .network import (
     update_searching_panel_visibility,
     monitor_connections,
     discover_devices,
-    recv_loop
+    recv_loop,
+    discovery_loop
 )
 
 # Import from serial module (was serial_comms.py)
@@ -42,6 +43,7 @@ __all__ = [
     'monitor_connections',
     'discover_devices',
     'recv_loop',
+    'discovery_loop',
     # Serial comms
     'serial_lock',
     'serial_connections',
