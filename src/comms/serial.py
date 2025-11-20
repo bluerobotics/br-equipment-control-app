@@ -151,17 +151,39 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                     # Thread was stopped
                     break
             
+            # Check if USB port is still physically connected
+            try:
+                if not ser.is_open:
+                    print(f"[SERIAL] Port {port_name} closed unexpectedly (USB disconnected)")
+                    break
+            except Exception as e:
+                print(f"[SERIAL] Error checking port status for {port_name}: {e}")
+                break
+            
             # Update last data time
             now = time.time()
             if has_received_data:
                 last_data_time = now
+            
+            # Check for timeout if we've received data before
+            # This detects when USB cable is unplugged (no more data coming)
+            if has_received_data and (now - last_data_time) > 3.0:
+                print(f"[SERIAL] No data received from {port_name} for 3 seconds (USB likely disconnected)")
+                break
                     
             # Read ALL available lines, not just one per loop iteration
-            while ser.in_waiting > 0:
+            try:
+                in_waiting = ser.in_waiting
+            except Exception as e:
+                print(f"[SERIAL] Error reading from {port_name}: {e} (USB likely disconnected)")
+                break
+            
+            while in_waiting > 0:
                 try:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if line:
                         has_received_data = True
+                        last_data_time = now
                         
                         # Check if device is configured for USB before processing messages
                         # If network is configured, read and discard to drain the buffer
@@ -178,6 +200,7 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                         
                         if not should_process:
                             # Drain the buffer but don't process the message
+                            in_waiting = ser.in_waiting  # Check for more data
                             continue
                         
                         # Check if this is a chunked message
@@ -210,6 +233,14 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                         else:
                             # Normal message (not chunked)
                             message_callback(device_key, line, gui_refs, device_manager)
+                    
+                    # Check for more data
+                    try:
+                        in_waiting = ser.in_waiting
+                    except Exception:
+                        # Port likely disconnected
+                        break
+                        
                 except Exception as e:
                     print(f"[SERIAL ERROR] {port_name}: {e}")
                     import traceback
@@ -218,8 +249,48 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
             
             time.sleep(0.01)  # Small delay to prevent CPU hogging
         
-        ser.close()
+        # Close the serial port
+        try:
+            ser.close()
+        except Exception:
+            pass  # Port might already be closed
+        
         print(f"[SERIAL] Disconnected from {device_key} on {port_name}")
+        
+        # Update device state to disconnected
+        if device_manager:
+            from .network import devices_lock
+            with devices_lock:
+                device_manager.update_device_state(device_key, {
+                    "connected": False
+                })
+        
+        # Log disconnect to GUI terminal
+        if gui_refs:
+            from src.logging import log_to_terminal
+            log_to_terminal(f"{device_key.capitalize()} Disconnected", gui_refs)
+            
+            # Hide the panel and reset variables
+            reset_and_hide_fn = gui_refs.get('reset_and_hide_panel')
+            if reset_and_hide_fn:
+                gui_queue = gui_refs.get('gui_queue')
+                if gui_queue:
+                    gui_queue.put((reset_and_hide_fn, (device_key,), {}))
+                else:
+                    reset_and_hide_fn(device_key)
+            
+            # Update searching panel visibility
+            from .network import update_searching_panel_visibility
+            gui_queue = gui_refs.get('gui_queue')
+            if gui_queue:
+                gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
+            else:
+                update_searching_panel_visibility(gui_refs)
+        
+        # Clean up serial connection entry
+        with serial_lock:
+            if port_name in serial_connections:
+                del serial_connections[port_name]
         
     except Exception as e:
         if not silent:
