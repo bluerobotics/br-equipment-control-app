@@ -2833,7 +2833,10 @@ class DevicePanel(ttk.Frame):
                 return
             
             # Reload device paths from config and rediscover devices
-            self.device_manager.device_paths = get_device_paths()
+            # Update both device_manager and registry paths
+            updated_paths = get_device_paths()
+            self.device_manager.device_paths = updated_paths
+            self.device_manager.registry.device_paths = updated_paths
             self.device_manager.discover_devices()
             
             # Refresh the UI
