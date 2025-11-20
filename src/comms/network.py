@@ -49,9 +49,25 @@ devices_lock = threading.Lock() # This can still be useful to protect access to 
 
 # --- Communication Functions ---
 
+# Track last recovery warning to prevent duplicates from USB + network
+_last_recovery_warning = {'device': None, 'time': 0, 'msg': None}
+
 def show_recovery_warning(device_name, msg, gui_refs):
     """Shows a critical warning dialog for watchdog recovery."""
+    import time
     from tkinter import messagebox
+    
+    # Deduplicate: same device + same message within 2 seconds = skip
+    now = time.time()
+    if (_last_recovery_warning['device'] == device_name and 
+        _last_recovery_warning['msg'] == msg and 
+        now - _last_recovery_warning['time'] < 2.0):
+        return  # Skip duplicate
+    
+    # Update tracking
+    _last_recovery_warning['device'] = device_name
+    _last_recovery_warning['msg'] = msg
+    _last_recovery_warning['time'] = now
     
     # Extract the message after the prefix
     message_text = msg.split(":", 1)[1].strip() if ":" in msg else msg

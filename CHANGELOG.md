@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.0] - 2025-11-20
+
+### Added
+- **Error log viewer**: Dedicated window (Devices → Dump Error Log...) with syntax highlighting, device selector, and copy-to-clipboard support
+- **USB connection robustness**: DTR/RTS toggling and 2-second buffer draining eliminates "ghost data" from previous sessions
+
+### Changed
+- **Terminal capture**: Error log window tracks position to show only new messages, preventing duplicate entries from previous dumps
+- **UI structure**: Moved `app.py` from `src/ui/` to `src/` and removed unused UI files
+
+### Fixed
+- **TTK theme contamination**: Error log window uses custom style name instead of global theme reset
+- **Import errors**: Corrected relative imports in firmware modules (`from .comms` → `from ..comms`)
+- **Error log timeout**: Fixed message parsing for USB and network formats, case-insensitive device matching
+- **Watchdog recovery handling**: Script processor now auto-clears error hold when device sends `DONE: reset`
+- **Recovery message display**: Status bar immediately shows RECOVERY messages (not just ERROR), even when no script running
+- **Double recovery popups**: Deduplication prevents same warning from appearing twice when received over USB + network
+- **Status bar persistence**: `DONE: reset` automatically clears red error state in GUI
+
 ## [1.13.0] - 2025-11-19
 
 ### Changed

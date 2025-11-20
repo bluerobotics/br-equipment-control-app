@@ -1012,8 +1012,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     recent_files_menu_ref = None
 
     def terminal_wrapper(message):
-        # --- Intercept ERROR messages to display them prominently ---
-        if "_ERROR:" in message:
+        # --- Intercept ERROR and RECOVERY messages to display them prominently ---
+        if "_ERROR:" in message or "_RECOVERY:" in message or "RECOVERY:" in message:
             # The root.after is crucial to prevent threading issues with Tkinter
             root.after(0, lambda: status_label.config(foreground=theme.ERROR_RED)) # Bright Red
             root.after(0, lambda: status_var.set(message))
@@ -1027,11 +1027,22 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 # Just put the script runner into hold state
                 if hasattr(script_runner, 'is_held'):
                     script_runner.is_held = True
-                root.after(0, refresh_button_states)  # Update UI to show held state
+            # Always refresh button states to show error (even when no script running)
+            root.after(0, refresh_button_states)
 
-        if "DONE:" in message:
+        # Add DONE and RECOVERY messages to queue for script processor
+        if "DONE:" in message or "_RECOVERY:" in message or "RECOVERY:" in message:
             print(f"[DEBUG] terminal_wrapper adding to queue: {message}")
             message_queue.put(message)
+            
+            # If this is DONE: reset, clear the error state
+            if "DONE:" in message and "reset" in message.lower():
+                root.after(0, lambda: status_label.config(foreground=theme.PRIMARY_ACCENT))  # Clear red
+                if not (script_runner and script_runner.is_running):
+                    # No script running - clear the status
+                    root.after(0, lambda: status_var.set("Reset complete."))
+                root.after(0, refresh_button_states)
+        
         if original_terminal_cb: original_terminal_cb(message)
 
     shared_gui_refs['terminal_cb'] = terminal_wrapper
@@ -1491,15 +1502,20 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def status_callback_handler(message, line_num):
         def update_gui():
             nonlocal last_exec_highlight, is_held_by_user, feed_hold_line
+            
+            # Always update status bar with message
             status_var.set(message)
             
-            # If we received an ERROR message during script execution, trigger hold (same as Hold button)
-            if "_ERROR:" in message and script_runner and script_runner.is_running:
-                is_held_by_user = True
-                feed_hold_line = line_num if line_num != -1 else last_exec_highlight
-                shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
-                # Don't stop the runner - it will enter hold state and wait for resume
-                refresh_button_states()  # Update UI to show held state
+            # If we received an ERROR or RECOVERY message, handle it appropriately
+            if "_ERROR:" in message or "_RECOVERY:" in message or "RECOVERY:" in message:
+                # If a script is running, trigger hold state
+                if script_runner and script_runner.is_running:
+                    is_held_by_user = True
+                    feed_hold_line = line_num if line_num != -1 else last_exec_highlight
+                    shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
+                    # Don't stop the runner - it will enter hold state and wait for resume
+                # Always refresh button states to show error in UI
+                refresh_button_states()
             
             if last_exec_highlight != line_num:
                 if last_exec_highlight != -1:

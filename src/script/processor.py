@@ -1399,11 +1399,27 @@ class ScriptRunner(threading.Thread):
                     
                     # Enter permanent hold state - only reset or stop can exit
                     # Do NOT allow resume with Run button
+                    device_reset_received = False
                     while self.is_running and not self._stop_event.is_set():
-                        time.sleep(0.1)
+                        # Check for DONE: reset message from any device - automatically clear error hold
+                        try:
+                            check_msg = self.msg_q.get(timeout=0.1)
+                            print(f"[DEBUG] During error hold, received: {check_msg}")
+                            if "_DONE:" in check_msg and "reset" in check_msg.lower():
+                                self.status_cb(f"Device reset successful - clearing error hold.", line_num)
+                                self.is_held = False
+                                device_reset_received = True
+                                break
+                        except queue.Empty:
+                            pass
+                        
                         # Ignore resume events - errors require reset, not resume
                         if self._resume_event.is_set():
                             self._resume_event.clear()  # Clear the event but don't resume
+                    
+                    # If device reset was received, return True to continue script from current line
+                    if device_reset_received:
+                        return True
                     
                     # User clicked Stop (or script was stopped externally)
                     self.is_held = False

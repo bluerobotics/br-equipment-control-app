@@ -964,26 +964,30 @@ class DevicePanel(ttk.Frame):
             if is_simulated:
                 self.context_menu.add_command(label="Stop Simulate", command=lambda: self.stop_simulate_device(device_name))
             else:
-                # Create simulate submenu
-                simulate_submenu = tk.Menu(self.context_menu, tearoff=0,
-                                          bg=theme.WIDGET_BG,
-                                          fg=theme.FG_COLOR,
-                                          activebackground=theme.PRIMARY_ACCENT,
-                                          activeforeground=theme.FG_COLOR)
+                # Only show Start Simulate if device is NOT connected (prevents conflicts)
+                device_state = self.device_manager.get_device_state(device_name)
+                is_connected = device_state and device_state.get('connected')
                 
-                simulate_submenu.add_command(
-                    label="Local Network (127.0.0.1)",
-                    command=lambda: self.start_simulate_device(device_name, connection_type='network')
-                )
-                
-                simulate_submenu.add_command(
-                    label="USB Serial (Virtual)",
-                    command=lambda: self.start_simulate_device(device_name, connection_type='usb')
-                )
-                
-                self.context_menu.add_cascade(label="Start Simulate", menu=simulate_submenu)
-            
-            self.context_menu.add_separator()
+                if not is_connected:
+                    # Create simulate submenu
+                    simulate_submenu = tk.Menu(self.context_menu, tearoff=0,
+                                              bg=theme.WIDGET_BG,
+                                              fg=theme.FG_COLOR,
+                                              activebackground=theme.PRIMARY_ACCENT,
+                                              activeforeground=theme.FG_COLOR)
+                    
+                    simulate_submenu.add_command(
+                        label="Local Network (127.0.0.1)",
+                        command=lambda: self.start_simulate_device(device_name, connection_type='network')
+                    )
+                    
+                    simulate_submenu.add_command(
+                        label="USB Serial (Virtual)",
+                        command=lambda: self.start_simulate_device(device_name, connection_type='usb')
+                    )
+                    
+                    self.context_menu.add_cascade(label="Start Simulate", menu=simulate_submenu)
+                    self.context_menu.add_separator()
             
             # Add logging options
             if queued_vars:
@@ -1003,7 +1007,6 @@ class DevicePanel(ttk.Frame):
             
             self.context_menu.add_command(label="Refresh Device", command=lambda: self.refresh_device(device_name))
             self.context_menu.add_separator()
-            self.context_menu.add_command(label="Edit Device...", command=self.edit_device)
             self.context_menu.add_command(label="More Info...", command=self.show_device_info)
             self.context_menu.add_separator()
             self.context_menu.add_command(label="Remove Device", command=self.remove_device,
@@ -2583,6 +2586,11 @@ class DevicePanel(ttk.Frame):
         from ..comms import serial
         from .. import comms
         
+        # If device is being simulated, stop the simulator first
+        device_state = self.device_manager.get_device_state(device_name)
+        if device_state and device_state.get('simulated'):
+            self.device_manager.stop_simulator(device_name)
+        
         # Keep USB connection open to prevent firmware TX buffer from filling up
         # The serial listener will continue to read and discard USB data
         # Only the connection_method change will make the app ignore USB messages
@@ -2630,8 +2638,12 @@ class DevicePanel(ttk.Frame):
         
         gui_refs = self.device_manager.shared_gui_refs
         
-        # Disconnect from any previous USB port
+        # If device is being simulated, stop the simulator first
         device_state = self.device_manager.get_device_state(device_name)
+        if device_state and device_state.get('simulated'):
+            self.device_manager.stop_simulator(device_name)
+        
+        # Disconnect from any previous USB port
         if device_state and device_state.get('serial_port'):
             serial.disconnect_serial_device(device_state['serial_port'])
         
@@ -2686,8 +2698,9 @@ class DevicePanel(ttk.Frame):
             device_name (str): Name of the device to simulate
             connection_type (str): 'network' for local network (127.0.0.1) or 'usb' for virtual USB
         """
+        # Start simulator
         self.device_manager.start_simulator(device_name, connection_type=connection_type)
-        # Refresh after a delay to let discovery complete
+        # Refresh to show simulator status
         self.after(1000, self.refresh)
     
     def stop_simulate_device(self, device_name):
