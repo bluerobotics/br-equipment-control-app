@@ -1476,7 +1476,7 @@ class MainApplication:
         # Create new window
         window = tk.Toplevel(self.root)
         window.title(title)
-        window.geometry("800x600")
+        window.geometry("1200x800")  # Larger for better readability
         window.configure(bg=theme.BG_COLOR)
         
         # Create frame with padding
@@ -1504,9 +1504,20 @@ class MainApplication:
         text_widget.insert('1.0', normalized_content)
         text_widget.config(state=tk.DISABLED)  # Make read-only
         
-        # Add close button
+        # Add buttons
         button_frame = ttk.Frame(frame)
         button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        def copy_to_clipboard():
+            """Copy log content to clipboard."""
+            window.clipboard_clear()
+            window.clipboard_append(normalized_content)
+            # Flash the button to show it worked
+            copy_button.configure(text="✓ Copied!")
+            window.after(1000, lambda: copy_button.configure(text="Copy to Clipboard"))
+        
+        copy_button = ttk.Button(button_frame, text="Copy to Clipboard", command=copy_to_clipboard)
+        copy_button.pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="Close", command=window.destroy).pack(side=tk.RIGHT)
         
         # Store window reference

@@ -213,13 +213,20 @@ class LogWriter:
         if not text_stripped:
             return
         
-        # Check if text already has a timestamp prefix
-        has_timestamp = text_stripped.startswith('[') and ']' in text_stripped[:20]
+        # Check if text already has a timestamp prefix (format: [HH:MM:SS.mmm)
+        # Must have time format like [16:48:20.123
+        import re
+        has_timestamp = bool(re.match(r'^\[\d{2}:\d{2}:\d{2}\.\d+', text_stripped))
         
         if not has_timestamp:
-            # Add timestamp and [python] prefix
+            # Add timestamp and [python] prefix (only if message doesn't already have [python])
             timestamp = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
-            formatted_text = f"{timestamp} [python] {text_stripped}\n"
+            if text_stripped.startswith('[python]'):
+                # Already has [python], just add timestamp
+                formatted_text = f"{timestamp} {text_stripped}\n"
+            else:
+                # Add both timestamp and [python] prefix
+                formatted_text = f"{timestamp} [python] {text_stripped}\n"
             # Also send to terminal widget if available
             self._send_to_terminal(formatted_text)
         else:
