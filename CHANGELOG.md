@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - **Script file extension**: Changed from `.brs` to `.breq` (BR Equipment) to avoid conflict with BrightScript
+- **Import system**: Converted all relative imports to absolute imports (`from src.*`) for reliable operation in both source and executable contexts
+
+### Fixed
+- **Device add/remove errors**: Fixed "attempted relative import beyond top-level package" errors when adding or removing devices
 
 ## [1.14.0] - 2025-11-20
 
