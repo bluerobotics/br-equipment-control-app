@@ -350,11 +350,17 @@ class DeviceManager:
                         # Send discovery commands with retries to prompt a response from the firmware
                         # The firmware should respond with telemetry chunks
                         import time
-                        time.sleep(0.5)  # Initial delay for serial port to be ready
+                        time.sleep(1.0)  # Longer initial delay for USB CDC to stabilize after reconnect
+                        
+                        # Try a simple command first to wake up the firmware's USB
+                        serial.send_serial_command(port, "DISCOVER_DEVICE")
+                        time.sleep(0.5)
+                        
+                        # Now send the actual discovery commands
                         for attempt in range(3):
                             self.log(f"{device_name}: Sending DISCOVER_DEVICE command (attempt {attempt + 1}/3)")
                             serial.send_serial_command(port, "DISCOVER_DEVICE")
-                            time.sleep(0.2)  # Small delay between attempts
+                            time.sleep(0.3)  # Slightly longer delay between attempts
                         
                         # Don't update status_var or show panel yet - wait for actual connection
                         # The panel will be shown and status updated when the first message arrives

@@ -658,7 +658,7 @@ class FirmwareManagerWindow(tk.Toplevel):
         
         # Always request version to ensure we have the latest
         try:
-            from . import comms
+            from .. import comms
             comms.discover_devices(self.gui_refs)
             row = self.rows.get(device_key)
             if row and not state.get('firmware_version'):

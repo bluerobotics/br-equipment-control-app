@@ -94,12 +94,41 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
     """
     try:
         ser = serial.Serial(port_name, SERIAL_BAUD_RATE, timeout=SERIAL_TIMEOUT)
-        # Give the port a moment to fully initialize
-        time.sleep(0.1)
         
-        # Flush/drain any stale data in the buffers from previous session
+        # Toggle DTR to reset the USB connection state
+        # This helps clear any stale state from previous sessions
+        ser.dtr = False
+        ser.rts = False
+        time.sleep(0.1)
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.2)
+        
+        # Aggressively flush/drain any stale data in the buffers from previous session
+        # This is critical to prevent 58-second delays from queued data
         ser.reset_input_buffer()  # Clear input (RX) buffer
         ser.reset_output_buffer()  # Clear output (TX) buffer
+        
+        # Read and discard any pending data (drain the pipe)
+        ser.timeout = 0.01  # Very short timeout for draining
+        start_drain = time.time()
+        bytes_drained = 0
+        while time.time() - start_drain < 2.0:  # Drain for up to 2 seconds
+            if ser.in_waiting > 0:
+                chunk = ser.read(ser.in_waiting)
+                bytes_drained += len(chunk)
+            else:
+                break  # No more data
+        
+        if bytes_drained > 0:
+            print(f"[SERIAL] Drained {bytes_drained} stale bytes from {port_name}")
+        
+        # Restore normal timeout
+        ser.timeout = SERIAL_TIMEOUT
+        
+        # One more flush after draining
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
         
         if not silent:
             print(f"[SERIAL] Connected to {device_key} on {port_name}")

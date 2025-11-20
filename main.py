@@ -22,7 +22,7 @@ if not getattr(sys, 'frozen', False):
         sys.path.insert(0, libs_path)
 
 from src import theme
-from src.ui import MainApplication
+from src.app import MainApplication
 
 
 def main():

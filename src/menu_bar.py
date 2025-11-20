@@ -9,6 +9,8 @@ import platform
 from _version import __version__
 
 
+
+
 def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback):
     """
     Creates the main application menu bar.
@@ -16,11 +18,13 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     # Import here to avoid circular dependencies
     from .codegen.generator import show_code_generator
     from .firmware import open_firmware_manager
+    from .device.error_log import show_error_log_window
     
     # Create device commands
     device_commands = {
         'generate_cpp_code': lambda: show_code_generator(parent, gui_refs),
-        'open_firmware_manager': lambda: open_firmware_manager(parent, gui_refs)
+        'open_firmware_manager': lambda: open_firmware_manager(parent, gui_refs),
+        'dump_error_log': lambda: show_error_log_window(parent, gui_refs)
     }
     
     menubar = Menu(parent, 
@@ -88,6 +92,8 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
                         activebackground=theme.PRIMARY_ACCENT,
                         activeforeground=theme.FG_COLOR)
     devices_menu.add_command(label="Firmware Manager...", command=device_commands['open_firmware_manager'])
+    devices_menu.add_separator(background=theme.WIDGET_BORDER)
+    devices_menu.add_command(label="Dump Error Log...", command=device_commands['dump_error_log'])
     devices_menu.add_separator(background=theme.WIDGET_BORDER)
     devices_menu.add_command(label="C++ Code Generator...", command=device_commands['generate_cpp_code'])
     menubar.add_cascade(label="Devices", menu=devices_menu)

@@ -19,13 +19,12 @@ import datetime
 from pathlib import Path
 
 # Import application modules
-from .. import comms, theme
-from ..script import create_scripting_interface, load_recent_files, RECENT_FILES_PATH, validate_script, ScriptRunner
-from .status_panel import create_status_bar
-from ..logging import create_terminal_panel, DataLogger
-from ..device import DeviceManager, create_device_panel
-from ..menu_bar import create_top_menu
-from ..config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
+from . import comms, theme
+from .script import create_scripting_interface, load_recent_files, RECENT_FILES_PATH, validate_script, ScriptRunner
+from .logging import create_terminal_panel, DataLogger
+from .device import DeviceManager, create_device_panel
+from .menu_bar import create_top_menu
+from .config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
 
 from _version import __version__
 
@@ -834,13 +833,13 @@ class MainApplication:
         self.shared_gui_refs['searching_frame'] = self.searching_frame
         self.searching_frame.pack(side=tk.TOP, fill="x", expand=False, pady=(0, 8))
         
-        # Populate the left status bar
-        status_widgets_dict = create_status_bar(left_bar_frame, self.shared_gui_refs)
-        self.shared_gui_refs.update(status_widgets_dict)
+        # Create status bar container for device panels
+        status_bar_container = ttk.Frame(left_bar_frame, style='TFrame')
+        status_bar_container.pack(side=tk.TOP, fill='x', expand=False)
+        self.shared_gui_refs['status_bar_container'] = status_bar_container
 
         # --- DYNAMIC DEVICE GUI CREATION ---
-        # The create_status_bar function now returns a container for device panels
-        device_panel_container = self.shared_gui_refs.get('status_bar_container')
+        device_panel_container = status_bar_container
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
