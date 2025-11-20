@@ -202,8 +202,7 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         # Update device state to reflect connection failure
         if device_manager:
             # Only update if the device hasn't already connected via network
-            from . import comms
-            from .comms import devices_lock
+            from .network import devices_lock
             
             with devices_lock:
                 current_state = device_manager.get_device_state(device_key)
@@ -241,11 +240,12 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                     reset_and_hide_fn(device_key)
             
             # Update searching panel visibility
+            from .network import update_searching_panel_visibility
             gui_queue = gui_refs.get('gui_queue')
             if gui_queue:
-                gui_queue.put((comms.update_searching_panel_visibility, (gui_refs,), {}))
+                gui_queue.put((update_searching_panel_visibility, (gui_refs,), {}))
             else:
-                comms.update_searching_panel_visibility(gui_refs)
+                update_searching_panel_visibility(gui_refs)
 
 
 def connect_serial_device(port_name, device_key, message_callback, gui_refs, device_manager, silent=False):
