@@ -18,9 +18,9 @@
 
 ---
 
-## Officially Supported Devices
-
 <div align="center">
+
+## Officially Supported Devices
 
 | Device | Description | Repository |
 |:------:|:-----------:|:----------:|
