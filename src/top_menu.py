@@ -174,16 +174,9 @@ def show_about_window(parent):
     
     about_window = tk.Toplevel(parent)
     about_window.title("About BR Equipment Control App")
-    about_window.geometry("600x450")
     about_window.configure(bg=theme.BG_COLOR)
     about_window.resizable(False, False)
     about_window.transient(parent)
-    
-    # Center the window
-    about_window.update_idletasks()
-    x = (about_window.winfo_screenwidth() // 2) - (about_window.winfo_width() // 2)
-    y = (about_window.winfo_screenheight() // 2) - (about_window.winfo_height() // 2)
-    about_window.geometry(f"+{x}+{y}")
     
     # Main frame with padding
     main_frame = ttk.Frame(about_window, padding=30)
@@ -255,19 +248,13 @@ def show_about_window(parent):
         font=("Segoe UI", 8),
         foreground=theme.COMMENT_COLOR
     )
-    copyright_label.pack(pady=(0, 20))
+    copyright_label.pack(pady=(0, 0))
     
-    # Close button
-    button_frame = ttk.Frame(main_frame)
-    button_frame.pack(fill=tk.X)
-    
-    close_button = ttk.Button(
-        button_frame,
-        text="Close",
-        command=about_window.destroy,
-        style="Blue.TButton"
-    )
-    close_button.pack(side=tk.RIGHT)
+    # Center the window after all content is packed
+    about_window.update_idletasks()
+    x = (about_window.winfo_screenwidth() // 2) - (about_window.winfo_width() // 2)
+    y = (about_window.winfo_screenheight() // 2) - (about_window.winfo_height() // 2)
+    about_window.geometry(f"+{x}+{y}")
     
     # Store window reference
     show_about_window._window = about_window
