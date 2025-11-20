@@ -1,10 +1,10 @@
 import os
 import tkinter as tk
-from ..comms import config as connection_config
-from .registry import DeviceRegistry
-from .state import DeviceState
-from .simulator import DeviceSimulatorManager
-from ..logging import log_to_terminal
+from src.comms import config as connection_config
+from src.device.registry import DeviceRegistry
+from src.device.state import DeviceState
+from src.device.simulator import DeviceSimulatorManager
+from src.logging import log_to_terminal
 
 
 class DeviceManager:

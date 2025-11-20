@@ -8,7 +8,7 @@ from devices, with syntax highlighting and clipboard support.
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 from tkinter import ttk
-from .. import theme
+from src import theme
 import time
 
 

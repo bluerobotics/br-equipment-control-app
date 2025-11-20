@@ -1,11 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
 import re
-from .. import theme
-from ..script import SCRIPT_COMMANDS
-from ..comms import devices_lock
-from ..logging import log_to_terminal
-from ..config import add_device_path, remove_device_path, get_device_paths
+from src import theme
+from src.script import SCRIPT_COMMANDS
+from src.comms import devices_lock
+from src.logging import log_to_terminal
+from src.config import add_device_path, remove_device_path, get_device_paths
 
 class Tooltip:
     """
@@ -5230,7 +5230,7 @@ This module contains device-specific GUI components and panels.
 
 import tkinter as tk
 from tkinter import ttk
-from .. import theme
+from src import theme
 
 def create_device_panel(parent, device_manager):
     """
