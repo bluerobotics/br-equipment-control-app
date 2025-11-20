@@ -153,8 +153,11 @@ class SystemLogger:
         if not self.logging_enabled:
             return
         
-        # Add timestamp if not already present
-        if not message.startswith('[') or ']' not in message[:20]:
+        # Add timestamp if not already present (check for proper timestamp format)
+        import re
+        has_timestamp = bool(re.match(r'^\[\d{2}:\d{2}:\d{2}\.\d+', message))
+        
+        if not has_timestamp:
             timestamp = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
             formatted_message = f"{timestamp} {message}\n"
         else:
@@ -218,14 +221,22 @@ class LogWriter:
         import re
         has_timestamp = bool(re.match(r'^\[\d{2}:\d{2}:\d{2}\.\d+', text_stripped))
         
+        # Check if message already has a tag like [SYSTEM], [SERIAL], [STATUS], etc.
+        has_tag = bool(re.match(r'^\[[A-Z_]+\]', text_stripped))
+        
         if not has_timestamp:
-            # Add timestamp and [python] prefix (only if message doesn't already have [python])
+            # Add timestamp
             timestamp = datetime.datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
-            if text_stripped.startswith('[python]'):
+            
+            # Only add [python] prefix if message doesn't have any tag
+            if has_tag:
+                # Has a tag like [SYSTEM], [SERIAL], etc. - don't add [python]
+                formatted_text = f"{timestamp} {text_stripped}\n"
+            elif text_stripped.startswith('[python]'):
                 # Already has [python], just add timestamp
                 formatted_text = f"{timestamp} {text_stripped}\n"
             else:
-                # Add both timestamp and [python] prefix
+                # No tag at all - add both timestamp and [python] prefix
                 formatted_text = f"{timestamp} [python] {text_stripped}\n"
             # Also send to terminal widget if available
             self._send_to_terminal(formatted_text)
