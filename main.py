@@ -569,8 +569,8 @@ class MainApplication:
         self.shared_gui_refs['command_funcs'] = self.command_funcs
         
         # Refresh command reference if it exists
-        if hasattr(self, 'command_reference') and self.command_reference:
-            self.command_reference.refresh()
+        if hasattr(self, 'command_reference_instance') and self.command_reference_instance:
+            self.command_reference_instance.refresh()
         
         # Refresh syntax highlighter for newly added devices (delayed to ensure editor is ready)
         # Retry multiple times since the script editor might not be opened yet
