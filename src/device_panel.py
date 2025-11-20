@@ -3015,7 +3015,6 @@ class DevicePanel(ttk.Frame):
         try:
             # Disconnect the device before removing it
             device_state = self.device_manager.get_device_state(device_name)
-            disconnection_msg = ""
             if device_state:
                 connection_method = device_state.get('connection_method', 'network')
                 if connection_method == 'usb':
@@ -3025,15 +3024,17 @@ class DevicePanel(ttk.Frame):
                         from src import serial_comms
                         serial_comms.disconnect_serial_device(serial_port)
                         print(f"[DEBUG] Disconnected {device_name} from {serial_port}")
-                        disconnection_msg = f" (disconnected from {serial_port})"
+                        # Log disconnection message (will appear in red due to "DISCONNECT" keyword)
+                        log_to_terminal(f"{device_name}: Disconnected from {serial_port}", self.device_manager.shared_gui_refs)
                 elif connection_method == 'network':
                     ip = device_state.get('ip')
                     if ip:
-                        disconnection_msg = f" (disconnected from {ip})"
+                        # Log disconnection message (will appear in red due to "DISCONNECT" keyword)
+                        log_to_terminal(f"{device_name}: Disconnected from {ip}", self.device_manager.shared_gui_refs)
                 # For network, the connection will be cleaned up by the monitor thread when it times out
             
-            # Log device removal to terminal
-            log_to_terminal(f"[SYSTEM] {device_name}: Device removed from app{disconnection_msg}", self.device_manager.shared_gui_refs)
+            # Log device removal to terminal (will appear in blue/cyan due to [SYSTEM] tag)
+            log_to_terminal(f"[SYSTEM] {device_name}: Device removed from app", self.device_manager.shared_gui_refs)
             
             # Remove device path from config
             from main import remove_device_path, get_device_paths
