@@ -18,20 +18,34 @@
 
 ---
 
+## Known Devices
+
+| Device | Description | Repository |
+|--------|-------------|------------|
+| **Pressboi** | Dual-motor press control | [bluerobotics/pressboi](https://github.com/bluerobotics/pressboi) |
+| **Fillhead** | Automated filling system | [bluerobotics/fillhead](https://github.com/bluerobotics/fillhead) |
+| **Gantry** | XYZ motion control | [bluerobotics/gantry](https://github.com/bluerobotics/gantry) |
+
+---
+
 ## 1. Overview
 
-Desktop application for controlling and automating manufacturing equipment. Supports multi-device scripting, real-time telemetry, CSV data logging, and firmware management over USB and Ethernet.
+Open-source desktop application for controlling and automating manufacturing equipment built on ClearCore microcontrollers. Designed for production environments where multiple devices need to work together in coordinated sequences.
 
 <p align="center">
   <img src="assets/app.png" alt="App Screenshot" width="800">
 </p>
 
+The application provides a unified interface for scripting, monitoring, and debugging custom manufacturing equipment. Communicate over USB serial or Ethernet, write automation scripts in a simple text format, log telemetry data for analysis, and flash firmware updates without leaving the app. Device definitions are modular - add new equipment types by creating JSON schemas and custom GUI panels.
+
 **Key Capabilities:**
-- Run coordinated scripts across multiple devices
-- Log telemetry data with millisecond precision
-- Update firmware over-the-air
-- Debug with step-through execution and error logs
-- Test without hardware using built-in simulators
+- **Multi-Device Scripting**: Coordinate actions across multiple devices with simple text-based scripts (`.breq` files)
+- **Dual Communication**: USB and Ethernet connectivity with automatic discovery and failover
+- **Data Logging**: Export telemetry to CSV with millisecond timestamps for analysis in Excel or other tools
+- **Firmware Management**: Flash firmware updates over USB or network with version tracking
+- **Error Diagnostics**: View device error logs and 24-hour heartbeat history for debugging connectivity issues
+- **Simulation Mode**: Test scripts without hardware using built-in device simulators
+- **Modular Architecture**: Add new device types by defining JSON schemas - the app auto-generates C++ parsers for firmware
 
 ---
 
