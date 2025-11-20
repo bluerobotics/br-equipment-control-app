@@ -517,6 +517,12 @@ class MainApplication:
                 print(f"[DEBUG _prompt_add_device] Registry paths: {self.device_manager.registry.device_paths}")
                 self.device_manager.discover_devices()
                 print(f"[DEBUG _prompt_add_device] Discovered devices: {list(self.device_manager.get_all_device_names())}")
+                
+                # Log device addition to terminal
+                device_name = os.path.basename(device_root_path)
+                from src.terminal import log_to_terminal
+                log_to_terminal(f"[SYSTEM] {device_name}: Device added to app", self.shared_gui_refs)
+                
                 self._on_device_added()
                 print(f"[DEBUG _prompt_add_device] Called _on_device_added()")
             else:
