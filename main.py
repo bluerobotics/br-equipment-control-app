@@ -15,7 +15,7 @@ if not getattr(sys, 'frozen', False):
         sys.path.insert(0, libs_path)
 
 from src import comms
-from src.scripting_gui import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
+from src.script import create_scripting_interface, load_recent_files, RECENT_FILES_PATH
 from src.status_panel import create_status_bar
 from src.terminal import create_terminal_panel
 import json
@@ -1208,7 +1208,7 @@ class MainApplication:
         Validates the current script and shows results in a dialog.
         """
         from tkinter import messagebox
-        from src.script_validator import validate_script
+        from src.script import validate_script
         
         # Get the current script content
         script_content = self.scripting_gui_refs['get_script_content']()
@@ -1221,7 +1221,7 @@ class MainApplication:
         
         if not errors:
             # Check for device connectivity issues
-            from src.script_processor import ScriptRunner
+            from src.script import ScriptRunner
             import shlex
             
             required_devices = set()

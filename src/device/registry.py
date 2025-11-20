@@ -248,7 +248,7 @@ class DeviceRegistry:
         all_commands = {}
         
         # Add built-in script commands
-        from ..script_processor import SCRIPT_COMMANDS
+        from ..script import SCRIPT_COMMANDS
         for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
             all_commands[cmd_name] = cmd_details.copy()
         

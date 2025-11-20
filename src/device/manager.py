@@ -296,7 +296,7 @@ class DeviceManager:
         Returns:
             bool: True if at least one device connected successfully, False otherwise.
         """
-        from .. import serial_comms
+        from ..comms import serial
         from .. import comms
         
         any_usb_connected = False
@@ -326,7 +326,7 @@ class DeviceManager:
                 
                 # Start USB listener
                 try:
-                    success = serial_comms.connect_serial_device(
+                    success = serial.connect_serial_device(
                         port,
                         device_name,
                         comms.handle_serial_message,
@@ -353,7 +353,7 @@ class DeviceManager:
                         time.sleep(0.5)  # Initial delay for serial port to be ready
                         for attempt in range(3):
                             self.log(f"{device_name}: Sending DISCOVER_DEVICE command (attempt {attempt + 1}/3)")
-                            serial_comms.send_serial_command(port, "DISCOVER_DEVICE")
+                            serial.send_serial_command(port, "DISCOVER_DEVICE")
                             time.sleep(0.2)  # Small delay between attempts
                         
                         # Don't update status_var or show panel yet - wait for actual connection
@@ -381,16 +381,16 @@ class DeviceManager:
         Attempts to reconnect a USB device. Called by monitor thread for hotplug support.
         Silent mode - no error spam if port isn't available.
         """
-        from .. import serial_comms
+        from ..comms import serial
         from .. import comms
         
         # Check if port is already connected
-        with serial_comms.serial_lock:
-            if serial_port in serial_comms.serial_connections:
+        with serial.serial_lock:
+            if serial_port in serial.serial_connections:
                 return  # Already connected
         
         # Try to connect (silent mode - no error messages or success spam)
-        success = serial_comms.connect_serial_device(
+        success = serial.connect_serial_device(
             serial_port,
             device_name,
             comms.handle_serial_message,

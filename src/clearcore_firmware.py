@@ -334,9 +334,9 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
         if device_state and device_state.get('connection_method') == 'usb':
             serial_port = device_state.get('serial_port')
             if serial_port:
-                from . import serial_comms
+                from .comms import serial
                 _log(gui_refs, f"[{device_key}] Closing serial connection on {serial_port}...")
-                serial_comms.disconnect_serial_device(serial_port)
+                serial.disconnect_serial_device(serial_port)
                 time.sleep(0.5)  # Give time for device to reboot and port to close
 
         _log(gui_refs, f"[{device_key}] Waiting for bootloader to appear...")
@@ -367,9 +367,9 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
             time.sleep(2.0)  # Give device time to fully reboot
             
             try:
-                from . import serial_comms
+                from .comms import serial
                 from . import comms
-                success_reconnect = serial_comms.connect_serial_device(
+                success_reconnect = serial.connect_serial_device(
                     serial_port,
                     device_key,
                     comms.handle_serial_message,

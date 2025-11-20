@@ -5,8 +5,8 @@ import datetime
 import tkinter as tk
 import json
 from queue import Empty
-from . import serial_comms
-from .terminal import log_to_terminal
+from . import serial
+from ..terminal import log_to_terminal
 
 try:
     from .clearcore_firmware import schedule_version_check
@@ -117,9 +117,8 @@ def send_to_device(device_key, msg, gui_refs):
         serial_port = device_state.get('serial_port')
         if serial_port:
             try:
-                from . import serial_comms
                 log_to_terminal(f"[CMD SENT to {device_key.upper()} via USB]: {msg}", gui_refs)
-                serial_comms.send_serial_command(serial_port, msg)
+                serial.send_serial_command(serial_port, msg)
             except Exception as e:
                 log_to_terminal(f"Error sending to {device_key} via USB: {e}", gui_refs)
         else:
