@@ -906,7 +906,6 @@ class MainApplication:
             'validate': self.validate_script
         }
         settings_commands = {
-            'change_device_folder': self.change_device_folder,
             'show_paths': self.show_paths_window
         }
         self.menubar, self.recent_files_menu = create_top_menu(
