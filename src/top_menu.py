@@ -19,7 +19,7 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     Creates the main application menu bar.
     """
     # Import here to avoid circular dependencies
-    from .code_generator import show_code_generator
+    from .codegen.generator import show_code_generator
     from .firmware_manager import open_firmware_manager
     
     # Create device commands

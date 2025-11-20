@@ -43,7 +43,8 @@ python_files = [
     'src/theme.py',
     'src/top_menu.py',
     'src/command_reference.py',
-    'src/code_generator.py',
+    'src/codegen/generator.py',
+    'src/codegen/batch.py',
     'src/clearcore_firmware.py',
     'src/_version.py',
 ]

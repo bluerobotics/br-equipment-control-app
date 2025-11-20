@@ -9,7 +9,7 @@ import sys
 # Handle both standalone execution and module import
 try:
     # Try relative import first (when imported as module)
-    from .code_generator import (
+    from .generator import (
         load_json, 
         generate_command_header, 
         generate_commands_cpp,
@@ -21,9 +21,9 @@ try:
 except ImportError:
     # Fall back to absolute import (when run as script)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(script_dir)
+    parent_dir = os.path.dirname(os.path.dirname(script_dir))
     sys.path.insert(0, parent_dir)
-    from src.code_generator import (
+    from src.codegen.generator import (
         load_json, 
         generate_command_header, 
         generate_commands_cpp,
