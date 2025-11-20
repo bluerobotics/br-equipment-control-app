@@ -33,14 +33,46 @@ def clean_dist():
         shutil.rmtree('build', ignore_errors=True)
     print("  [OK] Cleaned\n")
 
+def get_python_executable():
+    """Get the best Python executable for building (prefer Homebrew Python 3.13+ on macOS)."""
+    if platform.system() == 'Darwin':  # macOS
+        # Try to find Homebrew Python 3.13+ (has modern Tk/Tcl)
+        homebrew_pythons = [
+            '/opt/homebrew/bin/python3.13',
+            '/opt/homebrew/bin/python3',
+            '/usr/local/bin/python3.13',
+            '/usr/local/bin/python3',
+        ]
+        for python_path in homebrew_pythons:
+            if Path(python_path).exists():
+                # Verify it has PyInstaller
+                try:
+                    result = subprocess.run(
+                        [python_path, '-m', 'PyInstaller', '--version'],
+                        capture_output=True,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        print(f"  Using: {python_path}")
+                        return python_path
+                except:
+                    pass
+        
+        print(f"  Warning: Using system Python {sys.executable}")
+        print(f"  Recommend: brew install python@3.13 && pip3.13 install pyinstaller")
+    
+    return sys.executable
+
 def build_executable():
     """Run PyInstaller to build the executable."""
     print("Building executable with PyInstaller...")
     print("This may take a few minutes...\n")
     
+    python_exe = get_python_executable()
+    
     try:
         result = subprocess.run(
-            [sys.executable, '-m', 'PyInstaller', '--clean', 'build.spec'],
+            [python_exe, '-m', 'PyInstaller', '--clean', 'build.spec'],
             check=True,
             capture_output=False
         )

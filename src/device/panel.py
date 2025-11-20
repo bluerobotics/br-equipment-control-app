@@ -200,7 +200,9 @@ class DevicePanel(ttk.Frame):
 
         # Bind text events
         self.text.bind("<Double-1>", self.on_text_double_click)
-        self.text.bind("<Button-3>", self.on_text_right_click)
+        self.text.bind("<Button-3>", self.on_text_right_click)  # Right-click (Windows/Linux)
+        self.text.bind("<Button-2>", self.on_text_right_click)  # Right-click (macOS)
+        self.text.bind("<Control-Button-1>", self.on_text_right_click)  # Control-click (macOS alternative)
         self.text.bind("<Button-1>", self.on_text_single_click)
         self.text.bind("<Motion>", self.on_text_motion)
         self.text.bind("<Leave>", self.on_text_leave)

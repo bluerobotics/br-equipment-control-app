@@ -100,10 +100,10 @@ exe = EXE(
     upx=True,
     console=False,  # Set to False for GUI app (no console window)
     disable_windowed_traceback=False,
-    argv_emulation=False,
+    argv_emulation=True if sys.platform == 'darwin' else False,  # Required for macOS event handling
     target_arch=None,
     codesign_identity=None,
-    entitlements_file=None,
+    entitlements_file='entitlements.plist' if sys.platform == 'darwin' else None,
     icon='assets/icon.ico' if sys.platform == 'win32' else 'assets/icon.icns',
 )
 
@@ -130,6 +130,11 @@ if sys.platform == 'darwin':
             'NSHighResolutionCapable': 'True',
             'CFBundleShortVersionString': '1.8.0',
             'CFBundleVersion': '1.8.0',
+            # Enable proper event handling for context menus
+            'LSUIElement': False,
+            'NSAppleEventsUsageDescription': 'This app requires Apple Events to function properly.',
+            # Ensure proper accessibility for right-click menus
+            'NSSupportsAutomaticGraphicsSwitching': True,
         },
     )
 

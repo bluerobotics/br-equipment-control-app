@@ -76,43 +76,95 @@ def dark_title_bar(window):
         except Exception as e:
             print(f"Failed to set dark title bar: {e}")
 
+# Font options available to the user
+AVAILABLE_FONTS = [
+    ("Consolas", "Consolas"),  # Windows default (clean, professional)
+    ("SF Mono", "SF Mono"),     # macOS system font
+    ("Menlo", "Menlo"),         # macOS traditional
+    ("Cascadia Code", "Cascadia Code"),  # Modern Microsoft font
+    ("Monaco", "Monaco"),       # macOS classic
+    ("Courier New", "Courier New"),  # Cross-platform fallback
+]
+
+def _get_default_monospace_font():
+    """
+    Returns the default monospace font (Cascadia Code for consistency).
+    """
+    # Use Cascadia Code by default for all platforms for consistent look
+    return "Cascadia Code"
+
 def _get_monospace_font():
-    """Returns a monospace font appropriate for the platform (matches VS Code defaults)."""
-    system = platform.system()
+    """
+    Returns the currently configured monospace font.
+    Checks user preference first, then falls back to platform default.
+    """
+    # Check if user has set a font preference
+    try:
+        from .config import get_font_family
+        user_font = get_font_family()
+        if user_font:
+            return user_font
+    except:
+        pass
     
-    if system == "Darwin":  # macOS
-        return "Menlo"
-    elif system == "Windows":
-        return "Consolas"
-    else:  # Linux and others
-        # Try VS Code's preference first, then fallback
-        return "Droid Sans Mono"  # VS Code default on Linux
+    return _get_default_monospace_font()
 
 MONOSPACE_FONT = _get_monospace_font()
 
-# Base font sizes (will be scaled by UI scaling factor)
-_BASE_FONT_SMALL = 9
-_BASE_FONT_NORMAL = 11
-_BASE_FONT_LARGE = 13
+# Initialize font size from config on startup
+try:
+    from .config import get_font_size
+    _FONT_SIZE = get_font_size()
+    set_font_size(_FONT_SIZE)  # Apply the saved size
+except:
+    pass  # Use default if config not available
 
-# Default fonts (these will be updated by set_font_scale)
+def get_available_fonts():
+    """Returns list of (display_name, font_family) tuples for font selection."""
+    return AVAILABLE_FONTS
+
+def set_monospace_font(font_family):
+    """
+    Sets the monospace font for the application.
+    Updates the global variable and saves to config.
+    """
+    global MONOSPACE_FONT
+    MONOSPACE_FONT = font_family
+    
+    # Save to config
+    try:
+        from .config import set_font_family
+        set_font_family(font_family)
+    except Exception as e:
+        print(f"Error saving font preference: {e}")
+
+# Base font size (user-configurable, independent of UI scaling)
+_FONT_SIZE = 11  # Default font size in points
+
+# Default fonts (these will be updated by set_font_size)
 FONT_SMALL = (MONOSPACE_FONT, 9)
 FONT_NORMAL = (MONOSPACE_FONT, 11)
 FONT_BOLD = (MONOSPACE_FONT, 11, "bold")
 FONT_LARGE = (MONOSPACE_FONT, 13)
 FONT_LARGE_BOLD = (MONOSPACE_FONT, 13, "bold")
 
-def set_font_scale(scale_factor=1.0):
+def get_font_size():
+    """Get the current base font size."""
+    return _FONT_SIZE
+
+def set_font_size(size):
     """
-    Update font sizes based on UI scale factor.
-    Should be called when UI scaling changes.
+    Update font sizes based on user's font size preference.
+    Independent of UI scaling.
     """
-    global FONT_SMALL, FONT_NORMAL, FONT_BOLD, FONT_LARGE, FONT_LARGE_BOLD
+    global _FONT_SIZE, FONT_SMALL, FONT_NORMAL, FONT_BOLD, FONT_LARGE, FONT_LARGE_BOLD
     
-    # Calculate scaled font sizes
-    small_size = max(8, int(_BASE_FONT_SMALL * scale_factor))
-    normal_size = max(9, int(_BASE_FONT_NORMAL * scale_factor))
-    large_size = max(11, int(_BASE_FONT_LARGE * scale_factor))
+    _FONT_SIZE = size
+    
+    # Calculate related sizes (small is -2, large is +2)
+    small_size = max(8, size - 2)
+    normal_size = size
+    large_size = size + 2
     
     # Update font tuples
     FONT_SMALL = (MONOSPACE_FONT, small_size)

@@ -11,7 +11,7 @@ from _version import __version__
 
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback, font_var=None, set_font_callback=None, font_size_var=None, set_font_size_callback=None):
     """
     Creates the main application menu bar.
     """
@@ -108,42 +108,25 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
         settings_menu.add_command(label="Show Application Paths...", command=settings_commands['show_paths'])
         settings_menu.add_separator(background=theme.WIDGET_BORDER)
 
-    # UI Scale submenu
+    # UI Scale submenu (affects UI elements only, not fonts)
     scale_menu = Menu(settings_menu, tearoff=0,
                       bg=theme.WIDGET_BG,
                       fg=theme.FG_COLOR,
                       activebackground=theme.PRIMARY_ACCENT,
                       activeforeground=theme.FG_COLOR)
     
-    if platform.system() == 'Darwin':  # macOS
-        # Use simple Small/Medium/Large options for macOS
-        scale_options = [
-            ("Small", 0.85),
-            ("Medium", 1.0),
-            ("Large", 1.2),
-        ]
-    else:  # Windows and others
-        # Use percentage scaling for Windows (where it works properly)
-        scale_options = [
-            ("90%", 0.9),
-            ("100%", 1.0),
-            ("110%", 1.1),
-            ("120%", 1.2),
-            ("130%", 1.3),
-            ("140%", 1.4),
-            ("150%", 1.5),
-            ("160%", 1.6),
-            ("175%", 1.75),
-            ("200%", 2.0),
-            ("225%", 2.25),
-            ("250%", 2.5),
-            ("275%", 2.75),
-            ("300%", 3.0),
-            ("325%", 3.25),
-            ("350%", 3.5),
-            ("375%", 3.75),
-            ("400%", 4.0),
-        ]
+    scale_options = [
+        ("80%", 0.8),
+        ("90%", 0.9),
+        ("100%", 1.0),
+        ("110%", 1.1),
+        ("120%", 1.2),
+        ("130%", 1.3),
+        ("140%", 1.4),
+        ("150%", 1.5),
+        ("175%", 1.75),
+        ("200%", 2.0),
+    ]
     
     for label, value in scale_options:
         scale_menu.add_radiobutton(
@@ -153,9 +136,47 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
             command=lambda v=value: set_ui_scale_callback(v)
         )
     
-    # Label changes based on platform
-    scale_label = "Text Size" if platform.system() == 'Darwin' else "UI Scale"
-    settings_menu.add_cascade(label=scale_label, menu=scale_menu)
+    settings_menu.add_cascade(label="UI Scale", menu=scale_menu)
+    
+    # Font Family submenu
+    if font_var is not None and set_font_callback is not None:
+        font_menu = Menu(settings_menu, tearoff=0,
+                         bg=theme.WIDGET_BG,
+                         fg=theme.FG_COLOR,
+                         activebackground=theme.PRIMARY_ACCENT,
+                         activeforeground=theme.FG_COLOR)
+        
+        for display_name, font_family in theme.get_available_fonts():
+            font_menu.add_radiobutton(
+                label=display_name,
+                variable=font_var,
+                value=font_family,
+                command=lambda f=font_family: set_font_callback(f)
+            )
+        
+        settings_menu.add_cascade(label="Font Family", menu=font_menu)
+    
+    # Font Size submenu
+    if font_size_var is not None and set_font_size_callback is not None:
+        font_size_menu = Menu(settings_menu, tearoff=0,
+                              bg=theme.WIDGET_BG,
+                              fg=theme.FG_COLOR,
+                              activebackground=theme.PRIMARY_ACCENT,
+                              activeforeground=theme.FG_COLOR)
+        
+        # Font sizes from 8pt to 30pt
+        font_sizes = [8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 30]
+        
+        for size in font_sizes:
+            font_size_menu.add_radiobutton(
+                label=f"{size} pt",
+                variable=font_size_var,
+                value=size,
+                command=lambda s=size: set_font_size_callback(s)
+            )
+        
+        settings_menu.add_cascade(label="Font Size", menu=font_size_menu)
+    
     menubar.add_cascade(label="Settings", menu=settings_menu)
 
     # --- Help Menu ---

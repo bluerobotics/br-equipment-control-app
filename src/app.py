@@ -150,6 +150,18 @@ class MainApplication:
             save_config(self.config_data)
 
         self.ui_scale_var = tk.DoubleVar(value=self.ui_scaling)
+        
+        # Font selection variables
+        from .config import get_font_family, get_font_size
+        current_font = get_font_family() or theme.MONOSPACE_FONT
+        self.font_var = tk.StringVar(value=current_font)
+        
+        # Font size variable (independent of UI scaling)
+        current_font_size = get_font_size()
+        self.font_size_var = tk.IntVar(value=current_font_size)
+        
+        # Initialize font size from config
+        theme.set_font_size(current_font_size)
 
         # Configure ttk styles to match the theme
         self.style = ttk.Style()
@@ -930,7 +942,11 @@ class MainApplication:
             self.shared_gui_refs,
             self.autosave_var,
             self.ui_scale_var,
-            self.set_ui_scale
+            self.set_ui_scale,
+            self.font_var,
+            self.set_font,
+            self.font_size_var,
+            self.set_font_size
         )
 
         # Pass the recent files menu reference to the scripting gui
@@ -1324,16 +1340,12 @@ class MainApplication:
             self.root.after(5000, self.monitor_panel_state)
 
     def set_ui_scale(self, value: float):
-        """Adjust tk scaling/font size, update the variable, and persist the choice."""
+        """Adjust UI element scaling (does NOT affect fonts - use Font Size for that)."""
         if abs(float(value) - float(self.ui_scaling)) < 1e-6:
             return
         try:
-            # On macOS, we scale fonts instead of Tk scaling
-            if platform.system() == 'Darwin':
-                theme.set_font_scale(value)
-            else:
-                # On Windows/Linux, use Tk scaling
-                self.root.tk.call('tk', 'scaling', value)
+            # Use Tk scaling for UI elements (not fonts)
+            self.root.tk.call('tk', 'scaling', value)
             
             self.ui_scale_var.set(value)
             config = load_config()
@@ -1347,12 +1359,66 @@ class MainApplication:
 
         response = messagebox.askyesno(
             "Restart Required",
-            "Font/UI size changes take effect after restarting the application.\n\n"
+            "UI scaling changes take effect after restarting the application.\n\n"
             "Restart now? Any unsaved changes will be lost."
         )
         if response:
             self.restart_application()
 
+    def set_font(self, font_family: str):
+        """Change the application font family and restart to apply changes."""
+        if font_family == theme.MONOSPACE_FONT:
+            return
+        
+        try:
+            # Update theme
+            theme.set_monospace_font(font_family)
+            self.font_var.set(font_family)
+            
+            # Save to config
+            from .config import set_font_family
+            set_font_family(font_family)
+            
+            self.root.update_idletasks()
+        except Exception as e:
+            print(f"Error setting font: {e}")
+            return
+        
+        response = messagebox.askyesno(
+            "Restart Required",
+            f"Font has been changed to {font_family}.\n\n"
+            "Restart now to apply changes? Any unsaved changes will be lost."
+        )
+        if response:
+            self.restart_application()
+    
+    def set_font_size(self, size: int):
+        """Change the application font size and restart to apply changes."""
+        if size == theme.get_font_size():
+            return
+        
+        try:
+            # Update theme
+            theme.set_font_size(size)
+            self.font_size_var.set(size)
+            
+            # Save to config
+            from .config import set_font_size
+            set_font_size(size)
+            
+            self.root.update_idletasks()
+        except Exception as e:
+            print(f"Error setting font size: {e}")
+            return
+        
+        response = messagebox.askyesno(
+            "Restart Required",
+            f"Font size has been changed to {size} pt.\n\n"
+            "Restart now to apply changes? Any unsaved changes will be lost."
+        )
+        if response:
+            self.restart_application()
+    
     def restart_application(self):
         """Restart the application process safely."""
         try:
