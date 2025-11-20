@@ -101,7 +101,7 @@ class DeviceSimulatorManager:
         else:
             self.log(f"Started network simulator for {device_name} on 127.0.0.1:{device_port}")
             # Trigger a discovery to connect to the newly started simulator
-            from .. import comms
+            from src import comms
             comms.discover_devices(self.shared_gui_refs)
     
     def stop_simulator(self, device_name):
@@ -146,7 +146,7 @@ class DeviceSimulatorManager:
                 if connection_type == 'usb':
                     # For USB simulation, send directly via handle_serial_message
                     try:
-                        from .. import comms
+                        from src import comms
                         # Need to pass device_manager, but we don't have direct access
                         # This will be handled when integrating back into DeviceManager
                         comms.handle_serial_message(device_name, telemetry_msg, self.shared_gui_refs, None)
@@ -173,7 +173,7 @@ class DeviceSimulatorManager:
                     if connection_type == 'usb':
                         # For USB, inject response directly
                         try:
-                            from .. import comms
+                            from src import comms
                             comms.handle_serial_message(device_name, response, self.shared_gui_refs, None)
                         except:
                             pass
@@ -186,7 +186,7 @@ class DeviceSimulatorManager:
                     if connection_type == 'usb':
                         # For USB, inject response directly
                         try:
-                            from .. import comms
+                            from src import comms
                             comms.handle_serial_message(device_name, response, self.shared_gui_refs, None)
                         except:
                             pass

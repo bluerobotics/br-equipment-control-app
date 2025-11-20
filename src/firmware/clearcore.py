@@ -334,7 +334,7 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
         if device_state and device_state.get('connection_method') == 'usb':
             serial_port = device_state.get('serial_port')
             if serial_port:
-                from ..comms import serial
+                from src.comms import serial
                 _log(gui_refs, f"[{device_key}] Closing serial connection on {serial_port}...")
                 serial.disconnect_serial_device(serial_port)
                 time.sleep(0.5)  # Give time for device to reboot and port to close
@@ -367,8 +367,8 @@ def _perform_update_worker(device_key, gui_refs, device_manager, config, release
             time.sleep(2.0)  # Give device time to fully reboot
             
             try:
-                from ..comms import serial
-                from .. import comms
+                from src.comms import serial
+                from src import comms
                 success_reconnect = serial.connect_serial_device(
                     serial_port,
                     device_key,

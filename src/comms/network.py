@@ -9,7 +9,7 @@ from . import serial
 from src.logging import log_to_terminal
 
 try:
-    from ..firmware.clearcore import schedule_version_check
+    from src.firmware.clearcore import schedule_version_check
 except ImportError:
     schedule_version_check = None
 

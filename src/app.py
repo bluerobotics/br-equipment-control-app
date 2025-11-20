@@ -345,7 +345,7 @@ class MainApplication:
         
         # Set GUI references in system logger so Python console messages appear in terminal
         try:
-            from ..logging import get_system_logger
+            from src.logging import get_system_logger
             logger = get_system_logger()
             if logger:
                 logger.set_gui_refs(self.shared_gui_refs)
@@ -391,7 +391,7 @@ class MainApplication:
                 
                 # Log device addition to terminal
                 device_name = os.path.basename(device_root_path)
-                from ..logging import log_to_terminal
+                from src.logging import log_to_terminal
                 log_to_terminal(f"[SYSTEM] {device_name}: Device added to app", self.shared_gui_refs)
                 
                 self._on_device_added()
@@ -860,7 +860,7 @@ class MainApplication:
         def show_latest_system_log():
             """Open the latest system log file in a text viewer."""
             try:
-                from ..logging import get_system_logger
+                from src.logging import get_system_logger
                 logger = get_system_logger()
                 log_path = None
                 
@@ -876,7 +876,7 @@ class MainApplication:
                     logs_dir = logger.logs_dir
                 else:
                     # Fallback: try to determine logs directory
-                    from ..logging import SystemLogger
+                    from src.logging import SystemLogger
                     temp_logger = SystemLogger()
                     logs_dir = temp_logger.logs_dir
                     temp_logger.stop_logging()
@@ -1186,7 +1186,7 @@ class MainApplication:
         if check_result:
             # Stop system logger
             try:
-                from ..logging import stop_system_logger
+                from src.logging import stop_system_logger
                 stop_system_logger()
             except Exception:
                 pass

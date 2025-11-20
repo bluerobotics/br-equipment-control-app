@@ -242,12 +242,12 @@ class DeviceManager:
 
     def get_device_sender(self, device_name):
         """Returns a lambda function that sends a message to a specific device."""
-        from .. import comms  # Local import to avoid circular dependency
+        from src import comms  # Local import to avoid circular dependency
         return lambda msg: comms.send_to_device(device_name, msg, self.shared_gui_refs)
 
     def send_global_abort(self):
         """Sends a cancel command to all connected devices."""
-        from .. import comms  # Local import
+        from src import comms  # Local import
         # Pass the entire shared_gui_refs dictionary to the logger
         log_to_terminal("--- GLOBAL CANCEL TRIGGERED ---", self.shared_gui_refs)
         
@@ -296,12 +296,12 @@ class DeviceManager:
         Returns:
             bool: True if at least one device connected successfully, False otherwise.
         """
-        from ..comms import serial
-        from .. import comms
+        from src.comms import serial
+        from src import comms
         
         any_usb_connected = False
         
-        from ..comms import update_searching_panel_visibility
+        from src.comms import update_searching_panel_visibility
         import time
         
         all_states = self.state.get_all_states()
@@ -387,8 +387,8 @@ class DeviceManager:
         Attempts to reconnect a USB device. Called by monitor thread for hotplug support.
         Silent mode - no error spam if port isn't available.
         """
-        from ..comms import serial
-        from .. import comms
+        from src.comms import serial
+        from src import comms
         
         # Check if port is already connected
         with serial.serial_lock:

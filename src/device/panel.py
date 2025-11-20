@@ -943,7 +943,7 @@ class DevicePanel(ttk.Frame):
                                  activeforeground=theme.FG_COLOR)
             
             # List available serial ports
-            from ..comms import serial
+            from src.comms import serial
             ports = serial.list_serial_ports()
             if ports:
                 for port, description in ports:
@@ -1139,7 +1139,7 @@ class DevicePanel(ttk.Frame):
             device_commands[device].append((cmd, details))
         
         # Add script commands
-        from ..script import SCRIPT_COMMANDS
+        from src.script import SCRIPT_COMMANDS
         if 'script' not in device_commands:
             device_commands['script'] = []
         for cmd, details in SCRIPT_COMMANDS.items():
@@ -1753,7 +1753,7 @@ class DevicePanel(ttk.Frame):
         
         # If not found, check SCRIPT_COMMANDS directly (for script-only commands)
         if not cmd_details:
-            from ..script import SCRIPT_COMMANDS
+            from src.script import SCRIPT_COMMANDS
             cmd_details = SCRIPT_COMMANDS.get(command)
         
         if not cmd_details:
@@ -2584,8 +2584,8 @@ class DevicePanel(ttk.Frame):
     
     def set_connection_network(self, device_name):
         """Switch device to network (UDP) connection."""
-        from ..comms import serial
-        from .. import comms
+        from src.comms import serial
+        from src import comms
         
         # If device is being simulated, stop the simulator first
         device_state = self.device_manager.get_device_state(device_name)
@@ -2611,7 +2611,7 @@ class DevicePanel(ttk.Frame):
             reset_and_hide_fn(device_name)
         
         # Update searching panel visibility
-        from .. import comms
+        from src import comms
         comms.update_searching_panel_visibility(gui_refs)
         
         # Log the change
@@ -2634,8 +2634,8 @@ class DevicePanel(ttk.Frame):
     
     def set_connection_usb(self, device_name, port):
         """Switch device to USB serial connection."""
-        from ..comms import serial
-        from .. import comms
+        from src.comms import serial
+        from src import comms
         
         gui_refs = self.device_manager.shared_gui_refs
         
@@ -2921,7 +2921,7 @@ class DevicePanel(ttk.Frame):
                         pass
             
             # Update searching panel visibility
-            from ..comms import update_searching_panel_visibility
+            from src.comms import update_searching_panel_visibility
             update_searching_panel_visibility(shared_gui_refs)
             
             root = shared_gui_refs.get('root')
@@ -3037,7 +3037,7 @@ class DevicePanel(ttk.Frame):
                     # Disconnect USB
                     serial_port = device_state.get('serial_port')
                     if serial_port:
-                        from ..comms import serial
+                        from src.comms import serial
                         serial.disconnect_serial_device(serial_port)
                         print(f"[DEBUG] Disconnected {device_name} from {serial_port}")
                         # Log disconnection message (will appear in red due to "DISCONNECT" keyword)
@@ -3160,7 +3160,7 @@ class DevicePanel(ttk.Frame):
                                     show_panel_fn(device_name)
                         
                         # Update "searching for devices" panel visibility
-                        from ..comms import update_searching_panel_visibility
+                        from src.comms import update_searching_panel_visibility
                         update_searching_panel_visibility(shared_gui_refs)
             
             self.after(300, refresh_status_panels)
@@ -5047,7 +5047,7 @@ class AddDeviceDialog(tk.Toplevel):
                                 pass  # Skip if variable type doesn't match or doesn't exist
                     
                     # Update "searching for devices" panel visibility
-                    from ..comms import update_searching_panel_visibility
+                    from src.comms import update_searching_panel_visibility
                     update_searching_panel_visibility(shared_gui_refs)
                     
                     # Force UI update to ensure panels are visible
@@ -5065,7 +5065,7 @@ class AddDeviceDialog(tk.Toplevel):
                 root.after(2000, self._show_connected_panels_after_reconnect)
             
             # Also update searching panel visibility after a short delay
-            from ..comms import update_searching_panel_visibility
+            from src.comms import update_searching_panel_visibility
             if root:
                 root.after(100, lambda: update_searching_panel_visibility(shared_gui_refs))
             

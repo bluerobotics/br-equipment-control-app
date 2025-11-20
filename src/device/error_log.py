@@ -15,7 +15,7 @@ import time
 def show_error_log_window(parent, gui_refs):
     """Shows a window to select a device, dump its error log, and display the output."""
     # Import here to avoid circular dependencies
-    from ..comms import network
+    from src.comms import network
     
     device_manager = gui_refs.get('device_manager')
     if not device_manager:

@@ -78,7 +78,7 @@ class DeviceRegistry:
         
         # Clear firmware config cache when devices are rediscovered
         try:
-            from ..firmware import clear_firmware_config_cache
+            from src.firmware import clear_firmware_config_cache
             clear_firmware_config_cache()
         except Exception:
             pass  # Ignore if firmware module not available
@@ -248,7 +248,7 @@ class DeviceRegistry:
         all_commands = {}
         
         # Add built-in script commands
-        from ..script import SCRIPT_COMMANDS
+        from src.script import SCRIPT_COMMANDS
         for cmd_name, cmd_details in SCRIPT_COMMANDS.items():
             all_commands[cmd_name] = cmd_details.copy()
         
