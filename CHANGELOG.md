@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.6] - 2025-11-21
+
+### Fixed
+- **Syntax highlighting diagnostics**: Added error handling and diagnostic logging to identify syntax highlighting failures on certain Windows machines
+- **Syntax error fix**: Corrected indentation issue in error handling code that prevented app from launching
+
 ## [1.14.5] - 2025-11-21
 
 ### Changed
