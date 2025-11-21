@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.4] - 2025-11-20
+
+### Changed
+- **Device pane renamed to Device Manager**: Right panel now labeled "Device Manager" for clearer UI nomenclature
+- **README improvements**: Comprehensive Getting Started guide with step-by-step instructions, GitHub Desktop recommended for device setup, colored section headers for better readability, removed redundant sections (Keyboard Shortcuts, Troubleshooting, Related Projects)
+
 ## [1.14.3] - 2025-11-20
 
 ### Added
