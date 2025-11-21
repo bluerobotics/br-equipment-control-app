@@ -800,12 +800,9 @@ class MainApplication:
             except Exception as e:
                 pass  # Silently fail
         
-        # Set device pane width multiple times to catch it as soon as the window renders
-        # First attempt at 50ms (as soon as window gets sized), then again to be safe
+        # Set device pane width once after window is sized
         # Note: panels are already hidden by default in device_manager.create_all_gui_components()
         self.root.after(50, set_device_pane_width)
-        self.root.after(200, set_device_pane_width)
-        self.root.after(600, set_device_pane_width)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
