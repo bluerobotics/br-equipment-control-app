@@ -411,12 +411,15 @@ class SyntaxHighlighter:
         self.text.after(10, self._apply_highlight, content)
 
     def _apply_highlight(self, content):
+        # Remove all tags first to prevent stacking
         try:
-            # Remove all tags first to prevent stacking
             for tag in self.tags.keys():
                 self.text.tag_remove(tag, "1.0", "end")
+        except Exception as e:
+            print(f"[SYNTAX ERROR] Failed to remove tags: {e}")
+            return
 
-            # Highlight device commands (support dot notation)
+        # Highlight device commands (support dot notation)
         if self.device_keywords:
             # Match word characters and dots for commands like "device.move"
             # Allow whitespace, comma, or start of line before, and whitespace, comma, or end after
@@ -575,16 +578,10 @@ class SyntaxHighlighter:
                 if has_command:
                     self.text.tag_add("string", f"1.0+{start}c", f"1.0+{end}c")
 
-            # Highlight comments (do this last so it overrides other highlighting)
-            for match in re.finditer(r'#.*', content):
-                start, end = match.span()
-                self.text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
-        
-        except Exception as e:
-            # Log error but don't crash - syntax highlighting is non-critical
-            print(f"[SYNTAX HIGHLIGHT ERROR] Failed to apply highlighting: {e}")
-            import traceback
-            traceback.print_exc()
+        # Highlight comments (do this last so it overrides other highlighting)
+        for match in re.finditer(r'#.*', content):
+            start, end = match.span()
+            self.text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
 
 
 # --- Themed Script Editor (Rebuilt with Line Numbers) ---
