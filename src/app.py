@@ -780,8 +780,7 @@ class MainApplication:
                         if left_pane_width > 0:
                             self.splitter.sashpos(0, left_pane_width)
                 else:
-                    # Measure status panel width and set sash position directly
-                    # (sashpos sets the LEFT pane width, which is the status panel)
+                    # Measure status panel width and make device pane match it
                     status_container = self.shared_gui_refs.get('status_bar_container')
                     if status_container:
                         # Force update to get accurate measurements
@@ -798,8 +797,14 @@ class MainApplication:
                         if root_width > 0:
                             desired = min(desired, int(root_width * 0.45))
                         
-                        # Set the sash position (this is the LEFT pane width)
-                        self.splitter.sashpos(0, desired)
+                        # Make device pane (RIGHT) match this width
+                        # sashpos(0, X) makes LEFT pane X pixels wide
+                        # So to make RIGHT pane 'desired' pixels wide: sashpos(0, total - desired)
+                        splitter_width = self.splitter.winfo_width()
+                        if splitter_width > 0:
+                            left_pane_width = splitter_width - desired
+                            if left_pane_width > 0:
+                                self.splitter.sashpos(0, left_pane_width)
             except Exception as e:
                 pass  # Silently fail
         
