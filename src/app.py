@@ -764,9 +764,9 @@ class MainApplication:
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
-        # Set device pane width based on saved width OR 25% of window width
+        # Set device pane width based on saved width OR 30% of window width
         def set_device_pane_width():
-            """Set device pane width to 25% of window width by default."""
+            """Set device pane width to 30% of window width by default."""
             if not hasattr(self, 'splitter'):
                 return
             
@@ -788,12 +788,12 @@ class MainApplication:
                         self.splitter.sashpos(1, sash1_pos)
                     else:
                         # Saved width is too large for current window, use default instead
-                        device_pane_width = int(splitter_width * 0.25)
+                        device_pane_width = int(splitter_width * 0.30)
                         sash1_pos = splitter_width - device_pane_width
                         self.splitter.sashpos(1, sash1_pos)
                 else:
-                    # Default: 25% of window width for device pane
-                    device_pane_width = int(splitter_width * 0.25)
+                    # Default: 30% of window width for device pane
+                    device_pane_width = int(splitter_width * 0.30)
                     sash1_pos = splitter_width - device_pane_width
                     if sash1_pos > 0:
                         self.splitter.sashpos(1, sash1_pos)

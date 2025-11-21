@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.5] - 2025-11-21
+
+### Changed
+- **Device Manager default width**: Changed from 25% to 30% of window width for better visibility on first launch
+
+### Fixed
+- **Device Manager width**: Fixed default panel width being too wide on macOS by reducing from previous auto-calculated size to 30% of window width
+
 ## [1.14.4] - 2025-11-20
 
 ### Changed
