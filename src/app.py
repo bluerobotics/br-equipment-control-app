@@ -773,6 +773,7 @@ class MainApplication:
                 saved_device_width = self.config_data.get('device_pane_width')
                 
                 splitter_width = self.splitter.winfo_width()
+                print(f"[DEBUG LOAD] saved_device_width={saved_device_width}, splitter_width={splitter_width}")
                 if splitter_width <= 0:
                     return
                 
@@ -782,18 +783,22 @@ class MainApplication:
                 if saved_device_width is not None and 0 <= saved_device_width <= max_width:
                     # Use saved width - calculate position of sash 1 (between main content and device pane)
                     sash1_pos = splitter_width - saved_device_width
+                    print(f"[DEBUG LOAD] Using saved width: sash1_pos={sash1_pos}")
                     # For non-zero widths, ensure we leave at least 400px for the main content area
                     if saved_device_width == 0 or sash1_pos >= 400:
                         self.splitter.sashpos(1, sash1_pos)
+                        print(f"[DEBUG LOAD] Set sashpos(1) to {sash1_pos}")
                     else:
                         # Saved width is too large for current window, use default instead
                         device_pane_width = int(splitter_width * 0.25)
                         sash1_pos = splitter_width - device_pane_width
                         self.splitter.sashpos(1, sash1_pos)
+                        print(f"[DEBUG LOAD] Saved width too large, using default: sash1_pos={sash1_pos}")
                 else:
                     # Default: 25% of window width for device pane
                     device_pane_width = int(splitter_width * 0.25)
                     sash1_pos = splitter_width - device_pane_width
+                    print(f"[DEBUG LOAD] Using default width: sash1_pos={sash1_pos}")
                     if sash1_pos > 0:
                         self.splitter.sashpos(1, sash1_pos)
             except Exception as e:
@@ -1378,9 +1383,11 @@ class MainApplication:
                 total_width = self.splitter.winfo_width()
                 sash1_pos = self.splitter.sashpos(1)
                 device_pane_width = total_width - sash1_pos
+                print(f"[DEBUG SAVE] total_width={total_width}, sash1_pos={sash1_pos}, device_pane_width={device_pane_width}")
                 # Save width (allow 0 for hidden, max 1000px)
                 if 0 <= device_pane_width <= 1000:
                     config['device_pane_width'] = device_pane_width
+                    print(f"[DEBUG SAVE] Saved device_pane_width={device_pane_width}")
             
             save_config(config)
         except Exception as e:
