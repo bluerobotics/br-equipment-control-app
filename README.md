@@ -53,16 +53,55 @@ The application provides a unified interface for scripting, monitoring, and debu
 
 ---
 
-## 2. Features
+## 2. Getting Started
 
-- **Scripting**: Text-based automation with syntax highlighting, validation, and step-through debugging
-- **Data Logging**: CSV export with millisecond timestamps and variable queueing
-- **Device Management**: USB and network connectivity with automatic discovery and recovery
-- **Error Diagnostics**: Built-in error log viewer with 24-hour heartbeat tracking
-- **Firmware Updates**: Over-the-air firmware flashing with version management
-- **Simulation**: Test scripts without hardware using built-in device simulators
-- **Code Generation**: Auto-generate C++ command parsers and telemetry handlers from JSON definitions
-- **Auto-Recovery**: Unsaved scripts and crash recovery
+### 2.1. Download the Application
+
+Download the latest release for your platform from the [releases page](https://github.com/bluerobotics/br-equipment-control-app/releases/latest):
+
+- **Windows**: `br-equipment-control-app-windows.zip`
+- **macOS**: `br-equipment-control-app-macos.zip`
+- **Linux**: `br-equipment-control-app-linux.tar.gz`
+
+Extract the archive and run the executable.
+
+### 2.2. Add a Device
+
+The app needs device definitions to communicate with your equipment. You have two options:
+
+#### Option A: Clone a Device Repository
+
+```bash
+git clone https://github.com/bluerobotics/pressboi.git
+```
+
+#### Option B: Download a Device Repository
+
+Download the device repository as a ZIP from GitHub and extract it to a folder on your computer.
+
+**Officially Supported Devices:**
+- [Pressboi](https://github.com/bluerobotics/pressboi) - Dual-motor servo press
+- [Fillhead](https://github.com/bluerobotics/fillhead) - Automated encapsulation system
+- [Gantry](https://github.com/bluerobotics/gantry) - Three-axis gantry
+
+### 2.3. Open the Device in the App
+
+1. Launch the BR Equipment Control App
+2. Go to **Settings → Change Device Folder**
+3. Click **Add Folder** and navigate to your device repository folder (e.g., `pressboi/`)
+4. The device will load and appear in the device pane on the left
+
+### 2.4. Connect to Your Device
+
+The app automatically discovers devices on your network. If your device is connected:
+- **Via USB**: Plug in the USB cable - the app will detect it automatically
+- **Via Ethernet**: The device will appear in the device pane once discovered on UDP port 6272
+
+Right-click the device in the device pane to select your connection method (USB or Network).
+
+### 2.5. Start Automating
+
+You're ready to go! Write scripts in the editor, execute commands, log data, and flash firmware. See the sections below for detailed usage.
 
 ---
 
@@ -314,31 +353,7 @@ Messages are prefixed with device name in uppercase.
 
 ---
 
-## 9. Setup
-
-### Option 1: Pre-built Executables (Recommended for End Users)
-
-Download the latest release for your platform from the [Releases page](https://github.com/bluerobotics/br-equipment-control-app/releases):
-
-- **Windows:** Download and extract the `.zip` file, then run `BR-Equipment-Control.exe`
-- **macOS:** Download the `.dmg` file, drag the app to Applications
-- **Linux:** Download and extract the `.tar.gz` file, then run `./BR-Equipment-Control`
-
-No Python installation required! See [DISTRIBUTION.md](DISTRIBUTION.md) for details.
-
-### Option 2: Run from Source (For Developers)
-
-Python 3.10+, no external dependencies
-
-```bash
-python main.py
-```
-
-Creates `logs/` directory on first run.
-
----
-
-## 10. Contributing
+## 9. Contributing
 
 For issues, feature requests, or contributions, please open an issue or pull request on GitHub.
 
