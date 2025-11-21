@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Device pane width persistence**: Panel width now properly updates and saves when manually resized via splitter
+- **Device pane zero-width persistence**: Resizing device pane to zero width (hidden) now correctly saves and restores on app reboot
 - **Terminal font size**: Terminal text now uses the configured font size instead of hardcoded 9pt
 
 **Note**: Font size changes require an application restart to rebuild all UI components with the new font. This is expected behavior.
