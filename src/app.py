@@ -819,17 +819,41 @@ class MainApplication:
         
         # Explicitly adjust status panel width, then match device pane to it
         def adjust_status_then_match_device():
-            # First, adjust the status panel to its proper width
-            self.adjust_status_panel_width()
-            # Now measure and match device pane
-            set_device_pane_width()
+            saved_device_width = self.config_data.get('device_pane_width')
+            
+            if not saved_device_width:
+                # First time: adjust status panel to proper width
+                self.adjust_status_panel_width()
+                
+                # Now read what width it was set to and make device pane match
+                try:
+                    # Get the current left pane width (status panel)
+                    status_panel_width = self.splitter.sashpos(0)
+                    splitter_width = self.splitter.winfo_width()
+                    
+                    print(f"[DEBUG] Status panel width: {status_panel_width}px")
+                    print(f"[DEBUG] Splitter total width: {splitter_width}px")
+                    
+                    # Make device pane (right) the same width as status panel (left)
+                    if splitter_width > 0 and status_panel_width > 0:
+                        # sashpos(0, X) sets left pane to X pixels
+                        # To make right pane = status_panel_width:
+                        # left pane = splitter_width - status_panel_width
+                        new_left_pane_width = splitter_width - status_panel_width
+                        print(f"[DEBUG] Setting device pane to {status_panel_width}px (left pane to {new_left_pane_width}px)")
+                        self.splitter.sashpos(0, new_left_pane_width)
+                except Exception as e:
+                    print(f"[ERROR] Failed to match device pane width: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
             # Hide panels after measuring
             for device_name in self.device_modules.keys():
                 panel = self.shared_gui_refs.get(f'{device_name}_panel')
                 if panel:
                     panel.pack_forget()
         
-        # Call after panels are laid out (100ms for layout, then adjust + match)
+        # Call after panels are laid out (150ms for layout, then adjust + match)
         self.root.after(150, adjust_status_then_match_device)
 
 
