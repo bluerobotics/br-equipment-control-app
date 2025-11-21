@@ -705,7 +705,6 @@ class MainApplication:
         
         # Save sash positions when user manually resizes (debounced)
         self._sash_save_timer = None
-        self._last_sash1_pos = None  # Track last sash 1 position for debugging
         
         def on_sash_moved(event=None):
             # Cancel any pending save
@@ -713,22 +712,6 @@ class MainApplication:
                 self.root.after_cancel(self._sash_save_timer)
             # Schedule save after 500ms of inactivity
             self._sash_save_timer = self.root.after(500, self.save_sash_positions)
-        
-        # Monitor sash position changes for debugging
-        def check_sash_position():
-            if hasattr(self, 'splitter'):
-                try:
-                    current_sash1 = self.splitter.sashpos(1)
-                    if self._last_sash1_pos != current_sash1:
-                        total_width = self.splitter.winfo_width()
-                        device_pane_width = total_width - current_sash1
-                        print(f"[DEBUG SASH MOVED] sash1: {self._last_sash1_pos} -> {current_sash1}, device_pane_width: {device_pane_width}px")
-                        self._last_sash1_pos = current_sash1
-                except:
-                    pass
-            self.root.after(1000, check_sash_position)  # Check every second
-        
-        self.root.after(1000, check_sash_position)
         
         # Bind to ButtonRelease on the splitters to detect manual resizing
         splitter.bind("<ButtonRelease-1>", on_sash_moved, add="+")
@@ -791,7 +774,6 @@ class MainApplication:
                 saved_device_width = self.config_data.get('device_pane_width')
                 
                 splitter_width = self.splitter.winfo_width()
-                print(f"[DEBUG LOAD] saved_device_width={saved_device_width}, splitter_width={splitter_width}")
                 if splitter_width <= 0:
                     return
                 
@@ -801,40 +783,36 @@ class MainApplication:
                 if saved_device_width is not None and 0 <= saved_device_width <= max_width:
                     # Use saved width - calculate position of sash 1 (between main content and device pane)
                     sash1_pos = splitter_width - saved_device_width
-                    print(f"[DEBUG LOAD] Using saved width: sash1_pos={sash1_pos}")
                     # For non-zero widths, ensure we leave at least 400px for the main content area
                     if saved_device_width == 0 or sash1_pos >= 400:
                         self.splitter.sashpos(1, sash1_pos)
-                        print(f"[DEBUG LOAD] Set sashpos(1) to {sash1_pos}")
                     else:
                         # Saved width is too large for current window, use default instead
                         device_pane_width = int(splitter_width * 0.25)
                         sash1_pos = splitter_width - device_pane_width
                         self.splitter.sashpos(1, sash1_pos)
-                        print(f"[DEBUG LOAD] Saved width too large, using default: sash1_pos={sash1_pos}")
                 else:
                     # Default: 25% of window width for device pane
                     device_pane_width = int(splitter_width * 0.25)
                     sash1_pos = splitter_width - device_pane_width
-                    print(f"[DEBUG LOAD] Using default width: sash1_pos={sash1_pos}")
                     if sash1_pos > 0:
                         self.splitter.sashpos(1, sash1_pos)
             except Exception as e:
                 pass  # Silently fail
         
-        # Set device pane width and hide panels
-        def set_device_pane_then_hide():
-            # Set device pane width (25% or saved width)
-            set_device_pane_width()
-            
-            # Hide panels after measuring
+        # Hide panels immediately (they should start hidden)
+        def hide_panels():
             for device_name in self.device_modules.keys():
                 panel = self.shared_gui_refs.get(f'{device_name}_panel')
                 if panel:
                     panel.pack_forget()
         
-        # Call after panels are laid out
-        self.root.after(100, set_device_pane_then_hide)
+        # Hide panels right away
+        self.root.after(10, hide_panels)
+        
+        # Set device pane width AFTER status panel adjustments are done (which happen at 50ms, 200ms, 500ms)
+        # This ensures device pane width is not affected by status panel adjustments
+        self.root.after(600, set_device_pane_width)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
@@ -1401,11 +1379,9 @@ class MainApplication:
                 total_width = self.splitter.winfo_width()
                 sash1_pos = self.splitter.sashpos(1)
                 device_pane_width = total_width - sash1_pos
-                print(f"[DEBUG SAVE] total_width={total_width}, sash1_pos={sash1_pos}, device_pane_width={device_pane_width}")
                 # Save width (allow 0 for hidden, max 1000px)
                 if 0 <= device_pane_width <= 1000:
                     config['device_pane_width'] = device_pane_width
-                    print(f"[DEBUG SAVE] Saved device_pane_width={device_pane_width}")
             
             save_config(config)
         except Exception as e:
@@ -1521,11 +1497,6 @@ class MainApplication:
         if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
             return
         try:
-            # Save current device pane width before adjusting status panel
-            total_width = self.splitter.winfo_width()
-            old_sash1 = self.splitter.sashpos(1)
-            device_pane_width_before = total_width - old_sash1
-            
             # Force full update to ensure layout is calculated
             status_container.update()
             self.root.update_idletasks()
@@ -1541,16 +1512,8 @@ class MainApplication:
                 desired = min(desired, int(root_width * 0.45))
             
             # Set the sash position (sash 0 = between status panel and main content)
-            old_sash0 = self.splitter.sashpos(0)
+            # Note: This only adjusts the status panel width. Device pane width is set separately at 600ms.
             self.splitter.sashpos(0, desired)
-            print(f"[DEBUG adjust_status_panel_width] Set sash0: {old_sash0} -> {desired}")
-            
-            # Restore device pane width (adjusting sash0 can affect sash1 in a 3-pane splitter)
-            new_total_width = self.splitter.winfo_width()
-            new_sash1 = new_total_width - device_pane_width_before
-            if new_sash1 > 0:
-                self.splitter.sashpos(1, new_sash1)
-                print(f"[DEBUG adjust_status_panel_width] Restored device pane width: {device_pane_width_before}px (sash1: {old_sash1} -> {new_sash1})")
         except Exception as e:
             # Silently handle errors but don't completely fail
             pass
