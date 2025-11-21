@@ -105,7 +105,7 @@ class DevicePanel(ttk.Frame):
         title_frame.pack(fill=tk.X, pady=(0, 8))
         
         title_label = ttk.Label(title_frame, 
-                               text="devices", 
+                               text="Device Manager", 
                                font=theme.FONT_LARGE_BOLD,
                                foreground=theme.PRIMARY_ACCENT,
                                style='TLabel')

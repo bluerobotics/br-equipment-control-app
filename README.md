@@ -67,22 +67,25 @@ Extract the archive and run the executable.
 
 ### 2.2. Add a Device
 
-The app needs device definitions to communicate with your equipment. You have two options:
-
-#### Option A: Clone a Device Repository
-
-```bash
-git clone https://github.com/bluerobotics/pressboi.git
-```
-
-#### Option B: Download a Device Repository
-
-Download the device repository as a ZIP from GitHub and extract it to a folder on your computer.
+The app needs device definitions to communicate with your equipment.
 
 **Officially Supported Devices:**
 - [Pressboi](https://github.com/bluerobotics/pressboi) - Dual-motor servo press
 - [Fillhead](https://github.com/bluerobotics/fillhead) - Automated encapsulation system
 - [Gantry](https://github.com/bluerobotics/gantry) - Three-axis gantry
+
+#### Option A: Use GitHub Desktop (Recommended)
+
+1. Download and install [GitHub Desktop](https://desktop.github.com/)
+2. Open GitHub Desktop and go to **File → Clone Repository**
+3. Select the **URL** tab and paste the device repository URL (e.g., `https://github.com/bluerobotics/pressboi`)
+4. Choose where to save it and click **Clone**
+
+This is the easiest way to get devices and receive firmware updates via git pull.
+
+#### Option B: Download as ZIP
+
+Download the device repository as a ZIP from GitHub and extract it to a folder on your computer.
 
 ### 2.3. Open the Device in the App
 

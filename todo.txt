@@ -1,7 +1,3 @@
- - ui improvements in macos
-
-- usb and connection hotplugging testing in macos
-
 - implement serial number system
     - serial incrementing to filenames
     - barcode/QR code scanner support via USB and bluetooth

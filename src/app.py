@@ -1201,7 +1201,7 @@ class MainApplication:
                     "No Devices Loaded",
                     "You don't have any devices loaded.\n\n"
                     "Would you like to add a device now?\n\n"
-                    "You can add devices later from the Devices pane.",
+                    "You can add devices later from the Device Manager.",
                     icon='question'
                 )
                 if response:
