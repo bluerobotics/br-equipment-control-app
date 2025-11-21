@@ -88,15 +88,15 @@ Download the device repository as a ZIP from GitHub and extract it to a folder o
 
 On first launch, the app will prompt you to add a device folder.
 
-Otherwise, click the **Add Device** button at the bottom of the **Device Pane** (right side) and navigate to your device repository folder (e.g., `pressboi/`). The device will load and appear in the device pane.
+Otherwise, click the **Add Device** button at the bottom of the **Device Manager** (right side) and navigate to your device repository folder (e.g., `pressboi/`). The device will load and appear in the Device Manager.
 
 ### 2.4. Connect to Your Device
 
 The app automatically discovers devices on your network. If your device is connected:
 - **Via USB**: Plug in the USB cable - the app will detect it automatically
-- **Via Ethernet**: The device will appear in the device pane once discovered on UDP port 6272
+- **Via Ethernet**: The device will appear in the Device Manager once discovered on UDP port 6272
 
-Right-click the device in the device pane to select your connection method (USB or Network).
+Right-click the device in the Device Manager to select your connection method (USB or Network).
 
 ### 2.5. Start Automating
 
