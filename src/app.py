@@ -1521,6 +1521,11 @@ class MainApplication:
         if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
             return
         try:
+            # Save current device pane width before adjusting status panel
+            total_width = self.splitter.winfo_width()
+            old_sash1 = self.splitter.sashpos(1)
+            device_pane_width_before = total_width - old_sash1
+            
             # Force full update to ensure layout is calculated
             status_container.update()
             self.root.update_idletasks()
@@ -1539,6 +1544,13 @@ class MainApplication:
             old_sash0 = self.splitter.sashpos(0)
             self.splitter.sashpos(0, desired)
             print(f"[DEBUG adjust_status_panel_width] Set sash0: {old_sash0} -> {desired}")
+            
+            # Restore device pane width (adjusting sash0 can affect sash1 in a 3-pane splitter)
+            new_total_width = self.splitter.winfo_width()
+            new_sash1 = new_total_width - device_pane_width_before
+            if new_sash1 > 0:
+                self.splitter.sashpos(1, new_sash1)
+                print(f"[DEBUG adjust_status_panel_width] Restored device pane width: {device_pane_width_before}px (sash1: {old_sash1} -> {new_sash1})")
         except Exception as e:
             # Silently handle errors but don't completely fail
             pass
