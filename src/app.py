@@ -800,9 +800,9 @@ class MainApplication:
             except Exception as e:
                 pass  # Silently fail
         
-        # Set device pane width once after window is sized
+        # Set device pane width early - adjust_status_panel_width now preserves it
         # Note: panels are already hidden by default in device_manager.create_all_gui_components()
-        self.root.after(50, set_device_pane_width)
+        self.root.after(100, set_device_pane_width)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
@@ -1487,6 +1487,14 @@ class MainApplication:
         if not status_container or not hasattr(self, 'left_bar_frame') or not hasattr(self, 'splitter'):
             return
         try:
+            # Save current device pane width before adjusting (in case sash 0 affects sash 1)
+            total_width = self.splitter.winfo_width()
+            if total_width > 0:
+                old_sash1 = self.splitter.sashpos(1)
+                device_pane_width = total_width - old_sash1
+            else:
+                device_pane_width = None
+            
             # Force full update to ensure layout is calculated
             status_container.update()
             self.root.update_idletasks()
@@ -1502,8 +1510,15 @@ class MainApplication:
                 desired = min(desired, int(root_width * 0.45))
             
             # Set the sash position (sash 0 = between status panel and main content)
-            # Note: This only adjusts the status panel width. Device pane width is set separately at 600ms.
             self.splitter.sashpos(0, desired)
+            
+            # Restore device pane width if we saved it
+            if device_pane_width is not None:
+                new_total_width = self.splitter.winfo_width()
+                if new_total_width > 0:
+                    new_sash1 = new_total_width - device_pane_width
+                    if new_sash1 > 0:
+                        self.splitter.sashpos(1, new_sash1)
         except Exception as e:
             # Silently handle errors but don't completely fail
             pass
