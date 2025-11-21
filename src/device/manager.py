@@ -36,6 +36,9 @@ class DeviceManager:
         self.state = DeviceState()
         self.simulator = DeviceSimulatorManager(self.registry, self.state, shared_gui_refs)
         
+        # Give the simulator a reference to this manager (for USB simulation message injection)
+        self.simulator.set_device_manager(self)
+        
         # Load devices from configured paths
         self.discover_devices()
 

@@ -31,6 +31,16 @@ class DeviceSimulatorManager:
         self.device_state = device_state
         self.shared_gui_refs = shared_gui_refs
         self.simulator_threads = {}  # device_name -> sim_info dict
+        self.device_manager = None  # Will be set by DeviceManager after initialization
+    
+    def set_device_manager(self, device_manager):
+        """
+        Set the device manager reference (called after DeviceManager initialization).
+        
+        Args:
+            device_manager: DeviceManager instance
+        """
+        self.device_manager = device_manager
     
     def log(self, message):
         """Log a simulator message."""
@@ -93,12 +103,14 @@ class DeviceSimulatorManager:
         # Mark as simulated
         self.device_state.update_state(device_name, {'simulated': True})
         
-        # If USB simulation, set connection method to USB with virtual port
+        # Set connection method based on simulation type
         if connection_type == 'usb':
             virtual_port = "VIRTUAL_COM"
             self.device_state.set_connection_method(device_name, 'usb', virtual_port)
             self.log(f"Started USB simulator for {device_name} (virtual port: {virtual_port})")
         else:
+            # For network simulation, explicitly set connection method to network
+            self.device_state.set_connection_method(device_name, 'network', None)
             self.log(f"Started network simulator for {device_name} on 127.0.0.1:{device_port}")
             # Trigger a discovery to connect to the newly started simulator
             from src import comms
@@ -147,11 +159,9 @@ class DeviceSimulatorManager:
                     # For USB simulation, send directly via handle_serial_message
                     try:
                         from src import comms
-                        # Need to pass device_manager, but we don't have direct access
-                        # This will be handled when integrating back into DeviceManager
-                        comms.handle_serial_message(device_name, telemetry_msg, self.shared_gui_refs, None)
-                    except:
-                        pass
+                        comms.handle_serial_message(device_name, telemetry_msg, self.shared_gui_refs, self.device_manager)
+                    except Exception as e:
+                        self.log(f"Error injecting USB telemetry: {e}")
                 else:
                     # For network simulation, send via UDP
                     try:
@@ -174,9 +184,9 @@ class DeviceSimulatorManager:
                         # For USB, inject response directly
                         try:
                             from src import comms
-                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, None)
-                        except:
-                            pass
+                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, self.device_manager)
+                        except Exception as e:
+                            self.log(f"Error injecting USB discovery response: {e}")
                     else:
                         sim_socket.sendto(response.encode(), addr)
                 else:
@@ -187,9 +197,9 @@ class DeviceSimulatorManager:
                         # For USB, inject response directly
                         try:
                             from src import comms
-                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, None)
-                        except:
-                            pass
+                            comms.handle_serial_message(device_name, response, self.shared_gui_refs, self.device_manager)
+                        except Exception as e:
+                            self.log(f"Error injecting USB command response: {e}")
                     else:
                         sim_socket.sendto(response.encode(), addr)
                 
