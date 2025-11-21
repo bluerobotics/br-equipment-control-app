@@ -817,8 +817,11 @@ class MainApplication:
             except Exception as e:
                 pass  # Silently fail
         
-        # Set width after panels are laid out, then hide them
-        def set_width_then_hide():
+        # Explicitly adjust status panel width, then match device pane to it
+        def adjust_status_then_match_device():
+            # First, adjust the status panel to its proper width
+            self.adjust_status_panel_width()
+            # Now measure and match device pane
             set_device_pane_width()
             # Hide panels after measuring
             for device_name in self.device_modules.keys():
@@ -826,7 +829,8 @@ class MainApplication:
                 if panel:
                     panel.pack_forget()
         
-        self.root.after(100, set_width_then_hide)
+        # Call after panels are laid out (100ms for layout, then adjust + match)
+        self.root.after(150, adjust_status_then_match_device)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
