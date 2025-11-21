@@ -530,14 +530,15 @@ def handle_connection(device_key, source_ip, gui_refs, device_manager):
         if command_ref and root:
             root.after(100, command_ref.refresh)
 
-        if schedule_version_check:
-            with devices_lock:
-                state = device_manager.get_device_state(device_key)
-                already_scheduled = state.get('fw_check_scheduled') if state else True
-                if state and not already_scheduled:
-                    device_manager.update_device_state(device_key, {"fw_check_scheduled": True})
-            if not already_scheduled:
-                schedule_version_check(device_key, gui_refs, device_manager)
+        # Firmware update prompt disabled
+        # if schedule_version_check:
+        #     with devices_lock:
+        #         state = device_manager.get_device_state(device_key)
+        #         already_scheduled = state.get('fw_check_scheduled') if state else True
+        #         if state and not already_scheduled:
+        #             device_manager.update_device_state(device_key, {"fw_check_scheduled": True})
+        #     if not already_scheduled:
+        #         schedule_version_check(device_key, gui_refs, device_manager)
 
 
 def is_status_message(msg, device_manager):
