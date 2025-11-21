@@ -88,11 +88,7 @@ Download the device repository as a ZIP from GitHub and extract it to a folder o
 
 On first launch, the app will prompt you to add a device folder.
 
-Otherwise:
-1. Right-click in the **Device Pane** (left side)
-2. Select **Add Device...**
-3. Navigate to your device repository folder (e.g., `pressboi/`)
-4. The device will load and appear in the device pane
+Otherwise, click the **Add Device** button at the bottom of the **Device Pane** (right side) and navigate to your device repository folder (e.g., `pressboi/`). The device will load and appear in the device pane.
 
 ### 2.4. Connect to Your Device
 
