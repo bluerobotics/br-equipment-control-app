@@ -322,6 +322,7 @@ class SyntaxHighlighter:
         self._highlighting = False
         # Bind to the custom <<Modified>> event, which fires on any text change.
         self.text.bind('<<Modified>>', self.highlight)
+        print(f"[SYNTAX] Highlighter initialized: {len(self.device_keywords)} device cmds, {len(self.script_keywords)} script cmds")
     
     def _load_valid_string_params(self):
         """Extract all valid enum/option values and keyword parameters from all commands."""
@@ -393,8 +394,14 @@ class SyntaxHighlighter:
 
 
     def _configure_tags(self):
-        for tag_name, tag_config in self.tags.items():
-            self.text.tag_configure(tag_name, **tag_config)
+        try:
+            for tag_name, tag_config in self.tags.items():
+                self.text.tag_configure(tag_name, **tag_config)
+            print(f"[SYNTAX] Configured {len(self.tags)} highlighting tags")
+        except Exception as e:
+            print(f"[SYNTAX ERROR] Failed to configure tags: {e}")
+            import traceback
+            traceback.print_exc()
 
     def highlight(self, event=None):
         # Use 'end-1c' to avoid highlighting the final newline which can cause issues
@@ -404,11 +411,12 @@ class SyntaxHighlighter:
         self.text.after(10, self._apply_highlight, content)
 
     def _apply_highlight(self, content):
-        # Remove all tags first to prevent stacking
-        for tag in self.tags.keys():
-            self.text.tag_remove(tag, "1.0", "end")
+        try:
+            # Remove all tags first to prevent stacking
+            for tag in self.tags.keys():
+                self.text.tag_remove(tag, "1.0", "end")
 
-        # Highlight device commands (support dot notation)
+            # Highlight device commands (support dot notation)
         if self.device_keywords:
             # Match word characters and dots for commands like "device.move"
             # Allow whitespace, comma, or start of line before, and whitespace, comma, or end after
@@ -567,10 +575,16 @@ class SyntaxHighlighter:
                 if has_command:
                     self.text.tag_add("string", f"1.0+{start}c", f"1.0+{end}c")
 
-        # Highlight comments (do this last so it overrides other highlighting)
-        for match in re.finditer(r'#.*', content):
-            start, end = match.span()
-            self.text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
+            # Highlight comments (do this last so it overrides other highlighting)
+            for match in re.finditer(r'#.*', content):
+                start, end = match.span()
+                self.text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
+        
+        except Exception as e:
+            # Log error but don't crash - syntax highlighting is non-critical
+            print(f"[SYNTAX HIGHLIGHT ERROR] Failed to apply highlighting: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # --- Themed Script Editor (Rebuilt with Line Numbers) ---
