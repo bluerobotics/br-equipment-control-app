@@ -788,7 +788,11 @@ class MainApplication:
                         self.root.update_idletasks()
                         
                         required = status_container.winfo_reqwidth()
+                        actual = status_container.winfo_width()
                         root_width = self.root.winfo_width()
+                        
+                        print(f"[DEBUG] Status container reqwidth: {required}, actual: {actual}")
+                        print(f"[DEBUG] Root width: {root_width}")
                         
                         # Use same logic as adjust_status_panel_width
                         padding = 20
@@ -797,14 +801,19 @@ class MainApplication:
                         if root_width > 0:
                             desired = min(desired, int(root_width * 0.45))
                         
+                        print(f"[DEBUG] Desired device pane width: {desired}")
+                        
                         # Make device pane (RIGHT) match this width
                         # sashpos(0, X) makes LEFT pane X pixels wide
                         # So to make RIGHT pane 'desired' pixels wide: sashpos(0, total - desired)
                         splitter_width = self.splitter.winfo_width()
+                        print(f"[DEBUG] Splitter width: {splitter_width}")
                         if splitter_width > 0:
                             left_pane_width = splitter_width - desired
+                            print(f"[DEBUG] Setting left pane width to: {left_pane_width}")
                             if left_pane_width > 0:
                                 self.splitter.sashpos(0, left_pane_width)
+                                print(f"[DEBUG] Sash position set successfully")
             except Exception as e:
                 pass  # Silently fail
         
