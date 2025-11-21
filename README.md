@@ -338,50 +338,7 @@ Creates `logs/` directory on first run.
 
 ---
 
-## 10. Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+N` | New Script |
-| `Ctrl+O` | Open Script |
-| `Ctrl+S` | Save Script |
-| `Ctrl+Shift+S` | Save As |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
-| `Ctrl+X` | Cut |
-| `Ctrl+C` | Copy |
-| `Ctrl+V` | Paste |
-| `Ctrl+F` | Find |
-| `Ctrl+H` | Replace |
-| `Ctrl+Shift+V` | Validate Script |
-
----
-
-## 11. Troubleshooting
-
-**Devices not discovered:** Check network, verify UDP port 6272 is accessible, restart simulators
-
-**Script errors:** Use File → Validate Script. Check devices exist in `/devices` and are connected.
-
-**Logging not working:** Queue variables first, ensure devices are connected
-
-**Timeouts:** Devices timeout after 3 seconds without telemetry
-
----
-
-## 12. Related Projects
-
-### Firmware
-- **[Pressboi](https://github.com/bluerobotics/pressboi)** - Dual-motor press control firmware for ClearCore
-- **[Fillhead](https://github.com/bluerobotics/fillhead)** - Automated filling system firmware
-- **[Gantry](https://github.com/bluerobotics/gantry)** - XYZ gantry motion control firmware
-
-### Scripts
-- **[BR Equipment Scripts](https://github.com/bluerobotics/breq-scripts)** - Production automation scripts for manufacturing equipment
-
----
-
-## 13. Contributing
+## 10. Contributing
 
 For issues, feature requests, or contributions, please open an issue or pull request on GitHub.
 
