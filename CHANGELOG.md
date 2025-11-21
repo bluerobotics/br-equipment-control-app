@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.3] - 2025-11-20
+
 ### Added
 - **Sash position persistence**: Splitter positions (device pane width, terminal height) are now saved and restored across sessions
 - **Auto-save sash positions**: Splitter positions are automatically saved when manually resized by the user
@@ -21,6 +23,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Device pane width persistence**: Panel width now properly updates and saves when manually resized via splitter
 - **Device pane zero-width persistence**: Resizing device pane to zero width (hidden) now correctly saves and restores on app reboot
+- **Device pane initial render**: Device pane now renders at correct width immediately on startup with no visible resize
+- **Status panel interference**: Status panel width adjustments no longer affect device pane width (independent sash handling)
 - **Terminal font size**: Terminal text now uses the configured font size instead of hardcoded 9pt
 
 **Note**: Font size changes require an application restart to rebuild all UI components with the new font. This is expected behavior.
