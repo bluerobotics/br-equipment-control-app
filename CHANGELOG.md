@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 - **Terminal height on macOS**: Reduced default terminal height from 220px to 180px for better screen space utilization
 - **Default font size**: Changed from 11pt to 12pt for improved readability on all platforms
 - **Terminal font size**: Terminal text is now 2pt smaller than the main font size for more compact display (e.g., 10pt terminal when main font is 12pt)
-- **Device pane default width**: On first launch (no saved width), device pane width is set to exactly match the measured status panel width; on subsequent launches, uses the saved width from last manual resize
+- **Device pane default width**: Set to 25% of window width on first launch; subsequent launches use the saved width from last manual resize
 
 ### Removed
 - **Device pane collapse trigger bar**: Removed collapsible panel trigger bar - users can now hide the device pane by simply resizing it to zero width (position is saved)

@@ -763,9 +763,9 @@ class MainApplication:
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
-        # Set device pane width based on saved width OR measured status panel width
+        # Set device pane width based on saved width OR 25% of window width
         def set_device_pane_width():
-            """Set device pane width to match status panel width."""
+            """Set device pane width to 25% of window width by default."""
             if not hasattr(self, 'splitter'):
                 return
             
@@ -780,72 +780,20 @@ class MainApplication:
                         if left_pane_width > 0:
                             self.splitter.sashpos(0, left_pane_width)
                 else:
-                    # Measure status panel width and make device pane match it
-                    status_container = self.shared_gui_refs.get('status_bar_container')
-                    if status_container:
-                        # Force update to get accurate measurements
-                        status_container.update()
-                        self.root.update_idletasks()
-                        
-                        required = status_container.winfo_reqwidth()
-                        actual = status_container.winfo_width()
-                        root_width = self.root.winfo_width()
-                        
-                        print(f"[DEBUG] Status container reqwidth: {required}, actual: {actual}")
-                        print(f"[DEBUG] Root width: {root_width}")
-                        
-                        # Use same logic as adjust_status_panel_width
-                        padding = 20
-                        desired = max(320, required + padding)
-                        
-                        if root_width > 0:
-                            desired = min(desired, int(root_width * 0.45))
-                        
-                        print(f"[DEBUG] Desired device pane width: {desired}")
-                        
-                        # Make device pane (RIGHT) match this width
-                        # sashpos(0, X) makes LEFT pane X pixels wide
-                        # So to make RIGHT pane 'desired' pixels wide: sashpos(0, total - desired)
-                        splitter_width = self.splitter.winfo_width()
-                        print(f"[DEBUG] Splitter width: {splitter_width}")
-                        if splitter_width > 0:
-                            left_pane_width = splitter_width - desired
-                            print(f"[DEBUG] Setting left pane width to: {left_pane_width}")
-                            if left_pane_width > 0:
-                                self.splitter.sashpos(0, left_pane_width)
-                                print(f"[DEBUG] Sash position set successfully")
+                    # Default: 25% of window width
+                    splitter_width = self.splitter.winfo_width()
+                    if splitter_width > 0:
+                        device_pane_width = int(splitter_width * 0.25)
+                        left_pane_width = splitter_width - device_pane_width
+                        if left_pane_width > 0:
+                            self.splitter.sashpos(0, left_pane_width)
             except Exception as e:
                 pass  # Silently fail
         
-        # Explicitly adjust status panel width, then match device pane to it
-        def adjust_status_then_match_device():
-            saved_device_width = self.config_data.get('device_pane_width')
-            
-            if not saved_device_width:
-                # First time: adjust status panel to proper width
-                self.adjust_status_panel_width()
-                
-                # Now read what width it was set to and make device pane match
-                try:
-                    # Get the current left pane width (status panel)
-                    status_panel_width = self.splitter.sashpos(0)
-                    splitter_width = self.splitter.winfo_width()
-                    
-                    print(f"[DEBUG] Status panel width: {status_panel_width}px")
-                    print(f"[DEBUG] Splitter total width: {splitter_width}px")
-                    
-                    # Make device pane (right) the same width as status panel (left)
-                    if splitter_width > 0 and status_panel_width > 0:
-                        # sashpos(0, X) sets left pane to X pixels
-                        # To make right pane = status_panel_width:
-                        # left pane = splitter_width - status_panel_width
-                        new_left_pane_width = splitter_width - status_panel_width
-                        print(f"[DEBUG] Setting device pane to {status_panel_width}px (left pane to {new_left_pane_width}px)")
-                        self.splitter.sashpos(0, new_left_pane_width)
-                except Exception as e:
-                    print(f"[ERROR] Failed to match device pane width: {e}")
-                    import traceback
-                    traceback.print_exc()
+        # Set device pane width and hide panels
+        def set_device_pane_then_hide():
+            # Set device pane width (25% or saved width)
+            set_device_pane_width()
             
             # Hide panels after measuring
             for device_name in self.device_modules.keys():
@@ -853,8 +801,8 @@ class MainApplication:
                 if panel:
                     panel.pack_forget()
         
-        # Call after panels are laid out (150ms for layout, then adjust + match)
-        self.root.after(150, adjust_status_then_match_device)
+        # Call after panels are laid out
+        self.root.after(100, set_device_pane_then_hide)
 
 
         # Create Top Menu (and pass it the file commands from the scripting GUI)
