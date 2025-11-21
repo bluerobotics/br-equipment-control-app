@@ -705,12 +705,30 @@ class MainApplication:
         
         # Save sash positions when user manually resizes (debounced)
         self._sash_save_timer = None
+        self._last_sash1_pos = None  # Track last sash 1 position for debugging
+        
         def on_sash_moved(event=None):
             # Cancel any pending save
             if self._sash_save_timer:
                 self.root.after_cancel(self._sash_save_timer)
             # Schedule save after 500ms of inactivity
             self._sash_save_timer = self.root.after(500, self.save_sash_positions)
+        
+        # Monitor sash position changes for debugging
+        def check_sash_position():
+            if hasattr(self, 'splitter'):
+                try:
+                    current_sash1 = self.splitter.sashpos(1)
+                    if self._last_sash1_pos != current_sash1:
+                        total_width = self.splitter.winfo_width()
+                        device_pane_width = total_width - current_sash1
+                        print(f"[DEBUG SASH MOVED] sash1: {self._last_sash1_pos} -> {current_sash1}, device_pane_width: {device_pane_width}px")
+                        self._last_sash1_pos = current_sash1
+                except:
+                    pass
+            self.root.after(1000, check_sash_position)  # Check every second
+        
+        self.root.after(1000, check_sash_position)
         
         # Bind to ButtonRelease on the splitters to detect manual resizing
         splitter.bind("<ButtonRelease-1>", on_sash_moved, add="+")
@@ -1517,8 +1535,10 @@ class MainApplication:
             if root_width > 0:
                 desired = min(desired, int(root_width * 0.45))
             
-            # Set the sash position
+            # Set the sash position (sash 0 = between status panel and main content)
+            old_sash0 = self.splitter.sashpos(0)
             self.splitter.sashpos(0, desired)
+            print(f"[DEBUG adjust_status_panel_width] Set sash0: {old_sash0} -> {desired}")
         except Exception as e:
             # Silently handle errors but don't completely fail
             pass
