@@ -800,18 +800,9 @@ class MainApplication:
             except Exception as e:
                 pass  # Silently fail
         
-        # Hide panels immediately (they should start hidden)
-        def hide_panels():
-            for device_name in self.device_modules.keys():
-                panel = self.shared_gui_refs.get(f'{device_name}_panel')
-                if panel:
-                    panel.pack_forget()
-        
-        # Hide panels right away
-        self.root.after(10, hide_panels)
-        
         # Set device pane width AFTER status panel adjustments are done (which happen at 50ms, 200ms, 500ms)
         # This ensures device pane width is not affected by status panel adjustments
+        # Note: panels are already hidden by default in device_manager.create_all_gui_components()
         self.root.after(600, set_device_pane_width)
 
 
