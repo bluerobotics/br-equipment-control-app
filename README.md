@@ -53,7 +53,7 @@ The application provides a unified interface for scripting, monitoring, and debu
 
 ---
 
-## 2. Getting Started
+## <span style="color: #28a745;">2. Getting Started</span>
 
 ### 2.1. Download the Application
 
@@ -107,7 +107,7 @@ You're ready to go! Write scripts in the editor, execute commands, log data, and
 
 ---
 
-## 3. System Architecture
+## <span style="color: #6f42c1;">3. System Architecture</span>
 
 Multi-threaded Python application with modular device support.
 
@@ -122,7 +122,7 @@ Multi-threaded Python application with modular device support.
 
 ---
 
-## 4. Data Logging
+## <span style="color: #e36209;">4. Data Logging</span>
 
 ### 4.1. Using the UI
 
@@ -171,7 +171,7 @@ Collisions are resolved by appending `_1`, `_2`, etc.
 
 ---
 
-## 5. Error Diagnostics
+## <span style="color: #d73a49;">5. Error Diagnostics</span>
 
 View device error logs and connection history via **Devices → Dump Error Log...**
 
@@ -183,7 +183,7 @@ Use this to diagnose intermittent connectivity issues, watchdog timeouts, or fir
 
 ---
 
-## 6. Scripting
+## <span style="color: #0366d6;">6. Scripting</span>
 
 Scripts use the `.breq` (BR Equipment) file extension and are plain text files.
 
@@ -230,7 +230,7 @@ Scripts are validated before execution. Devices must be connected to run.
 
 ---
 
-## 7. Device Structure
+## <span style="color: #6f42c1;">7. Device Structure</span>
 
 ### 7.1. Overview
 
@@ -331,7 +331,7 @@ This keeps Python app and C++ firmware synchronized.
 
 ---
 
-## 8. Network Protocol
+## <span style="color: #28a745;">8. Network Protocol</span>
 
 UDP on port 6272, ASCII strings.
 
@@ -355,7 +355,7 @@ Messages are prefixed with device name in uppercase.
 
 ---
 
-## 9. Contributing
+## <span style="color: #0366d6;">9. Contributing</span>
 
 For issues, feature requests, or contributions, please open an issue or pull request on GitHub.
 
