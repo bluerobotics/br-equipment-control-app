@@ -66,8 +66,9 @@ def create_terminal_panel(parent, shared_gui_refs):
                        font=(theme.MONOSPACE_FONT, terminal_font_size))
     terminal.grid(row=0, column=0, sticky="nsew")
 
+    # Create scrollbar but don't grid it - mouse wheel still works
     scrollbar = ttk.Scrollbar(terminal_container, command=terminal.yview)
-    scrollbar.grid(row=0, column=1, sticky='ns')
+    # scrollbar.grid(row=0, column=1, sticky='ns')  # Hidden - mouse wheel still works
     terminal['yscrollcommand'] = scrollbar.set
 
     # Configure text tags for syntax highlighting

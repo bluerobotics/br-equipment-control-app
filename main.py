@@ -35,7 +35,7 @@ def main():
     if len(sys.argv) > 1:
         startup_file = sys.argv[1]
         if not os.path.exists(startup_file):
-            print(f"[SYSTEM WARNING] File not found: {startup_file}")
+            print(f"[SYSTEM WARNING] File not found: {startup_file}")   
             startup_file = None
     
     # Initialize system logger first (before any print statements)

@@ -586,11 +586,12 @@ class ScriptEditor(tk.Frame):
         self.linenumbers = TextLineNumbers(self, width=40, bg=theme.WIDGET_BG, highlightthickness=0, borderwidth=0)
         self.linenumbers.attach(self.text)
         
+        # Create scrollbar but don't pack it - mouse wheel still works
         self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=self.vsb.set)
         
         self.linenumbers.pack(side="left", fill="y")
-        self.vsb.pack(side="right", fill="y")
+        # self.vsb.pack(side="right", fill="y")  # Hidden - mouse wheel still works
         self.text.pack(side="right", fill="both", expand=True)
         
         # --- Event Bindings ---

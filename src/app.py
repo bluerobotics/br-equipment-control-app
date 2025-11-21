@@ -772,21 +772,32 @@ class MainApplication:
             try:
                 saved_device_width = self.config_data.get('device_pane_width')
                 
-                if saved_device_width:
-                    # Use saved width - calculate left pane size from saved right pane width
-                    splitter_width = self.splitter.winfo_width()
-                    if splitter_width > 0:
-                        left_pane_width = splitter_width - saved_device_width
-                        if left_pane_width > 0:
-                            self.splitter.sashpos(0, left_pane_width)
-                else:
-                    # Default: 25% of window width
-                    splitter_width = self.splitter.winfo_width()
-                    if splitter_width > 0:
+                splitter_width = self.splitter.winfo_width()
+                if splitter_width <= 0:
+                    return
+                
+                # Validate saved width using absolute pixel values (reasonable range: 150-1000px)
+                # Also ensure it doesn't exceed 60% of current window width
+                min_width = 150
+                max_width = min(1000, int(splitter_width * 0.60))
+                
+                if saved_device_width and min_width <= saved_device_width <= max_width:
+                    # Use saved width - calculate position of sash 1 (between main content and device pane)
+                    sash1_pos = splitter_width - saved_device_width
+                    # Ensure we leave at least 400px for the main content area
+                    if sash1_pos >= 400:
+                        self.splitter.sashpos(1, sash1_pos)
+                    else:
+                        # Saved width is too large for current window, use default instead
                         device_pane_width = int(splitter_width * 0.25)
-                        left_pane_width = splitter_width - device_pane_width
-                        if left_pane_width > 0:
-                            self.splitter.sashpos(0, left_pane_width)
+                        sash1_pos = splitter_width - device_pane_width
+                        self.splitter.sashpos(1, sash1_pos)
+                else:
+                    # Default: 25% of window width for device pane
+                    device_pane_width = int(splitter_width * 0.25)
+                    sash1_pos = splitter_width - device_pane_width
+                    if sash1_pos > 0:
+                        self.splitter.sashpos(1, sash1_pos)
             except Exception as e:
                 pass  # Silently fail
         
@@ -1364,12 +1375,13 @@ class MainApplication:
                 if terminal_height > 0:
                     config['terminal_height'] = terminal_height
             
-            # Save device pane width (horizontal sash)
+            # Save device pane width (horizontal sash 1 - between main content and device pane)
             if hasattr(self, 'splitter'):
                 total_width = self.splitter.winfo_width()
-                sash_pos = self.splitter.sashpos(0)
-                device_pane_width = total_width - sash_pos
-                if device_pane_width > 0:
+                sash1_pos = self.splitter.sashpos(1)
+                device_pane_width = total_width - sash1_pos
+                # Only save if within reasonable bounds (150-1000px)
+                if 150 <= device_pane_width <= 1000:
                     config['device_pane_width'] = device_pane_width
             
             save_config(config)

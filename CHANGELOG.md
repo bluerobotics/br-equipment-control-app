@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **Default font size**: Changed from 11pt to 12pt for improved readability on all platforms
 - **Terminal font size**: Terminal text is now 2pt smaller than the main font size for more compact display (e.g., 10pt terminal when main font is 12pt)
 - **Device pane default width**: Set to 25% of window width on first launch; subsequent launches use the saved width from last manual resize
+- **Scrollbars**: Hidden scrollbars on script editor and terminal for cleaner UI (mouse wheel/touchpad scrolling still works)
 
 ### Removed
 - **Device pane collapse trigger bar**: Removed collapsible panel trigger bar - users can now hide the device pane by simply resizing it to zero width (position is saved)
