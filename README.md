@@ -86,10 +86,13 @@ Download the device repository as a ZIP from GitHub and extract it to a folder o
 
 ### 2.3. Open the Device in the App
 
-1. Launch the BR Equipment Control App
-2. Go to **Settings → Change Device Folder**
-3. Click **Add Folder** and navigate to your device repository folder (e.g., `pressboi/`)
-4. The device will load and appear in the device pane on the left
+On first launch, the app will prompt you to add a device folder.
+
+Otherwise:
+1. Right-click in the **Device Pane** (left side)
+2. Select **Add Device...**
+3. Navigate to your device repository folder (e.g., `pressboi/`)
+4. The device will load and appear in the device pane
 
 ### 2.4. Connect to Your Device
 
