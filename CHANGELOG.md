@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - **Device Manager default width**: Changed from 25% to 30% of window width for better visibility on first launch
 
 ### Fixed
+- **USB simulation**: Fixed USB simulator not working on Windows (and all platforms) by properly passing device_manager reference to message handler
+- **Network simulation**: Fixed network simulator incorrectly displaying "VIRTUAL_COM" instead of "@127.0.0.1" connection address
 - **Device Manager width**: Fixed default panel width being too wide on macOS by reducing from previous auto-calculated size to 30% of window width
 
 ## [1.14.4] - 2025-11-20
