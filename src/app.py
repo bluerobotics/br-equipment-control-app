@@ -25,6 +25,9 @@ from .logging import create_terminal_panel, DataLogger
 from .device import DeviceManager, create_device_panel
 from .menu_bar import create_top_menu
 from .config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
+from .serial_number import initialize_serial_manager
+from .scanner import initialize_scanner, cleanup_scanner
+from .serial_gui import create_serial_panel, show_serial_dialog
 
 from _version import __version__
 
@@ -270,6 +273,10 @@ class MainApplication:
         # --- Data Logger ---
         self.data_logger = DataLogger(self.shared_gui_refs)
         self.shared_gui_refs['data_logger'] = self.data_logger
+        
+        # --- Serial Number System ---
+        initialize_serial_manager()
+        print("[SYSTEM] Serial number system initialized")
 
         # --- Populate device-specific shared refs ---
         for device_name, device_data in self.device_modules.items():
@@ -721,11 +728,15 @@ class MainApplication:
         cmd_ref_content = device_pane_frame
 
         # Create scripting GUI in the scripting pane
+        # Load initial lock editor state from config
+        initial_lock_state = self.config_data.get('lock_editor', False)
+        print(f"[LOCK DEBUG] Loaded initial_lock_state from config: {initial_lock_state}")
         self.scripting_gui_refs = create_scripting_interface(
             scripting_pane, 
             self.command_funcs, 
             self.shared_gui_refs, 
-            self.autosave_var
+            self.autosave_var,
+            initial_lock_state=initial_lock_state
         )
         
         # Now that the script editor exists, populate the command reference
@@ -739,6 +750,18 @@ class MainApplication:
         
         # Add command reference to shared_gui_refs so it can be accessed by comms
         self.shared_gui_refs['command_reference'] = self.command_reference_instance
+        
+        # Serial Number Panel (below Device Manager, hidden by default)
+        self.serial_panel = create_serial_panel(cmd_ref_content, self.shared_gui_refs)
+        self.shared_gui_refs['serial_panel'] = self.serial_panel
+        
+        # Check if serial panel should be visible (from config)
+        serial_panel_visible = self.config_data.get('serial_panel_visible', True)  # Default: shown
+        if serial_panel_visible:
+            self.serial_panel.pack(side=tk.BOTTOM, fill="x", expand=False, pady=(5, 0))
+        
+        # Variable to track visibility
+        self.serial_panel_visible_var = tk.BooleanVar(value=serial_panel_visible)
         
         # Add syntax highlighter to shared_gui_refs so it can be refreshed when devices are added
         self.shared_gui_refs['syntax_highlighter'] = self.scripting_gui_refs['syntax_highlighter']
@@ -765,7 +788,7 @@ class MainApplication:
             self.device_manager.create_all_gui_components(device_panel_container)
 
         # Set device pane width based on saved width OR 30% of window width
-        def set_device_pane_width():
+        def set_device_pane_width(retry_count=0):
             """Set device pane width to 30% of window width by default."""
             if not hasattr(self, 'splitter'):
                 return
@@ -774,31 +797,55 @@ class MainApplication:
                 saved_device_width = self.config_data.get('device_pane_width')
                 
                 splitter_width = self.splitter.winfo_width()
-                if splitter_width <= 0:
+                if splitter_width <= 100:
+                    # Window not ready yet, retry
+                    if retry_count < 10:
+                        print(f"[SASH] Splitter width not ready: {splitter_width}px, retrying in 100ms (attempt {retry_count+1}/10)")
+                        self.root.after(100, lambda: set_device_pane_width(retry_count + 1))
+                    else:
+                        print(f"[SASH] Gave up waiting for splitter to be ready after {retry_count} attempts")
                     return
                 
-                # Validate saved width (allow 0 for hidden, max 60% of window or 1000px)
-                max_width = min(1000, int(splitter_width * 0.60))
+                print(f"[SASH] Restoring device pane width: saved={saved_device_width}, splitter_width={splitter_width}")
+                
+                # Validate saved width - allow 0 for hidden, max 45% of window (to leave at least 55% for main content)
+                # No absolute max - scale with window size
+                max_width = int(splitter_width * 0.45)
+                min_main_content = int(splitter_width * 0.55)  # Main content needs at least 55%
                 
                 if saved_device_width is not None and 0 <= saved_device_width <= max_width:
                     # Use saved width - calculate position of sash 1 (between main content and device pane)
                     sash1_pos = splitter_width - saved_device_width
-                    # For non-zero widths, ensure we leave at least 400px for the main content area
-                    if saved_device_width == 0 or sash1_pos >= 400:
+                    
+                    # Validate that main content area is large enough
+                    if saved_device_width == 0:
+                        # Hidden is always OK
                         self.splitter.sashpos(1, sash1_pos)
+                        print(f"[SASH] Restored hidden device pane")
+                    elif sash1_pos >= min_main_content:
+                        # Valid: main content has enough space
+                        self.splitter.sashpos(1, sash1_pos)
+                        print(f"[SASH] Restored device pane width: {saved_device_width}px (sash1: {sash1_pos}px, total: {splitter_width}px)")
                     else:
-                        # Saved width is too large for current window, use default instead
-                        device_pane_width = int(splitter_width * 0.30)
+                        # Saved width leaves too little space for main content, use default
+                        print(f"[SASH] Saved width {saved_device_width}px too large (sash1={sash1_pos}px, min_main={min_main_content}px), using default")
+                        device_pane_width = int(splitter_width * 0.25)
                         sash1_pos = splitter_width - device_pane_width
                         self.splitter.sashpos(1, sash1_pos)
+                        print(f"[SASH] Using default: {device_pane_width}px (25%)")
                 else:
-                    # Default: 30% of window width for device pane
-                    device_pane_width = int(splitter_width * 0.30)
+                    # Default: 25% of window width for device pane (no absolute max)
+                    if saved_device_width is not None:
+                        print(f"[SASH] Invalid saved device width {saved_device_width}px (max: {max_width}px), using default")
+                    device_pane_width = int(splitter_width * 0.25)
                     sash1_pos = splitter_width - device_pane_width
                     if sash1_pos > 0:
                         self.splitter.sashpos(1, sash1_pos)
+                        print(f"[SASH] Using default device pane width: {device_pane_width}px ({int(device_pane_width/splitter_width*100)}% of {splitter_width}px)")
             except Exception as e:
-                pass  # Silently fail
+                print(f"[SASH] Error restoring device pane width: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Set device pane width early - adjust_status_panel_width now preserves it
         # Note: panels are already hidden by default in device_manager.create_all_gui_components()
@@ -857,8 +904,12 @@ class MainApplication:
             'validate': self.validate_script
         }
         settings_commands = {
-            'show_paths': self.show_paths_window
+            'show_paths': self.show_paths_window,
+            'serial_settings': lambda: show_serial_dialog(self.root, self.shared_gui_refs),
+            'toggle_serial_panel': self.toggle_serial_panel
         }
+        print(f"[DEBUG APP] settings_commands keys: {list(settings_commands.keys())}")
+        print(f"[DEBUG APP] serial_panel_visible_var: {self.serial_panel_visible_var}")
         self.menubar, self.recent_files_menu = create_top_menu(
             self.root,
             file_commands,
@@ -872,7 +923,8 @@ class MainApplication:
             self.font_var,
             self.set_font,
             self.font_size_var,
-            self.set_font_size
+            self.set_font_size,
+            self.serial_panel_visible_var
         )
 
         # Pass the recent files menu reference to the scripting gui
@@ -892,6 +944,11 @@ class MainApplication:
         if platform.system() == 'Darwin':  # macOS
             # Override the default quit behavior
             self.root.createcommand('::tk::mac::Quit', self.on_closing)
+        
+        # --- Initialize Scanner ---
+        # Initialize scanner input handler (must be done after root window is created)
+        initialize_scanner(self.root)
+        print("[SYSTEM] Scanner input handler initialized")
 
     def refresh_command_components(self):
         """Refreshes all UI components that depend on the list of commands."""
@@ -1117,6 +1174,11 @@ class MainApplication:
         """
         Handles the window close event, checking for unsaved changes before exiting.
         """
+        # Save sash positions FIRST, before any dialogs or cleanup, while widgets are valid
+        try:
+            self.save_sash_positions()
+        except Exception as e:
+            print(f"Error saving sash positions on close: {e}")
         
         # Check for active logging sessions
         if self.data_logger.has_active_logs():
@@ -1140,16 +1202,16 @@ class MainApplication:
         # Ask the scripting GUI to check for unsaved changes before closing
         check_result = self.scripting_gui_refs['check_unsaved']()
         if check_result:
-            # Save sash positions before closing
-            try:
-                self.save_sash_positions()
-            except Exception as e:
-                print(f"Error saving sash positions on close: {e}")
-            
             # Stop system logger
             try:
                 from src.logging import stop_system_logger
                 stop_system_logger()
+            except Exception:
+                pass
+            
+            # Cleanup scanner
+            try:
+                cleanup_scanner()
             except Exception:
                 pass
             
@@ -1365,13 +1427,36 @@ class MainApplication:
                     config['terminal_height'] = terminal_height
             
             # Save device pane width (horizontal sash 1 - between main content and device pane)
-            if hasattr(self, 'splitter'):
-                total_width = self.splitter.winfo_width()
-                sash1_pos = self.splitter.sashpos(1)
-                device_pane_width = total_width - sash1_pos
-                # Save width (allow 0 for hidden, max 1000px)
-                if 0 <= device_pane_width <= 1000:
-                    config['device_pane_width'] = device_pane_width
+            if hasattr(self, 'splitter') and self.splitter.winfo_exists():
+                try:
+                    total_width = self.splitter.winfo_width()
+                    sash1_pos = self.splitter.sashpos(1)
+                except tk.TclError:
+                    # Widget is being destroyed, skip saving
+                    print("[SASH] Skipped saving - splitter widget invalid")
+                    return
+                
+                # Only save if we have valid dimensions (window is properly sized and not being destroyed)
+                if total_width > 500 and sash1_pos >= 0:  # Require at least 500px total width for valid save
+                    device_pane_width = total_width - sash1_pos
+                    # Calculate max reasonable width (45% of total width - to leave at least 55% for main content)
+                    # No absolute max - scale with window size
+                    max_reasonable_width = int(total_width * 0.45)
+                    min_main_content = int(total_width * 0.55)
+                    
+                    # Validate: device pane should be reasonable size and leave enough space for main content
+                    if device_pane_width == 0:
+                        # Always allow hiding the device pane
+                        config['device_pane_width'] = device_pane_width
+                        print(f"[SASH] Saved device pane width: {device_pane_width}px (hidden)")
+                    elif sash1_pos >= min_main_content and device_pane_width <= max_reasonable_width:
+                        # Valid size: main content has at least 55%, device pane at most 45%
+                        config['device_pane_width'] = device_pane_width
+                        print(f"[SASH] Saved device pane width: {device_pane_width}px (total: {total_width}px, sash1: {sash1_pos}px, {int(device_pane_width/total_width*100)}%)")
+                    else:
+                        print(f"[SASH] Skipped saving invalid device pane width: {device_pane_width}px (sash1: {sash1_pos}px, total: {total_width}px, max: {max_reasonable_width}px, would be {int(device_pane_width/total_width*100)}%)")
+                else:
+                    print(f"[SASH] Skipped saving - invalid dimensions (total: {total_width}px, sash1: {sash1_pos}px)")
             
             save_config(config)
         except Exception as e:
@@ -1523,6 +1608,26 @@ class MainApplication:
             # Silently handle errors but don't completely fail
             pass
 
+    def toggle_serial_panel(self):
+        """Toggle visibility of the serial number panel."""
+        # Note: When using checkbutton, tkinter automatically toggles the variable
+        # BEFORE calling this command, so we read the NEW state
+        print(f"[DEBUG TOGGLE] serial_panel_visible_var is now: {self.serial_panel_visible_var.get()}")
+        
+        if self.serial_panel_visible_var.get():
+            # Variable is True -> Show panel
+            print("[DEBUG TOGGLE] Showing panel")
+            self.serial_panel.pack(side=tk.BOTTOM, fill="x", expand=False, pady=(5, 0))
+        else:
+            # Variable is False -> Hide panel
+            print("[DEBUG TOGGLE] Hiding panel")
+            self.serial_panel.pack_forget()
+        
+        # Save preference
+        self.config_data['serial_panel_visible'] = self.serial_panel_visible_var.get()
+        save_config(self.config_data)
+        print(f"[DEBUG TOGGLE] Saved preference: {self.serial_panel_visible_var.get()}")
+    
     def show_paths_window(self):
         """Display a window listing key application file paths with editable log directories."""
         if hasattr(self, '_paths_window') and self._paths_window and self._paths_window.winfo_exists():

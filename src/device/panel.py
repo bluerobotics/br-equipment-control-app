@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import re
+import time
 from src import theme
 from src.script import SCRIPT_COMMANDS
 from src.comms import devices_lock
@@ -944,17 +945,43 @@ class DevicePanel(ttk.Frame):
                                  activebackground=theme.PRIMARY_ACCENT,
                                  activeforeground=theme.FG_COLOR)
             
-            # List available serial ports
+            # List available serial ports (use cached list to avoid blocking)
             from src.comms import serial
-            ports = serial.list_serial_ports()
+            # Use cached port list if available (prevents freeze when USB devices plugged/unplugged)
+            if hasattr(self, '_cached_serial_ports') and self._cached_serial_ports is not None:
+                ports = self._cached_serial_ports
+            else:
+                # First time or cache expired - show "Scanning..." and fetch in background
+                usb_submenu.add_command(label="Scanning ports...", state='disabled')
+                ports = []
+                
+                # Fetch ports in background thread to avoid blocking UI
+                def fetch_ports_async():
+                    try:
+                        import threading
+                        def get_ports():
+                            ports_list = serial.list_serial_ports()
+                            # Cache for 5 seconds
+                            self._cached_serial_ports = ports_list
+                            self._cached_ports_time = time.time()
+                            # Refresh cache every 5 seconds
+                            def clear_cache():
+                                if hasattr(self, '_cached_ports_time'):
+                                    if time.time() - self._cached_ports_time > 5:
+                                        self._cached_serial_ports = None
+                            self.after(5000, clear_cache)
+                        thread = threading.Thread(target=get_ports, daemon=True)
+                        thread.start()
+                    except Exception as e:
+                        print(f"[ERROR] Failed to fetch serial ports: {e}")
+                fetch_ports_async()
+            
             if ports:
                 for port, description in ports:
                     usb_submenu.add_command(
                         label=f"{port} - {description}",
                         command=lambda p=port, d=device_name: self.set_connection_usb(d, p)
                     )
-            else:
-                usb_submenu.add_command(label="No serial ports found", state='disabled')
             
             connection_submenu.add_cascade(label="USB Serial", menu=usb_submenu)
             

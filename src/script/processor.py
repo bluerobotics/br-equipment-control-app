@@ -983,16 +983,24 @@ class ScriptRunner(threading.Thread):
             
             # If condition is true, continue processing remaining tokens
             if result:
+                print(f"[DEBUG] Condition TRUE - looking for action")
                 # Find 'throw' command in tokens
                 if 'throw' in tokens:
                     throw_index = tokens.index('throw')
+                    print(f"[DEBUG] Found 'throw' at index {throw_index}")
                     if throw_index + 1 < len(tokens):
                         warning_name = tokens[throw_index + 1]
+                        print(f"[DEBUG] Triggering warning: {warning_name}")
                         return self._trigger_warning(warning_name, line_num)
+                    else:
+                        self.status_cb(f"Error: 'throw' command missing warning name", line_num)
+                        return "error"
                 # If no action specified, just continue
+                print(f"[DEBUG] No action found after condition, continuing")
                 return "continue"
             else:
                 # Condition false - skip any action and continue
+                print(f"[DEBUG] Condition FALSE - skipping action")
                 self.status_cb(f"Condition false - skipping", line_num)
                 return "continue"
                 
@@ -1050,7 +1058,7 @@ class ScriptRunner(threading.Thread):
                 op = resolved[i + 1]
                 right = resolved[i + 2]
                 
-                print(f"[DEBUG] Evaluating: {left} {op} {right}")
+                print(f"[DEBUG] Evaluating: {left} (type: {type(left)}) {op} {right} (type: {type(right)})")
                 
                 if op == '>':
                     comparison_result = (left > right)
@@ -1068,7 +1076,7 @@ class ScriptRunner(threading.Thread):
                     self.status_cb(f"Error: Unknown operator '{op}'", line_num)
                     return None
                 
-                print(f"[DEBUG] Result: {comparison_result}")
+                print(f"[DEBUG] Comparison result: {comparison_result}")
                 result = result and comparison_result
                 
                 if not result:
@@ -1154,12 +1162,14 @@ class ScriptRunner(threading.Thread):
     def _trigger_warning(self, warning_name, line_num):
         """Trigger a warning and halt script execution."""
         try:
+            print(f"[DEBUG] _trigger_warning called with: {warning_name}")
             # Parse device.warning format
             if '.' not in warning_name:
                 self.status_cb(f"Error: Invalid warning format '{warning_name}'. Use device.warning_name", line_num)
                 return "error"
             
             device_name, warning_key = warning_name.split('.', 1)
+            print(f"[DEBUG] device_name='{device_name}', warning_key='{warning_key}'")
             
             # Load warnings for this device
             device_manager = self.gui_refs.get('device_manager')
@@ -1184,10 +1194,12 @@ class ScriptRunner(threading.Thread):
             
             # Send a warning message (format: DEVICE_WARNING: message)
             warning_msg = f"{device_name.upper()}_WARNING: {description}"
+            print(f"[DEBUG] Triggering warning message: {warning_msg}")
             self.status_cb(warning_msg, line_num)
             
             # Put script in error hold state
             self.is_held = True
+            print(f"[DEBUG] Script put in error hold state, returning 'error'")
             
             # Return error to stop execution
             return "error"

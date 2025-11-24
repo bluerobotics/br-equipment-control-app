@@ -46,6 +46,7 @@ The application provides a unified interface for scripting, monitoring, and debu
 - **Multi-Device Scripting**: Coordinate actions across multiple devices with simple text-based scripts (`.breq` files)
 - **Dual Communication**: USB and Ethernet connectivity with automatic discovery and failover
 - **Data Logging**: Export telemetry to CSV with millisecond timestamps for analysis in Excel or other tools
+- **Serial Number Tracking**: Built-in serial number system with barcode/QR scanner support for production traceability
 - **Firmware Management**: Flash firmware updates over USB or network with version tracking
 - **Error Diagnostics**: View device error logs and 24-hour heartbeat history for debugging connectivity issues
 - **Simulation Mode**: Test scripts without hardware using built-in device simulators
@@ -162,12 +163,41 @@ Files are saved to `logs/` with columns: `date`, `time_ms`, `elapsed_s`, followe
 
 Each device writes values to its columns when it sends telemetry. Other columns remain blank for that row.
 
-Use `<date>` and `<time>` in filenames for automatic timestamps:
+Use `<date>`, `<time>`, and `<serial>` in filenames for automatic timestamps and serial numbers:
 ```
 start_logging "<date>-<time> data.csv" fillhead
+start_logging "test_<serial>.csv" pressboi
+start_logging "production_<serial>_<date>.csv" fillhead pressboi
 ```
 
 Collisions are resolved by appending `_1`, `_2`, etc.
+
+### 4.4. Serial Number System
+
+Built-in serial number tracking automatically integrates with data logging for production traceability.
+
+**Features:**
+- Manual entry or barcode/QR scanner input (USB/Bluetooth scanners)
+- Auto-increment for sequential part numbering
+- Smart format detection (numeric, prefix+numeric, mixed formats)
+- Persistent storage across application restarts
+
+**Usage:**
+1. Enter serial number in Serial Number panel (left sidebar) or scan barcode
+2. Enable "Auto-increment" for automatic numbering
+3. Serial automatically appears in log filenames
+
+**Examples:**
+- `data.csv` → `data_SN001.csv` (automatic serial insertion)
+- `test_<serial>.csv` → `test_SN001.csv` (template variable)
+- `batch_<serial>_<date>.csv` → `batch_SN001_2025-11-21.csv` (combined)
+
+**Scanner Compatibility:**
+Works with any USB or Bluetooth barcode/QR scanner that emulates keyboard input (HID mode). Most commercial scanners work out of the box.
+
+📖 **Quick Start:** [SERIAL_NUMBER_QUICKSTART.md](SERIAL_NUMBER_QUICKSTART.md)  
+📖 **Full Documentation:** [SERIAL_NUMBER_SYSTEM.md](SERIAL_NUMBER_SYSTEM.md)  
+📝 **Example Scripts:** [breq-scripts/examples/serial_number_demo.breq](https://github.com/bluerobotics/breq-scripts/blob/main/examples/serial_number_demo.breq)
 
 ---
 

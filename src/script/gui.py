@@ -966,10 +966,13 @@ class CommandHelpWindow(tk.Toplevel):
         self.details_text.config(state=tk.DISABLED)
 
 
-def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var):
+def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var, initial_lock_state=False):
     """
     Creates the main scripting area.
     Returns a dictionary containing file commands and a callback to update the recent menu.
+    
+    Args:
+        initial_lock_state: Initial state for the editor lock (default: False/unlocked)
     """
     scripting_area = ttk.Frame(parent, style='TFrame')
     scripting_area.pack(fill=tk.BOTH, expand=True)
@@ -1014,6 +1017,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     paused_device = None  # Track which device was paused (for resume)
     is_held_by_user = False # Flag to manage Hold state vs. a normal stop
     single_block_var = tk.BooleanVar(value=False)
+    # Always start unlocked - lock will be applied after file loading if needed
+    lock_editor_var = tk.BooleanVar(value=False)
 
     # --- Message Queue & Terminal ---
     message_queue = queue.Queue()
@@ -1081,9 +1086,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     script_editor.tag_config("selection_highlight", background=theme.SECONDARY_ACCENT)
     script_editor.tag_config("error_highlight", background=theme.ERROR_RED, foreground=theme.FG_COLOR)
     
-    script_editor.insert(tk.END, "# Example Script\n# Type commands here or load a file.\n")
-    script_editor.edit_reset()
-    script_editor.edit_modified(False)
+    # Explicitly ensure editor starts in normal (unlocked) state
+    script_editor.text.config(state='normal')
+    print("[LOCK DEBUG] Script editor initialized in 'normal' (unlocked) state")
 
     # The command reference is no longer created here.
 
@@ -1103,8 +1108,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def on_text_modified(event):
         """Updates window title and triggers autosave if enabled."""
         update_window_title()
+        
         # --- Autosave Logic ---
-        if autosave_var.get() and current_filepath:
+        # Skip autosave if we're currently loading a file
+        if loading_file[0]:
+            print(f"[LOCK DEBUG] Skipping autosave - file loading in progress")
+        elif autosave_var.get() and current_filepath:
             # Call the save_script function but without triggering the dialog
             try:
                 with open(current_filepath, 'w') as f:
@@ -1177,8 +1186,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def new_script():
         nonlocal current_filepath
         if not check_unsaved_changes(): return
-        script_editor.delete('1.0', tk.END);
-        script_editor.edit_modified(False);
+        
+        def _clear():
+            script_editor.delete('1.0', tk.END);
+            script_editor.edit_modified(False);
+        
+        with_editor_unlocked(_clear)
         
         # Create a temporary autosave file for new unsaved scripts
         import tempfile
@@ -1251,8 +1264,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def load_specific_script(filepath):
         nonlocal current_filepath
-        if not check_unsaved_changes(): return
+        print(f"[LOCK DEBUG] load_specific_script called for: {filepath}")
+        
+        if not check_unsaved_changes():
+            print(f"[LOCK DEBUG] check_unsaved_changes returned False, aborting load")
+            return
+            
         if not os.path.exists(filepath):
+            print(f"[LOCK DEBUG] File not found: {filepath}")
             messagebox.showerror("File Not Found", f"Could not find file:\n{filepath}")
             filepaths = load_recent_files()
             if filepath in filepaths:
@@ -1262,16 +1281,26 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             return
         try:
             with open(filepath, 'r') as f:
+                content = f.read()
+            print(f"[LOCK DEBUG] Read {len(content)} characters from file")
+            
+            def _load():
+                print(f"[LOCK DEBUG] Clearing editor and inserting content")
                 script_editor.delete('1.0', tk.END);
-                script_editor.insert('1.0', f.read())
+                script_editor.insert('1.0', content)
+                script_editor.edit_modified(False);
+            
+            with_editor_unlocked(_load)
+            
             current_filepath = filepath;
-            script_editor.edit_modified(False);
             update_window_title();
             update_selection_highlight(1);
             status_var.set(f"Loaded {os.path.basename(current_filepath)}")
             add_to_recent_files(filepath)
             update_recent_files_display()
+            print(f"[LOCK DEBUG] File loaded successfully")
         except Exception as e:
+            print(f"[LOCK DEBUG] Error loading file: {e}")
             messagebox.showerror("Load Error", f"Could not load file:\n{e}")
 
     def load_script():
@@ -1599,7 +1628,11 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if next_valid_line_num != -1:
             next_line_num = next_valid_line_num
         
-        status_var.set(f"Step complete. Next line: {next_line_num}");
+        # Only set "Step complete" if the script is not in error hold state
+        if script_runner and script_runner.is_held:
+            print(f"[on_step_finished] Script in error hold, preserving error message")
+        else:
+            status_var.set(f"Step complete. Next line: {next_line_num}");
         
         # Use a single, scheduled function to advance both the cursor and selection highlights
         def advance_highlights():
@@ -1667,7 +1700,13 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if next_valid_line_num != -1:
             next_line_num = next_valid_line_num
         
-        status_var.set(f"Step complete. Next line: {next_line_num}")
+        # Only set "Step complete" if the script is not in error hold state
+        # If in error hold, the error message should remain visible
+        if script_runner and script_runner.is_held:
+            # Script is in error hold - don't overwrite the error message
+            print(f"[CALLBACK] Script in error hold, preserving error message")
+        else:
+            status_var.set(f"Step complete. Next line: {next_line_num}")
         
         # Advance both the cursor and selection highlights
         script_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
@@ -1882,6 +1921,66 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                                           style="OrangeToggle.TButton")
     single_block_switch.pack(side=tk.LEFT, padx=5)
 
+    # --- Lock Editor Button (right-justified) ---
+    def toggle_editor_lock(*args):
+        """Toggle the script editor between locked (read-only) and unlocked."""
+        is_locked = lock_editor_var.get()
+        print(f"[LOCK DEBUG] toggle_editor_lock called: is_locked={is_locked}")
+        
+        if is_locked:
+            script_editor.text.config(state='disabled')
+            lock_editor_switch.config(style="Red.TButton")
+            print(f"[LOCK DEBUG] Editor locked (disabled)")
+        else:
+            script_editor.text.config(state='normal')
+            lock_editor_switch.config(style="OrangeToggle.TButton")
+            print(f"[LOCK DEBUG] Editor unlocked (normal)")
+        
+        # Save preference to config
+        try:
+            from src.config import load_config, save_config
+            config = load_config()
+            config['lock_editor'] = is_locked
+            save_config(config)
+            print(f"[LOCK DEBUG] Saved lock state to config: {is_locked}")
+        except Exception as e:
+            print(f"[ERROR] Failed to save lock editor state: {e}")
+    
+    # Flag to prevent autosave during file loading
+    loading_file = [False]  # Use list so it's mutable in nested function
+    
+    def with_editor_unlocked(func):
+        """Temporarily unlock editor to perform an operation, then restore lock state."""
+        was_locked = lock_editor_var.get()
+        current_state = script_editor.text.cget('state')
+        print(f"[LOCK DEBUG] with_editor_unlocked: was_locked={was_locked}, current_state={current_state}")
+        
+        # Set flag to prevent autosave during this operation
+        loading_file[0] = True
+        
+        if was_locked:
+            script_editor.text.config(state='normal')
+            print(f"[LOCK DEBUG] Unlocked editor for operation")
+        try:
+            func()
+            print(f"[LOCK DEBUG] Operation completed successfully")
+        finally:
+            # Clear flag - autosave can resume
+            loading_file[0] = False
+            
+            if was_locked:
+                script_editor.text.config(state='disabled')
+                print(f"[LOCK DEBUG] Re-locked editor after operation")
+    
+    # Bind the variable to the toggle function (do this before creating the button)
+    lock_editor_var.trace_add('write', toggle_editor_lock)
+    
+    lock_editor_switch = ttk.Checkbutton(btn_container, text="🔒 Lock Editor", variable=lock_editor_var,
+                                         style="OrangeToggle.TButton")
+    lock_editor_switch.pack(side=tk.RIGHT, padx=5)
+    
+    # Note: Initial lock state is applied AFTER recovery completes (see check_for_recovery function)
+
     refresh_button_states() # Initial state
 
     # --- Status Label ---
@@ -1980,9 +2079,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 try:
                     with open(most_recent, 'r') as f:
                         content = f.read()
-                    script_editor.delete('1.0', tk.END)
-                    script_editor.insert('1.0', content)
-                    script_editor.edit_modified(False)  # Mark as unmodified since it's from autosave
+                    
+                    def _recover():
+                        script_editor.delete('1.0', tk.END)
+                        script_editor.insert('1.0', content)
+                        script_editor.edit_modified(False)  # Mark as unmodified since it's from autosave
+                    
+                    with_editor_unlocked(_recover)
+                    
                     nonlocal current_filepath
                     current_filepath = most_recent
                     update_window_title()
@@ -2002,6 +2106,20 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                             os.remove(tf)
                         except Exception as e:
                             pass  # Ignore errors deleting old temp files
+        
+        # If no recovery happened, add example script
+        if not recoverable_files and not current_filepath:
+            def _add_example():
+                script_editor.insert(tk.END, "# Example Script\n# Type commands here or load a file.\n")
+                script_editor.edit_reset()
+                script_editor.edit_modified(False)
+            with_editor_unlocked(_add_example)
+        
+        # After recovery completes, apply the initial lock state if needed
+        # Delay slightly more (100ms) to ensure any startup file loading has completed
+        if initial_lock_state:
+            print(f"[LOCK DEBUG] Scheduling lock to be applied in 100ms")
+            root.after(100, lambda: (print("[LOCK DEBUG] Applying saved lock state"), lock_editor_var.set(True)))
     
     # Schedule recovery check after GUI is fully loaded
     root.after(500, check_for_recovery)

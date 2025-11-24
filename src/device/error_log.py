@@ -225,8 +225,9 @@ def show_error_log_window(parent, gui_refs):
             found_end = False
             
             for line in lines:
-                # Look for messages from our device
-                if device_name in line:
+                # Look for messages from our device (case-insensitive)
+                line_upper = line.upper()
+                if device_name in line_upper:
                     # Check if this is the start of error log
                     if "=== ERROR LOG:" in line:
                         found_start = True

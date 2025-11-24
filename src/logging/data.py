@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 import tkinter as tk
 from .terminal import log_to_terminal
+from src.serial_number import get_serial_manager, format_filename_with_serial
 
 
 def _resolve_logs_directory() -> Path:
@@ -52,12 +53,19 @@ class DataLogger:
         """
         Returns a unique filename by appending _1, _2, etc. if needed.
         Adds .csv extension if not present.
-        Supports <date> and <time> tags for dynamic timestamps.
+        Supports <date>, <time>, and <serial> tags for dynamic values.
         """
+        # Get serial number from serial manager
+        serial_manager = get_serial_manager()
+        serial = serial_manager.get_and_increment()
+        
         # Replace date/time tags
         now = datetime.datetime.now()
         base_filename = base_filename.replace('<date>', now.strftime('%Y-%m-%d'))
         base_filename = base_filename.replace('<time>', now.strftime('%H-%M-%S'))
+        
+        # Apply serial number formatting (handles <serial> placeholder or adds as suffix)
+        base_filename = format_filename_with_serial(base_filename, serial)
         
         if not base_filename.endswith('.csv'):
             base_filename += '.csv'

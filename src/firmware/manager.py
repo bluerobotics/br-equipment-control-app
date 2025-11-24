@@ -81,8 +81,8 @@ class FirmwareManagerWindow(tk.Toplevel):
         self.title("Firmware Manager")
         self.configure(bg=theme.BG_COLOR)
         self.resizable(True, True)
-        self.geometry("1100x780")
-        self.minsize(900, 660)
+        # Will auto-size after UI is built
+        self.minsize(1000, 700)
 
         self.gui_refs = gui_refs
         self.device_manager = gui_refs.get('device_manager')
@@ -100,9 +100,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         self._refresh_job = None
         self.command_funcs = gui_refs.get('command_funcs', {})
         self.update_in_progress = False
-        self.nvm_views = {}
-        self._previous_nvm_cb = gui_refs.get('show_nvm_dump_cb')
-        self.gui_refs['show_nvm_dump_cb'] = self.display_nvm_dump
 
         self.style = ttk.Style(self)
         self._configure_styles()
@@ -110,6 +107,11 @@ class FirmwareManagerWindow(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self._build_ui()
+        
+        # Auto-size window to fit content
+        self.update_idletasks()
+        self._auto_size_window()
+        
         self.refresh_device_states()
         self.refresh_all_releases()
         
@@ -137,9 +139,13 @@ class FirmwareManagerWindow(tk.Toplevel):
         # Store canvas reference for mousewheel binding
         self._canvas = canvas
         
-        # Bind mousewheel
+        # Bind mousewheel (store reference for cleanup)
         def on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            # Check if canvas still exists before scrolling
+            if canvas.winfo_exists():
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        self._mousewheel_binding = on_mousewheel
         canvas.bind_all("<MouseWheel>", on_mousewheel)
         
         container = ttk.Frame(scrollable_frame, style='TFrame', padding=(20, 20, 20, 12))
@@ -274,14 +280,6 @@ class FirmwareManagerWindow(tk.Toplevel):
             nvm_row = ttk.Frame(frame, style='TFrame')
             nvm_row.grid(row=8, column=0, columnspan=2, sticky='w', pady=(6, 0))
 
-            dump_button = ttk.Button(
-                nvm_row,
-                text="Dump NVM…",
-                command=lambda key=device_key: self.dump_nvm(key),
-                style='Ghost.TButton'
-            )
-            dump_button.pack(side=tk.LEFT, padx=(0, 8))
-
             reset_button = ttk.Button(
                 nvm_row,
                 text="Clear Firmware (Reset NVM)",
@@ -316,6 +314,48 @@ class FirmwareManagerWindow(tk.Toplevel):
                 'status_label': status_label
             }
 
+    def _auto_size_window(self):
+        """Automatically size the window to fit content while respecting min/max constraints."""
+        try:
+            # Force update to get accurate measurements
+            self.update_idletasks()
+            
+            # Get screen dimensions
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            
+            # Get the actual content size from the canvas scroll region
+            scroll_region = self._canvas.bbox("all")
+            if scroll_region:
+                content_width = scroll_region[2] - scroll_region[0]
+                content_height = scroll_region[3] - scroll_region[1]
+                
+                # Add padding for scrollbar and margins
+                required_width = content_width + 60
+                required_height = content_height + 40
+            else:
+                # Fallback calculation based on number of devices
+                num_devices = len(self.rows)
+                # Each device card is roughly 450-500px tall
+                required_width = 1200
+                required_height = 150 + (num_devices * 480)
+            
+            # Constrain to screen size (leave some margin)
+            max_width = int(screen_width * 0.9)
+            max_height = int(screen_height * 0.9)
+            
+            final_width = min(max(1000, required_width), max_width)
+            final_height = min(max(700, required_height), max_height)
+            
+            # Center the window on screen
+            x_position = max(0, (screen_width - final_width) // 2)
+            y_position = max(0, (screen_height - final_height) // 2)
+            
+            self.geometry(f"{final_width}x{final_height}+{x_position}+{y_position}")
+        except Exception as e:
+            print(f"[FW MGR] Auto-size failed: {e}")
+            # Fallback to a larger default size
+            self.geometry("1200x900")
 
     def refresh_device_states(self):
         if not self.device_manager:
@@ -532,25 +572,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         except Exception:
             return False
 
-    def dump_nvm(self, device_key):
-        row = self.rows.get(device_key)
-        if not row:
-            return
-        view = self._ensure_nvm_view(device_key, reset=True)
-        if not view:
-            return
-        text_widget = view['text']
-        text_widget.configure(state='normal')
-        label = row.get('config', {}).get('label', device_key.capitalize())
-        text_widget.insert(tk.END, f"{label} NVM Dump\n")
-        text_widget.insert(tk.END, "Address  : Hex Bytes                                         |ASCII|\n")
-        text_widget.insert(tk.END, "-" * 80 + "\n")
-        text_widget.configure(state='disabled')
-        if self.send_device_command(device_key, "dump_nvm"):
-            row['status_var'].set("Dumping NVM… (see viewer for results)")
-        else:
-            row['status_var'].set("Unable to send dump_nvm command.")
-
     def reset_nvm(self, device_key):
         row = self.rows.get(device_key)
         if not row:
@@ -565,61 +586,6 @@ class FirmwareManagerWindow(tk.Toplevel):
         if not row:
             return
         row['status_var'].set("Idle")
-
-    def _ensure_nvm_view(self, device_key, reset=False):
-        view = self.nvm_views.get(device_key)
-        if not view or not view['window'].winfo_exists():
-            window = tk.Toplevel(self)
-            window.title(f"{device_key.capitalize()} NVM Dump")
-            window.configure(bg=theme.BG_COLOR)
-            text_widget = scrolledtext.ScrolledText(
-                window,
-                width=100,
-                height=32,
-                wrap=tk.NONE,
-                background=theme.WIDGET_BG,
-                foreground=theme.FG_COLOR,
-                borderwidth=0,
-                font=getattr(theme, "FONT_NORMAL", ("Consolas", 10))
-            )
-            text_widget.pack(fill=tk.BOTH, expand=True)
-            text_widget.configure(state='disabled')
-            view = {'window': window, 'text': text_widget}
-            self.nvm_views[device_key] = view
-        else:
-            text_widget = view['text']
-            window = view['window']
-
-        if reset:
-            text_widget.configure(state='normal')
-            text_widget.delete('1.0', tk.END)
-            text_widget.configure(state='disabled')
-
-        window.lift()
-        return view
-
-    def display_nvm_dump(self, device_key, payload):
-        view = self._ensure_nvm_view(device_key)
-        if not view:
-            return
-
-        text_widget = view['text']
-        text_widget.configure(state='normal')
-        line = payload
-        if payload.startswith("SUMMARY:"):
-            if text_widget.index(tk.END) != "1.0":
-                text_widget.insert(tk.END, "\n")
-            line = payload[len("SUMMARY:"):]
-        else:
-            try:
-                address_part, rest = payload.split(':', 1)
-                hex_part, ascii_part = rest.split(':', 1)
-                line = f"0x{address_part.upper()}: {hex_part.strip():<47} |{ascii_part.strip()}|"
-            except ValueError:
-                line = payload
-        text_widget.insert(tk.END, line + "\n")
-        text_widget.see(tk.END)
-        text_widget.configure(state='disabled')
 
     def _update_status_after_check(self, device_key, release_info):
         row = self.rows.get(device_key)
@@ -815,24 +781,19 @@ class FirmwareManagerWindow(tk.Toplevel):
             )
             return
 
+        # Unbind mousewheel to prevent errors after window destruction
+        if hasattr(self, '_mousewheel_binding'):
+            try:
+                self.unbind_all("<MouseWheel>")
+            except Exception:
+                pass
+
         if self._refresh_job:
             try:
                 self.after_cancel(self._refresh_job)
             except Exception:
                 pass
             self._refresh_job = None
-
-        if self.gui_refs.get('show_nvm_dump_cb') is self.display_nvm_dump:
-            if self._previous_nvm_cb:
-                self.gui_refs['show_nvm_dump_cb'] = self._previous_nvm_cb
-            else:
-                del self.gui_refs['show_nvm_dump_cb']
-
-        for view in list(self.nvm_views.values()):
-            window = view.get('window')
-            if window and window.winfo_exists():
-                window.destroy()
-        self.nvm_views.clear()
 
         if self.gui_refs.get('firmware_manager_window') is self:
             del self.gui_refs['firmware_manager_window']

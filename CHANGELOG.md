@@ -4,6 +4,68 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.16.0] - 2025-11-24
+
+### Added
+- **Lock Editor Button**: New "🔒 Lock Editor" button in script control panel (right-justified) to prevent accidental edits
+  - Makes script editor read-only when enabled
+  - Prevents scanner input from typing into script when locked
+  - State persists between app restarts
+  - Visual feedback: red when locked, orange when unlocked
+- **NVM Dump Window**: Moved NVM dump functionality from Firmware Manager to Devices menu for better organization
+  - Standalone window with tabbed interface
+  - "Dump NVM", "Clear View", and "Clear Firmware (Reset NVM)" buttons
+  - Dedicated output area for NVM data
+- **Firmware Manager Auto-Sizing**: Window now automatically scales to fit all device content based on screen size
+  - Dynamic height calculation (480px per device)
+  - Minimum size of 1000x700 with fallback to 1200x900
+  - No more need to manually resize window
+
+### Changed
+- **Serial Number Panel**: Now visible by default on first launch (was hidden)
+- **Serial Number Input**: Redesigned layout and improved usability
+  - Input field now auto-saves (removed "Set" button)
+  - Moved input bar next to "Serial Number" label
+  - Removed redundant "Current:" text
+  - Improved auto-increment checkbox sizing
+  - Info text updated to reflect auto-save behavior
+- **Device Manager Width Calculation**: Changed to pure percentage-based limits (45% max) to handle UI scaling better
+  - Fixes issue where panel would take up entire width on restart with large UI scaling
+
+### Fixed
+- **Conditional Statement Warnings**: Fixed bug where `if` conditions triggering warnings would show "Step complete" instead of the warning message
+  - Status now correctly preserved when script is in error hold state
+- **Scanner Input Injection**: Fixed scanner input being typed into script editor when cursor was focused there
+  - Implemented "scanner mode" that blocks character propagation during rapid input
+  - Scanner handler now runs first via `bind_all` with `add=True`
+- **File Wipe Bug**: Fixed critical bug where autosave could wipe file contents during loading
+  - Added `loading_file` flag to prevent autosave during programmatic edits
+  - Files are now safe during all load/recovery operations
+- **Device Manager Width Persistence**: Fixed issues with saving/restoring panel width
+  - Added stricter validation for saved widths
+  - Improved retry mechanism for widget sizing
+  - Better debug logging for troubleshooting
+
+## [1.15.0] - 2025-11-22
+
+### Added
+- **Serial Number System**: Comprehensive serial number tracking with auto-increment functionality
+  - Manual entry via GUI panel (located in Device Manager, hidden by default)
+  - Barcode/QR code scanner support (USB and Bluetooth)
+  - Automatic integration with data logging filenames
+  - Smart auto-increment for various serial formats (numeric, prefix+numeric, mixed)
+  - Persistent storage of serial numbers and settings
+  - Template variables: `<serial>`, `<date>`, `<time>` for flexible filename formatting
+  - Serial number settings dialog accessible via Settings menu
+  - Toggle panel visibility via Settings → "Show Serial Number Panel" (off by default)
+  - Real-time feedback on scanner activity (no misleading "ready" status)
+  - Comprehensive documentation (SERIAL_NUMBER_SYSTEM.md, SERIAL_NUMBER_QUICKSTART.md)
+  - Example scripts demonstrating serial number usage
+  - Test suite for serial number functionality (test_serial_system.py)
+
+### Fixed
+- **Firmware Manager mousewheel crash**: Fixed `TclError: invalid command name` exception that occurred when scrolling mouse wheel after closing the Firmware Manager window. Added proper event binding cleanup in window close handler.
+
 ## [1.14.6] - 2025-11-21
 
 ### Fixed

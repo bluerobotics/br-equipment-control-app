@@ -11,7 +11,7 @@ from _version import __version__
 
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback, font_var=None, set_font_callback=None, font_size_var=None, set_font_size_callback=None):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback, font_var=None, set_font_callback=None, font_size_var=None, set_font_size_callback=None, serial_panel_visible_var=None):
     """
     Creates the main application menu bar.
     """
@@ -19,12 +19,14 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     from .codegen.generator import show_code_generator
     from .firmware import open_firmware_manager
     from .device.error_log import show_error_log_window
+    from .device.nvm_dump import show_nvm_dump_window
     
     # Create device commands
     device_commands = {
         'generate_cpp_code': lambda: show_code_generator(parent, gui_refs),
         'open_firmware_manager': lambda: open_firmware_manager(parent, gui_refs),
-        'dump_error_log': lambda: show_error_log_window(parent, gui_refs)
+        'dump_error_log': lambda: show_error_log_window(parent, gui_refs),
+        'dump_nvm': lambda: show_nvm_dump_window(parent, gui_refs)
     }
     
     menubar = Menu(parent, 
@@ -93,6 +95,8 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
                         activeforeground=theme.FG_COLOR)
     devices_menu.add_command(label="Firmware Manager...", command=device_commands['open_firmware_manager'])
     devices_menu.add_separator(background=theme.WIDGET_BORDER)
+    devices_menu.add_command(label="Dump NVM...", command=device_commands['dump_nvm'])
+    devices_menu.add_separator(background=theme.WIDGET_BORDER)
     devices_menu.add_command(label="Dump Error Log...", command=device_commands['dump_error_log'])
     devices_menu.add_separator(background=theme.WIDGET_BORDER)
     devices_menu.add_command(label="C++ Code Generator...", command=device_commands['generate_cpp_code'])
@@ -104,6 +108,29 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
                          fg=theme.FG_COLOR,
                          activebackground=theme.PRIMARY_ACCENT,
                          activeforeground=theme.FG_COLOR)
+    
+    # Show Serial Number Panel toggle
+    print(f"[DEBUG MENU] toggle_serial_panel in settings_commands: {'toggle_serial_panel' in settings_commands}")
+    print(f"[DEBUG MENU] serial_panel_visible_var is not None: {serial_panel_visible_var is not None}")
+    if 'toggle_serial_panel' in settings_commands and serial_panel_visible_var is not None:
+        print("[DEBUG MENU] Adding 'Show Serial Number Panel' menu item")
+        settings_menu.add_checkbutton(
+            label="Show Serial Number Panel",
+            onvalue=True,
+            offvalue=False,
+            variable=serial_panel_visible_var,
+            command=settings_commands['toggle_serial_panel'],
+            selectcolor=theme.PRIMARY_ACCENT
+        )
+        settings_menu.add_separator(background=theme.WIDGET_BORDER)
+    else:
+        print("[DEBUG MENU] NOT adding 'Show Serial Number Panel' menu item")
+    
+    # Serial Number Settings
+    if 'serial_settings' in settings_commands:
+        settings_menu.add_command(label="Serial Number Settings...", command=settings_commands['serial_settings'])
+        settings_menu.add_separator(background=theme.WIDGET_BORDER)
+    
     if 'show_paths' in settings_commands:
         settings_menu.add_command(label="Show Application Paths...", command=settings_commands['show_paths'])
         settings_menu.add_separator(background=theme.WIDGET_BORDER)
