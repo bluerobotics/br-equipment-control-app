@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.17.0] - 2025-11-26
+
+### Added
+- **Device Views System**: New "Views" section in device panel for operator UIs
+  - JSON-based view definitions in device folders (`views.json`)
+  - Right-click context menu: Open View, Display on Startup, Edit, Delete
+  - Hover tooltips for view descriptions
+  - Support for custom operator views with Run/Hold/Reset controls
+  - Persistent startup view settings per device
+  
+### Changed
+- **Device Panel**: Added "Views" folder with lavender/pastel colored headers
+- **Device Registry**: Enhanced to load and manage `views.json` definitions
+- **JSON Encoding**: All device definition JSON files now use UTF-8 encoding for special character support
+
 ## [1.16.1] - 2025-11-26
 
 ### Changed
