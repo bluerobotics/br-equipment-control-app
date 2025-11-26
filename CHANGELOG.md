@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.16.1] - 2025-11-26
+
+### Changed
+- **Serial Number Panel UI**: Redesigned layout with Op Number moved to top, improved styling and alignment
+  - Order: Op Number, Job Number, Serial Number
+  - Removed Clear button; fields auto-save on change
+  - Right-aligned input boxes and bottom info lines
+  - Removed "op" from scanner dropdown (job and serial only)
+  - Smaller auto-increment text, improved spacing
+
 ## [1.16.0] - 2025-11-24
 
 ### Added

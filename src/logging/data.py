@@ -53,10 +53,12 @@ class DataLogger:
         """
         Returns a unique filename by appending _1, _2, etc. if needed.
         Adds .csv extension if not present.
-        Supports <date>, <time>, and <serial> tags for dynamic values.
+        Supports <date>, <time>, <job>, <op>, and <serial> tags for dynamic values.
         """
-        # Get serial number from serial manager
+        # Get job, op, and serial numbers from serial manager
         serial_manager = get_serial_manager()
+        job = serial_manager.get_job()
+        op = serial_manager.get_op()
         serial = serial_manager.get_and_increment()
         
         # Replace date/time tags
@@ -64,8 +66,8 @@ class DataLogger:
         base_filename = base_filename.replace('<date>', now.strftime('%Y-%m-%d'))
         base_filename = base_filename.replace('<time>', now.strftime('%H-%M-%S'))
         
-        # Apply serial number formatting (handles <serial> placeholder or adds as suffix)
-        base_filename = format_filename_with_serial(base_filename, serial)
+        # Apply job, op, and serial number formatting (handles <job>/<op>/<serial> placeholders)
+        base_filename = format_filename_with_serial(base_filename, serial, job, op)
         
         if not base_filename.endswith('.csv'):
             base_filename += '.csv'

@@ -18,13 +18,44 @@ class SerialNumberManager:
     
     def __init__(self):
         self.lock = threading.Lock()
+        self.current_job: Optional[str] = None
+        self.current_op: Optional[str] = None
         self.current_serial: Optional[str] = None
-        self.auto_increment: bool = True
+        self.auto_increment: bool = False  # Changed default to False
+        self.scanner_target: str = "job"  # "job", "op", or "serial" - default to job
         self.prefix: str = ""
         self.counter: int = 1
         self.padding: int = 4  # Zero-padding width (e.g., 0001)
         self.scanner_callbacks: list = []  # Callbacks when scanner input is received
         
+    def set_job(self, job: str):
+        """
+        Set the current job number manually.
+        """
+        with self.lock:
+            self.current_job = job
+    
+    def get_job(self) -> Optional[str]:
+        """
+        Get the current job number.
+        """
+        with self.lock:
+            return self.current_job
+    
+    def set_op(self, op: str):
+        """
+        Set the current operator number manually.
+        """
+        with self.lock:
+            self.current_op = op
+    
+    def get_op(self) -> Optional[str]:
+        """
+        Get the current operator number.
+        """
+        with self.lock:
+            return self.current_op
+    
     def set_serial(self, serial: str):
         """
         Set the current serial number manually.
@@ -38,6 +69,21 @@ class SerialNumberManager:
         """
         with self.lock:
             return self.current_serial
+    
+    def set_scanner_target(self, target: str):
+        """
+        Set which field the scanner populates: "job", "op", or "serial".
+        """
+        with self.lock:
+            if target in ["job", "op", "serial"]:
+                self.scanner_target = target
+    
+    def get_scanner_target(self) -> str:
+        """
+        Get the current scanner target field.
+        """
+        with self.lock:
+            return self.scanner_target
     
     def get_and_increment(self) -> Optional[str]:
         """
@@ -111,9 +157,11 @@ class SerialNumberManager:
     
     def reset(self):
         """
-        Reset the serial number to None.
+        Reset job, op, and serial numbers to None.
         """
         with self.lock:
+            self.current_job = None
+            self.current_op = None
             self.current_serial = None
     
     def register_scanner_callback(self, callback: Callable[[str], None]):
@@ -133,19 +181,25 @@ class SerialNumberManager:
             if callback in self.scanner_callbacks:
                 self.scanner_callbacks.remove(callback)
     
-    def on_scanner_input(self, serial: str):
+    def on_scanner_input(self, text: str):
         """
         Called when a scanner provides input.
-        Updates the current serial and notifies callbacks.
+        Updates the current job, op, or serial based on scanner_target and notifies callbacks.
         """
         with self.lock:
-            self.current_serial = serial
+            target = self.scanner_target
+            if target == "job":
+                self.current_job = text
+            elif target == "op":
+                self.current_op = text
+            else:  # "serial"
+                self.current_serial = text
             callbacks = list(self.scanner_callbacks)
         
         # Call callbacks outside the lock to avoid deadlocks
         for callback in callbacks:
             try:
-                callback(serial)
+                callback(text)
             except Exception as e:
                 print(f"[ERROR] Scanner callback failed: {e}")
 
@@ -166,61 +220,70 @@ def get_serial_manager() -> SerialNumberManager:
         return _serial_manager
 
 
-def format_filename_with_serial(base_filename: str, serial: Optional[str]) -> str:
+def format_filename_with_serial(base_filename: str, serial: Optional[str] = None, job: Optional[str] = None, op: Optional[str] = None) -> str:
     """
-    Format a filename with serial number.
+    Format a filename with job number, op number, and/or serial number.
+    Only replaces placeholders if they exist in the filename - does NOT auto-append.
     
     Examples:
-        base_filename="log.csv", serial="SN001" -> "log_SN001.csv"
-        base_filename="test_<serial>.csv", serial="ABC" -> "test_ABC.csv"
-        base_filename="data.csv", serial=None -> "data.csv"
+        base_filename="test_<job>_<op>_<serial>.csv", job="001", op="42", serial="123" -> "test_001_42_123.csv"
+        base_filename="log_<job>.csv", job="001" -> "log_001.csv"
+        base_filename="data.csv", serial="123", job="001" -> "data.csv" (no placeholders, no change)
     """
-    if serial is None:
-        # No serial number, return as-is (remove <serial> placeholder if present)
-        return base_filename.replace('<serial>', '').replace('__', '_')
+    result = base_filename
     
-    # Check if filename has a <serial> placeholder
-    if '<serial>' in base_filename:
-        return base_filename.replace('<serial>', serial)
+    # Replace <job> placeholder
+    if '<job>' in result:
+        result = result.replace('<job>', job if job else '')
     
-    # Otherwise, insert serial before the extension
-    path = Path(base_filename)
-    stem = path.stem
-    suffix = path.suffix
+    # Replace <op> placeholder
+    if '<op>' in result:
+        result = result.replace('<op>', op if op else '')
     
-    # Add serial as suffix to stem
-    new_stem = f"{stem}_{serial}"
-    return str(Path(new_stem).with_suffix(suffix))
+    # Replace <serial> placeholder
+    if '<serial>' in result:
+        result = result.replace('<serial>', serial if serial else '')
+    
+    # Clean up multiple underscores
+    result = result.replace('__', '_')
+    
+    return result
 
 
-def save_serial_to_config(serial: Optional[str], auto_increment: bool):
+def save_serial_to_config(job: Optional[str], op: Optional[str], serial: Optional[str], auto_increment: bool, scanner_target: str):
     """
-    Save current serial number and auto-increment setting to config.
+    Save current job number, op number, serial number, auto-increment setting, and scanner target to config.
     """
     try:
         from src.config import load_config, save_config
         config = load_config()
+        config['job_number'] = job
+        config['op_number'] = op
         config['serial_number'] = serial
         config['serial_auto_increment'] = auto_increment
+        config['serial_scanner_target'] = scanner_target
         save_config(config)
     except Exception as e:
         print(f"[ERROR] Failed to save serial number to config: {e}")
 
 
-def load_serial_from_config() -> tuple[Optional[str], bool]:
+def load_serial_from_config() -> tuple[Optional[str], Optional[str], Optional[str], bool, str]:
     """
-    Load serial number and auto-increment setting from config.
-    Returns (serial, auto_increment)
+    Load job number, op number, serial number, auto-increment setting, and scanner target from config.
+    Returns (job, op, serial, auto_increment, scanner_target)
     """
     try:
         from src.config import load_config
         config = load_config()
+        job = config.get('job_number', None)
+        op = config.get('op_number', None)
         serial = config.get('serial_number', None)
-        auto_increment = config.get('serial_auto_increment', True)
-        return (serial, auto_increment)
+        auto_increment = config.get('serial_auto_increment', False)  # Default to False
+        scanner_target = config.get('serial_scanner_target', 'job')  # Default to job
+        return (job, op, serial, auto_increment, scanner_target)
     except Exception as e:
         print(f"[ERROR] Failed to load serial number from config: {e}")
-        return (None, True)
+        return (None, None, None, False, 'serial')
 
 
 def initialize_serial_manager():
@@ -229,11 +292,16 @@ def initialize_serial_manager():
     Should be called on application startup.
     """
     manager = get_serial_manager()
-    serial, auto_increment = load_serial_from_config()
+    job, op, serial, auto_increment, scanner_target = load_serial_from_config()
     
+    if job is not None:
+        manager.set_job(job)
+    if op is not None:
+        manager.set_op(op)
     if serial is not None:
         manager.set_serial(serial)
     manager.set_auto_increment(auto_increment)
+    manager.set_scanner_target(scanner_target)
     
-    print(f"[SERIAL] Initialized serial number: {serial}, auto-increment: {auto_increment}")
+    print(f"[SERIAL] Initialized - job: {job}, op: {op}, serial: {serial}, auto-increment: {auto_increment}, scanner target: {scanner_target}")
 

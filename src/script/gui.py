@@ -1975,7 +1975,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     # Bind the variable to the toggle function (do this before creating the button)
     lock_editor_var.trace_add('write', toggle_editor_lock)
     
-    lock_editor_switch = ttk.Checkbutton(btn_container, text="🔒 Lock Editor", variable=lock_editor_var,
+    lock_editor_switch = ttk.Checkbutton(btn_container, text="Lock Editor", variable=lock_editor_var,
                                          style="OrangeToggle.TButton")
     lock_editor_switch.pack(side=tk.RIGHT, padx=5)
     
