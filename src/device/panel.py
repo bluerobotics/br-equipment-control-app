@@ -161,6 +161,8 @@ class DevicePanel(ttk.Frame):
         self.text.tag_configure('events_header', foreground=theme.SUCCESS_GREEN, font=theme.FONT_BOLD)
         self.text.tag_configure('warnings_header', foreground=theme.ERROR_RED, font=theme.FONT_BOLD)
         self.text.tag_configure('warning_part', foreground=theme.ERROR_RED)
+        self.text.tag_configure('views_header', foreground='#B0A3D4', font=theme.FONT_BOLD)  # Lavender
+        self.text.tag_configure('view_name', foreground='#B0A3D4')  # Lavender
         self.text.tag_configure('folder_icon', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('variable_info', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('parameter_name', foreground=theme.PARAMETER_COLOR)  # Orange/yellow for parameter names
@@ -181,6 +183,9 @@ class DevicePanel(ttk.Frame):
         
         # Track hover line for highlighting
         self.current_hover_line = None
+        
+        # Create tooltip for the main text widget
+        self.tooltip = Tooltip(self.text)
         
         # Add device button at bottom
         add_device_btn = ttk.Button(self,
@@ -755,17 +760,65 @@ class DevicePanel(ttk.Frame):
                         else:
                             self.text.insert(f"{line_num}.end", f"{full_warning_name}", "warning_part")
                         
-                        # Add description info
+                        self.text.insert(f"{line_num}.end", "\n")
+                        
+                        # Add tooltip for description
                         description = warning_details.get('description', '')
                         if description:
-                            self.text.insert(f"{line_num}.end", f" - {description}", "variable_info")
-                        
-                        self.text.insert(f"{line_num}.end", "\n")
+                            warn_key = f"warn_{full_warning_name}"
+                            self.text.tag_add(warn_key, f"{line_num}.0", f"{line_num}.end")
+                            self.text.tag_bind(warn_key, "<Enter>", 
+                                             lambda e, desc=description: self._show_tooltip(e, desc, self.tooltip))
+                            self.text.tag_bind(warn_key, "<Leave>", lambda e: self._hide_tooltip(self.tooltip))
                         
                         self.line_items[line_num] = {
                             'type': 'warning',
                             'name': full_warning_name,
                             'data': warning_details
+                        }
+                        line_num += 1
+                
+                # Views folder
+                views = device_data.get('views_data', {})
+                views_folder_key = (device_name, 'views_folder')
+                views_collapsed = views_folder_key in self.collapsed_folders
+                views_icon = "  ► " if views_collapsed else "  ▼ "
+                
+                self.text.insert(f"{line_num}.0", views_icon, "folder_icon")
+                self.text.insert(f"{line_num}.end", f"views ({len(views)})\n", "views_header")
+                self.line_items[line_num] = {'type': 'views_folder', 'device': device_name, 'line_start': line_num}
+                line_num += 1
+                
+                # Add individual views if not collapsed
+                if not views_collapsed:
+                    for view_key, view_details in sorted(views.items()):
+                        view_name = view_details.get('name', view_key)
+                        view_icon = view_details.get('icon', '')
+                        
+                        self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                        # Only add icon if it's not empty
+                        if view_icon and view_icon.strip():
+                            self.text.insert(f"{line_num}.end", f"{view_icon} {view_name}", "view_name")
+                        else:
+                            self.text.insert(f"{line_num}.end", f"{view_name}", "view_name")
+                        
+                        self.text.insert(f"{line_num}.end", "\n")
+                        
+                        # Add tooltip for description
+                        description = view_details.get('description', '')
+                        if description:
+                            view_tag_key = f"view_{device_name}_{view_key}"
+                            self.text.tag_add(view_tag_key, f"{line_num}.0", f"{line_num}.end")
+                            self.text.tag_bind(view_tag_key, "<Enter>", 
+                                             lambda e, desc=description: self._show_tooltip(e, desc, self.tooltip))
+                            self.text.tag_bind(view_tag_key, "<Leave>", lambda e: self._hide_tooltip(self.tooltip))
+                        
+                        self.line_items[line_num] = {
+                            'type': 'view',
+                            'view_id': view_key,
+                            'name': view_key,
+                            'device': device_name,
+                            'data': view_details
                         }
                         line_num += 1
     
@@ -781,6 +834,7 @@ class DevicePanel(ttk.Frame):
             collapsed.add((device_name, 'variables_folder'))
             collapsed.add((device_name, 'events_folder'))
             collapsed.add((device_name, 'warnings_folder'))
+            collapsed.add((device_name, 'views_folder'))
         
         # Keep script commands expanded by default
         # collapsed.add(('', 'script_folder'))
@@ -799,9 +853,9 @@ class DevicePanel(ttk.Frame):
         item_data = self.line_items.get(line_num, {})
         
         # Only highlight if it's an actual item (not empty or folder header in some cases)
-        is_item = item_data.get('type') in ['command', 'variable', 'event', 'warning', 'device', 
+        is_item = item_data.get('type') in ['command', 'variable', 'event', 'warning', 'view', 'device', 
                                              'commands_folder', 'variables_folder', 
-                                             'events_folder', 'warnings_folder', 'script_folder', 'script_command']
+                                             'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'script_command']
         
         if is_item and line_num != self.current_hover_line:
             # Remove previous hover
@@ -832,7 +886,7 @@ class DevicePanel(ttk.Frame):
         self.text.tag_remove(tk.SEL, "1.0", tk.END)
         
         # Toggle folder collapse/expand
-        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'script_folder', 'device']:
+        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -877,8 +931,27 @@ class DevicePanel(ttk.Frame):
             if event_name:
                 self.script_editor_widget.insert(tk.INSERT, f"WAIT_FOR {event_name}\n")
         
+        # Views: show view
+        elif item_type == 'view':
+            device_name = item_data.get('device')
+            view_id = item_data.get('view_id')
+            if device_name and view_id:
+                from src.device.views import show_operator_view
+                from src.config import load_config
+                device_data = self.device_manager.devices.get(device_name)
+                script_runner = self.device_manager.shared_gui_refs.get('script_runner')
+                if device_data:
+                    show_operator_view(
+                        self.winfo_toplevel(), 
+                        device_name, 
+                        device_data,
+                        self.device_manager.shared_gui_refs, 
+                        script_runner,
+                        view_id
+                    )
+            
         # Folders: toggle open/close
-        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'script_folder', 'device']:
+        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -1035,6 +1108,42 @@ class DevicePanel(ttk.Frame):
             if queued_vars or has_active_logs:
                 self.context_menu.add_separator()
             
+            # Check if device has an operator view
+            device_data = self.device_manager.devices.get(device_name, {})
+            operator_view_module = device_data.get('modules', {}).get('operator_view')
+            has_operator_view = operator_view_module and hasattr(operator_view_module, 'create_operator_view')
+            
+            if has_operator_view:
+                from src.device.views import show_operator_view, get_operator_view_settings, save_operator_view_settings
+                from src.config import load_config, save_config
+                
+                def open_operator_view():
+                    script_runner = self.device_manager.shared_gui_refs.get('script_runner')
+                    show_operator_view(self.winfo_toplevel(), device_name, device_data, 
+                                     self.device_manager.shared_gui_refs, script_runner)
+                
+                self.context_menu.add_command(label="Open Operator View...", command=open_operator_view)
+                
+                # Add checkbutton for "Display on startup"
+                config_data = load_config()
+                settings = get_operator_view_settings(config_data, device_name)
+                show_on_startup = settings.get('show_on_startup', False)
+                
+                def toggle_startup():
+                    config_data = load_config()
+                    settings = get_operator_view_settings(config_data, device_name)
+                    new_value = not settings.get('show_on_startup', False)
+                    save_operator_view_settings(config_data, device_name, new_value)
+                    save_config(config_data)
+                    status = "enabled" if new_value else "disabled"
+                    from tkinter import messagebox
+                    messagebox.showinfo("Operator View", 
+                                      f"Operator view on startup {status} for {device_name}")
+                
+                check_label = "☑ Display on Startup" if show_on_startup else "☐ Display on Startup"
+                self.context_menu.add_command(label=check_label, command=toggle_startup)
+                self.context_menu.add_separator()
+            
             self.context_menu.add_command(label="Refresh Device", command=lambda: self.refresh_device(device_name))
             self.context_menu.add_separator()
             self.context_menu.add_command(label="More Info...", command=self.show_device_info)
@@ -1142,6 +1251,54 @@ class DevicePanel(ttk.Frame):
             self.context_menu.add_command(label="More Info...", command=self.show_warning_info)
             self.context_menu.add_separator()
             self.context_menu.add_command(label="Delete Warning", command=self.delete_warning,
+                                         foreground=theme.ERROR_RED)
+        
+        elif item_type == 'views_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Add View...", 
+                                         command=lambda: self.show_add_view_dialog_for_device(device_name))
+        
+        elif item_type == 'view':
+            view_id = item_data.get('view_id', '')
+            view_name = item_data.get('name', '')
+            device_name = item_data.get('device', '')
+            view_data = item_data.get('data', {})
+            
+            self.context_menu.add_command(label="Open View", command=lambda: self.open_view(device_name, view_id, view_data))
+            self.context_menu.add_separator()
+            
+            # Display on startup option
+            from src.config import load_config, save_config
+            config_data = load_config()
+            startup_views = config_data.get('startup_views', {})
+            is_startup = startup_views.get(device_name) == view_id
+            
+            def toggle_startup_view():
+                config_data = load_config()
+                startup_views = config_data.get('startup_views', {})
+                if startup_views.get(device_name) == view_id:
+                    # Remove from startup
+                    startup_views.pop(device_name, None)
+                    status = "disabled"
+                else:
+                    # Add to startup
+                    if 'startup_views' not in config_data:
+                        config_data['startup_views'] = {}
+                    config_data['startup_views'][device_name] = view_id
+                    status = "enabled"
+                save_config(config_data)
+                from tkinter import messagebox
+                messagebox.showinfo("View Settings", 
+                                  f"Display on startup {status} for {view_data.get('name', view_id)}")
+                
+            check_label = "☑ Display on Startup" if is_startup else "☐ Display on Startup"
+            self.context_menu.add_command(label=check_label, command=toggle_startup_view)
+            self.context_menu.add_separator()
+            
+            self.context_menu.add_command(label="Edit View...", command=self.edit_view)
+            self.context_menu.add_command(label="More Info...", command=self.show_view_info)
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="Delete View", command=self.delete_view,
                                          foreground=theme.ERROR_RED)
         
         # Show menu
@@ -3575,6 +3732,71 @@ class DevicePanel(ttk.Frame):
                 messagebox.showerror("Error", f"Warning '{warn_key}' not found in JSON.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete warning:\n{str(e)}")
+    
+    # ===== VIEW METHODS =====
+    
+    def open_view(self, device_name, view_id, view_data):
+        """Open a view for the device."""
+        print(f"[DEBUG] Opening view: {device_name}.{view_id}")
+        print(f"[DEBUG] View data: {view_data}")
+        
+        from src.device.views import show_operator_view
+        
+        device_data = self.device_manager.devices.get(device_name)
+        script_runner = self.device_manager.shared_gui_refs.get('script_runner')
+        
+        if device_data:
+            show_operator_view(
+                self.winfo_toplevel(), 
+                device_name, 
+                device_data,
+                self.device_manager.shared_gui_refs, 
+                script_runner,
+                view_id
+            )
+    
+    def show_add_view_dialog_for_device(self, device_name):
+        """Show dialog to add a new view."""
+        from tkinter import messagebox
+        messagebox.showinfo("Add View", "View editor coming soon!")
+    
+    def edit_view(self):
+        """Edit selected view."""
+        from tkinter import messagebox
+        line_num = self._get_selected_line_num()
+        if not line_num:
+            return
+        item_data = self.line_items.get(line_num, {})
+        view_name = item_data.get('name', '')
+        view_data = item_data.get('data', {})
+        messagebox.showinfo("Edit View", f"View editor coming soon for {view_name}!")
+    
+    def show_view_info(self):
+        """Show info for selected view."""
+        from tkinter import messagebox
+        line_num = self._get_selected_line_num()
+        if not line_num:
+            return
+        item_data = self.line_items.get(line_num, {})
+        view_name = item_data.get('name', '')
+        device_name = item_data.get('device', '')
+        view_data = item_data.get('data', {})
+        description = view_data.get('description', 'No description available.')
+        
+        messagebox.showinfo(f"View: {view_data.get('name', view_name)}", 
+                          f"Device: {device_name}\n" +
+                          f"Key: {view_name}\n\n" +
+                          f"Description:\n{description}")
+    
+    def delete_view(self):
+        """Delete selected view."""
+        from tkinter import messagebox
+        line_num = self._get_selected_line_num()
+        if not line_num:
+            return
+        item_data = self.line_items.get(line_num, {})
+        view_name = item_data.get('name', '')
+        messagebox.showinfo("Delete View", f"View deletion coming soon for {view_name}!")
 
 # ===== ADD/EDIT DIALOGS =====
 

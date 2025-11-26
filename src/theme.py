@@ -128,8 +128,9 @@ def set_monospace_font(font_family):
     Sets the monospace font for the application.
     Updates the global variable and saves to config.
     """
-    global MONOSPACE_FONT
+    global MONOSPACE_FONT, FONT_FAMILY
     MONOSPACE_FONT = font_family
+    FONT_FAMILY = font_family
     
     # Save to config
     try:
@@ -147,6 +148,9 @@ FONT_NORMAL = (MONOSPACE_FONT, 11)
 FONT_BOLD = (MONOSPACE_FONT, 11, "bold")
 FONT_LARGE = (MONOSPACE_FONT, 13)
 FONT_LARGE_BOLD = (MONOSPACE_FONT, 13, "bold")
+
+# Export font family for custom font construction
+FONT_FAMILY = MONOSPACE_FONT
 
 def get_font_size():
     """Get the current base font size."""

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.0] - 2025-11-26
+
+### Added
+- **Operator View Infrastructure**: Support for double-click to open views, shared button state management
+- **Script Error Tracking**: Added `had_errors` flag to track warnings/errors for PASS/FAIL logic
+- **FONT_FAMILY Export**: Added `theme.FONT_FAMILY` for custom font construction in device modules
+
+### Changed
+- **Script Control Sharing**: Run/Hold/Reset handlers now shared with operator views via `shared_gui_refs`
+- **Button State Synchronization**: Operator view buttons update simultaneously with main GUI buttons
+
 ## [1.17.0] - 2025-11-26
 
 ### Added

@@ -1509,6 +1509,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             content_from_line = "\n".join(all_lines[next_valid_line_num - 1:])
             run_script_from_content(content_from_line, next_valid_line_num - 1, is_step=False)
 
+    # List to store additional button sets (for operator views)
+    additional_button_sets = []
+    
     def refresh_button_states():
         """Refresh button states based on ACTUAL current state."""
         # Check the actual state right now
@@ -1519,21 +1522,52 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         is_error_hold = is_holding and script_runner and hasattr(script_runner, 'is_held') and script_runner.is_held
         print(f"[refresh_button_states] Running: {is_running}, Holding: {is_holding}, Error hold: {is_error_hold}")
         
-        if is_holding:
-            if is_error_hold:
-                # Error hold - both buttons disabled, only Reset or Stop can be used
-                run_button.config(state=tk.DISABLED, style='Disabled.Green.TButton', text='Run')
-                hold_button.config(state=tk.DISABLED, style='ErrorHold.Red.TButton', text='Holding')
+        # Update all button sets (main + operator views)
+        all_button_sets = [(run_button, hold_button)] + additional_button_sets
+        
+        for run_btn, hold_btn in all_button_sets:
+            # Check if this is a ttk button (main GUI) or tk button (operator view)
+            is_ttk = isinstance(run_btn, ttk.Button)
+            
+            if is_holding:
+                if is_error_hold:
+                    # Error hold - both buttons disabled, only Reset or Stop can be used
+                    run_btn.config(state=tk.DISABLED, text='Run')
+                    hold_btn.config(state=tk.DISABLED, text='Holding')
+                    if is_ttk:
+                        run_btn.config(style='Disabled.Green.TButton')
+                        hold_btn.config(style='ErrorHold.Red.TButton')
+                    else:
+                        run_btn.config(bg='#4a4a4a', fg='#808080')
+                        hold_btn.config(bg=theme.HOLDING_RED, fg='white')
+                else:
+                    # Normal hold (user clicked Hold) - Run can continue, Holding can be clicked
+                    run_btn.config(state=tk.NORMAL, text='Run')
+                    hold_btn.config(state=tk.NORMAL, text='Holding')
+                    if is_ttk:
+                        run_btn.config(style='Green.TButton')
+                        hold_btn.config(style='Holding.Red.TButton')
+                    else:
+                        run_btn.config(bg=theme.SUCCESS_GREEN, fg='black')
+                        hold_btn.config(bg=theme.HOLDING_RED, fg='white')
+            elif is_running:
+                run_btn.config(state=tk.DISABLED, text='Running...')
+                hold_btn.config(state=tk.NORMAL, text='Hold')
+                if is_ttk:
+                    run_btn.config(style='Running.Green.TButton')
+                    hold_btn.config(style='Red.TButton')
+                else:
+                    run_btn.config(bg=theme.RUNNING_GREEN, fg='white')
+                    hold_btn.config(bg=theme.ERROR_RED, fg='black')
             else:
-                # Normal hold (user clicked Hold) - Run can continue, Holding can be clicked
-                run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
-                hold_button.config(state=tk.NORMAL, style='Holding.Red.TButton', text='Holding')
-        elif is_running:
-            run_button.config(state=tk.DISABLED, style='Running.Green.TButton', text='Running...')
-            hold_button.config(state=tk.NORMAL, style='Red.TButton', text='Hold')
-        else:
-            run_button.config(state=tk.NORMAL, style='Green.TButton', text='Run')
-            hold_button.config(state=tk.DISABLED, style='Red.TButton', text='Hold')
+                run_btn.config(state=tk.NORMAL, text='Run')
+                hold_btn.config(state=tk.DISABLED, text='Hold')
+                if is_ttk:
+                    run_btn.config(style='Green.TButton')
+                    hold_btn.config(style='Red.TButton')
+                else:
+                    run_btn.config(bg=theme.SUCCESS_GREEN, fg='black')
+                    hold_btn.config(bg=theme.ERROR_RED, fg='black')
     
     def update_button_states(running=False, holding=False):
         """Legacy function for explicit state setting."""
@@ -1831,6 +1865,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         # Clear error hold state
         if script_runner and hasattr(script_runner, 'is_held'):
             script_runner.is_held = False
+            script_runner.had_errors = False  # Clear error tracking
         
         is_held_by_user = False # Ensure reset clears any hold state
         paused_device = None # Clear paused device
@@ -2126,6 +2161,16 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     
     # Register the disconnect handler in shared_gui_refs
     shared_gui_refs['abort_script_on_disconnect'] = abort_script_on_disconnect
+    
+    # Store script control handlers and button registration for operator views
+    shared_gui_refs['script_controls'] = {
+        'handle_cycle_start': handle_cycle_start,
+        'handle_feed_hold': handle_feed_hold,
+        'handle_reset': handle_reset,
+        'refresh_button_states': refresh_button_states,
+        'register_buttons': lambda run_btn, hold_btn: additional_button_sets.append((run_btn, hold_btn)),
+        'unregister_buttons': lambda run_btn, hold_btn: additional_button_sets.remove((run_btn, hold_btn)) if (run_btn, hold_btn) in additional_button_sets else None
+    }
     
     return {
         "file_commands": file_commands,
