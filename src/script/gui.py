@@ -1019,6 +1019,8 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     single_block_var = tk.BooleanVar(value=False)
     # Always start unlocked - lock will be applied after file loading if needed
     lock_editor_var = tk.BooleanVar(value=False)
+    # Track script timing for cycle stats
+    script_start_time = None
 
     # --- Message Queue & Terminal ---
     message_queue = queue.Queue()
@@ -1132,6 +1134,7 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     script_editor.bind("<<Modified>>", on_text_modified, add='+')
 
     status_var = tk.StringVar(value="Status: Idle")
+    shared_gui_refs['status_var'] = status_var  # Make accessible to operator views
 
     # --- Recent Files Menu Management ---
     def update_recent_files_display():
@@ -1676,19 +1679,47 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         root.after(0, advance_highlights)
 
     def run_script_from_content(content, line_offset=0, is_step=False):
-        nonlocal script_runner
+        nonlocal script_runner, script_start_time
         
         # Debug logging
         mode = "SINGLE BLOCK" if is_step else "CONTINUOUS"
         first_line = content.split('\n')[0][:50] if content else ""
         print(f"[RUN] Starting {mode} mode: {first_line}")
         
+        # Track start time for cycle stats (only for full script runs, not single steps)
+        if not is_step:
+            import time as time_module
+            script_start_time = time_module.time()
+            
+            # Update stats with current job
+            from src.stats import get_stats
+            stats = get_stats()
+            serial_manager = shared_gui_refs.get('serial_manager')
+            if serial_manager:
+                stats.set_current_job(serial_manager.get_job())
+        
         # Get fresh commands for execution
         current_commands = get_current_commands()
         
         # Simple approach: callbacks just refresh state, state machine handles everything
         def callback():
+            nonlocal script_start_time
             print(f"[CALLBACK] Completion callback fired (mode: {mode})")
+            
+            # Record cycle stats (only for full script runs, not single steps)
+            if not is_step and script_start_time is not None:
+                import time as time_module
+                from src.stats import get_stats
+                
+                cycle_time = time_module.time() - script_start_time
+                passed = not (script_runner and script_runner.had_errors)
+                
+                stats = get_stats()
+                stats.record_cycle(cycle_time, passed)
+                print(f"[STATS] Recorded cycle: time={cycle_time:.2f}s, passed={passed}")
+                
+                script_start_time = None  # Reset for next cycle
+            
             # Just refresh - let refresh_button_states figure out the actual state
             refresh_button_states()
             
@@ -1702,6 +1733,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                                      callback,
                                      message_queue, current_commands, 
                                      line_offset)
+        
+        # Store in shared_gui_refs so operator views can access it
+        shared_gui_refs['script_runner'] = script_runner
         
         script_runner.start()
         
@@ -1861,6 +1895,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if script_runner and script_runner.is_running:
             print(f"[RESET] Stopping running script")
             script_runner.stop()
+        
+        # Stop all active logging
+        data_logger = shared_gui_refs.get('data_logger')
+        if data_logger:
+            print(f"[RESET] Stopping all active logging")
+            data_logger.stop_logging()  # Stop all logs when no filename specified
         
         # Clear error hold state
         if script_runner and hasattr(script_runner, 'is_held'):

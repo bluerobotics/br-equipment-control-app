@@ -77,35 +77,57 @@ class OperatorView(tk.Toplevel):
         
     def _create_ui(self):
         """Create the operator view UI structure."""
-        # Exit button (top left, fixed position) - make it visible!
-        exit_btn = tk.Button(
-            self,
-            text="Exit Operator Mode (Esc)",
-            command=self._on_close_request,
-            font=(theme.FONT_FAMILY, 14, 'bold'),
-            bg=theme.ERROR_RED,
-            fg='white',
-            activebackground=theme.HOLDING_RED,
-            activeforeground='white',
-            relief='raised',
-            borderwidth=3,
-            padx=20,
-            pady=10,
-            cursor='hand2'
-        )
-        exit_btn.place(x=30, y=30)
-        
         # Main container - pack with expand to center vertically
         main_container = tk.Frame(self, bg=theme.BG_COLOR)
         main_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Exit button (top left corner) - place AFTER main_container so it's on top
+        # Styled to match the dark/inactive "Scan Here" button style
+        exit_btn = tk.Button(
+            self,
+            text="Exit Operator View",
+            command=self._on_close_request,
+            font=(theme.FONT_FAMILY, 14, 'bold'),
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            activebackground='#444444',
+            activeforeground=theme.FG_COLOR,
+            relief='raised',
+            borderwidth=2,
+            padx=15,
+            pady=6,
+            cursor='hand2'
+        )
+        exit_btn.place(x=20, y=20)
+        exit_btn.tkraise()  # Ensure it's on top of everything
+        
+        # Show Stats button (top right corner)
+        stats_btn = tk.Button(
+            self,
+            text="Show Stats",
+            command=self._show_stats,
+            font=(theme.FONT_FAMILY, 14, 'bold'),
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            activebackground='#444444',
+            activeforeground=theme.FG_COLOR,
+            relief='raised',
+            borderwidth=2,
+            padx=15,
+            pady=6,
+            cursor='hand2'
+        )
+        # Place in top right - we'll update position after window is drawn
+        stats_btn.place(relx=1.0, x=-20, y=20, anchor='ne')
+        stats_btn.tkraise()
         
         # Spacer to push content down (1 unit of expand)
         top_spacer = tk.Frame(main_container, bg=theme.BG_COLOR)
         top_spacer.pack(fill=tk.BOTH, expand=True)
         
-        # Content container (no expand - just its natural size)
+        # Content container
         content_container = tk.Frame(main_container, bg=theme.BG_COLOR)
-        content_container.pack()
+        content_container.pack(fill=tk.BOTH)
         
         # Control buttons (Run, Hold, Reset)
         btn_container = tk.Frame(content_container, bg=theme.BG_COLOR)
@@ -114,7 +136,7 @@ class OperatorView(tk.Toplevel):
         
         # Custom content area (to be populated by device-specific views)
         self.custom_content_frame = tk.Frame(content_container, bg=theme.BG_COLOR)
-        self.custom_content_frame.pack()
+        self.custom_content_frame.pack(fill=tk.BOTH, expand=True)
         
         # Placeholder text
         placeholder = tk.Label(
@@ -196,7 +218,7 @@ class OperatorView(tk.Toplevel):
             font=button_font,
             bg=theme.SUCCESS_GREEN,
             fg='black',
-            activebackground=theme.SUCCESS_GREEN,
+            activebackground=theme.PRESSED_GREEN,
             activeforeground='black',
             relief='raised',
             borderwidth=4,
@@ -206,6 +228,20 @@ class OperatorView(tk.Toplevel):
         )
         self.run_btn.pack(side=tk.LEFT, padx=20)
         
+        # Add hover effect for run button
+        def on_run_enter(e):
+            if self.run_btn['state'] != 'disabled':
+                current_bg = self.run_btn.cget('bg')
+                if current_bg == theme.SUCCESS_GREEN:
+                    self.run_btn.config(bg=theme.ACTIVE_GREEN)
+        def on_run_leave(e):
+            if self.run_btn['state'] != 'disabled':
+                current_text = self.run_btn.cget('text')
+                if current_text == 'Run':
+                    self.run_btn.config(bg=theme.SUCCESS_GREEN)
+        self.run_btn.bind('<Enter>', on_run_enter)
+        self.run_btn.bind('<Leave>', on_run_leave)
+        
         self.hold_btn = tk.Button(
             parent,
             text="Hold",
@@ -213,7 +249,7 @@ class OperatorView(tk.Toplevel):
             font=button_font,
             bg=theme.ERROR_RED,
             fg='black',
-            activebackground=theme.ERROR_RED,
+            activebackground=theme.PRESSED_RED,
             activeforeground='black',
             relief='raised',
             borderwidth=4,
@@ -223,6 +259,24 @@ class OperatorView(tk.Toplevel):
         )
         self.hold_btn.pack(side=tk.LEFT, padx=20)
         
+        # Add hover effect for hold button
+        def on_hold_enter(e):
+            if self.hold_btn['state'] != 'disabled':
+                current_bg = self.hold_btn.cget('bg')
+                if current_bg == theme.ERROR_RED:
+                    self.hold_btn.config(bg=theme.ACTIVE_RED)
+                elif current_bg == theme.HOLDING_RED:
+                    self.hold_btn.config(bg=theme.ACTIVE_HOLDING_RED)
+        def on_hold_leave(e):
+            if self.hold_btn['state'] != 'disabled':
+                current_text = self.hold_btn.cget('text')
+                if current_text == 'Hold':
+                    self.hold_btn.config(bg=theme.ERROR_RED)
+                elif current_text == 'Holding':
+                    self.hold_btn.config(bg=theme.HOLDING_RED)
+        self.hold_btn.bind('<Enter>', on_hold_enter)
+        self.hold_btn.bind('<Leave>', on_hold_leave)
+        
         self.reset_btn = tk.Button(
             parent,
             text="Reset",
@@ -230,7 +284,7 @@ class OperatorView(tk.Toplevel):
             font=button_font,
             bg=theme.PRIMARY_ACCENT,
             fg='black',
-            activebackground=theme.PRIMARY_ACCENT,
+            activebackground=theme.PRESSED_BLUE,
             activeforeground='black',
             relief='raised',
             borderwidth=4,
@@ -239,6 +293,14 @@ class OperatorView(tk.Toplevel):
             cursor='hand2'
         )
         self.reset_btn.pack(side=tk.LEFT, padx=20)
+        
+        # Add hover effect for reset button
+        def on_reset_enter(e):
+            self.reset_btn.config(bg=theme.ACTIVE_BLUE)
+        def on_reset_leave(e):
+            self.reset_btn.config(bg=theme.PRIMARY_ACCENT)
+        self.reset_btn.bind('<Enter>', on_reset_enter)
+        self.reset_btn.bind('<Leave>', on_reset_leave)
         
         # Register these buttons so they get updated by the same state management
         register_buttons(self.run_btn, self.hold_btn)
@@ -266,6 +328,158 @@ class OperatorView(tk.Toplevel):
                 unregister_buttons(self.run_btn, self.hold_btn)
             
             self.destroy()
+    
+    def _show_stats(self):
+        """Show cycle statistics window."""
+        from src.stats import get_stats, format_duration, format_cycle_time, format_yield
+        
+        stats = get_stats()
+        all_stats = stats.get_all_stats()
+        
+        # Create popup window - let it auto-size to content
+        popup = tk.Toplevel(self)
+        popup.title("Cycle Statistics")
+        popup.configure(bg=theme.BG_COLOR)
+        popup.resizable(True, True)
+        
+        # Center on parent
+        popup.transient(self)
+        popup.grab_set()
+        
+        # Title
+        title = tk.Label(
+            popup,
+            text="Cycle Statistics",
+            font=(theme.FONT_FAMILY, 24, 'bold'),
+            foreground=theme.PRIMARY_ACCENT,
+            bg=theme.BG_COLOR
+        )
+        title.pack(pady=(20, 20))
+        
+        # Stats container
+        stats_frame = tk.Frame(popup, bg=theme.BG_COLOR)
+        stats_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=10)
+        
+        def add_stat_row(frame, label, value, row):
+            """Add a label-value row to the stats display."""
+            lbl = tk.Label(
+                frame,
+                text=label,
+                font=(theme.FONT_FAMILY, 14),
+                foreground=theme.COMMENT_COLOR,
+                bg=theme.BG_COLOR,
+                anchor='w'
+            )
+            lbl.grid(row=row, column=0, sticky='w', pady=5)
+            
+            val = tk.Label(
+                frame,
+                text=str(value),
+                font=(theme.FONT_FAMILY, 14, 'bold'),
+                foreground=theme.FG_COLOR,
+                bg=theme.BG_COLOR,
+                anchor='e'
+            )
+            val.grid(row=row, column=1, sticky='e', pady=5, padx=(20, 0))
+        
+        # Configure grid columns
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # Section: Operations
+        section1 = tk.Label(stats_frame, text="── Operations ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                            foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR)
+        section1.grid(row=row, column=0, columnspan=2, pady=(10, 5), sticky='w')
+        row += 1
+        
+        add_stat_row(stats_frame, "Since Host Boot:", str(all_stats['operations_since_boot']), row)
+        row += 1
+        add_stat_row(stats_frame, "Total:", str(all_stats['operations_total']), row)
+        row += 1
+        
+        # Section: Cycle Times
+        section2 = tk.Label(stats_frame, text="── Cycle Times ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                            foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR)
+        section2.grid(row=row, column=0, columnspan=2, pady=(15, 5), sticky='w')
+        row += 1
+        
+        add_stat_row(stats_frame, "Last Cycle:", format_cycle_time(all_stats['last_cycle_time']), row)
+        row += 1
+        # This Job Avg
+        this_job_label = f"This Job Avg ({all_stats['current_job']}):" if all_stats['current_job'] else "This Job Avg:"
+        add_stat_row(stats_frame, this_job_label, format_cycle_time(all_stats['job_average_cycle_time']), row)
+        row += 1
+        # Last Job Avg (only show if we have a last job)
+        if all_stats['last_job']:
+            last_job_label = f"Last Job Avg ({all_stats['last_job']}):"
+            add_stat_row(stats_frame, last_job_label, format_cycle_time(all_stats['last_job_average_cycle_time']), row)
+            row += 1
+        # Only show "Last 100" if we have at least 1 sample
+        if all_stats['sample_size_100'] > 0:
+            add_stat_row(stats_frame, f"Avg (Last {all_stats['sample_size_100']}):", 
+                         format_cycle_time(all_stats['average_cycle_time_100']), row)
+            row += 1
+        # Only show "Last 1000" if we have at least 100 samples
+        if all_stats['sample_size_1000'] >= 100:
+            add_stat_row(stats_frame, f"Avg (Last {all_stats['sample_size_1000']}):", 
+                         format_cycle_time(all_stats['average_cycle_time_1000']), row)
+            row += 1
+        add_stat_row(stats_frame, "Avg (Total):", format_cycle_time(all_stats['average_cycle_time_total']), row)
+        row += 1
+        
+        # Section: Yield
+        section3 = tk.Label(stats_frame, text="── Yield ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                            foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR)
+        section3.grid(row=row, column=0, columnspan=2, pady=(15, 5), sticky='w')
+        row += 1
+        
+        # This Job
+        this_job_yield_label = f"This Job ({all_stats['current_job']}):" if all_stats['current_job'] else "This Job:"
+        add_stat_row(stats_frame, this_job_yield_label, format_yield(all_stats['yield_job']), row)
+        row += 1
+        # Last Job (only show if we have a last job)
+        if all_stats['last_job']:
+            last_job_yield_label = f"Last Job ({all_stats['last_job']}):"
+            add_stat_row(stats_frame, last_job_yield_label, format_yield(all_stats['yield_last_job']), row)
+            row += 1
+        # Only show "Last 100" if we have at least 1 sample
+        if all_stats['sample_size_100'] > 0:
+            add_stat_row(stats_frame, f"Last {all_stats['sample_size_100']}:", format_yield(all_stats['yield_100']), row)
+            row += 1
+        # Only show "Last 1000" if we have at least 100 samples
+        if all_stats['sample_size_1000'] >= 100:
+            add_stat_row(stats_frame, f"Last {all_stats['sample_size_1000']}:", format_yield(all_stats['yield_1000']), row)
+            row += 1
+        add_stat_row(stats_frame, "Total:", format_yield(all_stats['yield_total']), row)
+        row += 1
+        
+        # Exit Stats button (larger for touchscreen)
+        close_btn = tk.Button(
+            popup,
+            text="Exit Stats",
+            command=popup.destroy,
+            font=(theme.FONT_FAMILY, 18, 'bold'),
+            bg=theme.WIDGET_BG,
+            fg=theme.FG_COLOR,
+            activebackground='#444444',
+            activeforeground=theme.FG_COLOR,
+            relief='raised',
+            borderwidth=2,
+            padx=40,
+            pady=12,
+            cursor='hand2'
+        )
+        close_btn.pack(pady=(20, 30))
+        
+        # Center window on screen
+        popup.update_idletasks()
+        width = popup.winfo_width()
+        height = popup.winfo_height()
+        x = (popup.winfo_screenwidth() // 2) - (width // 2)
+        y = (popup.winfo_screenheight() // 2) - (height // 2)
+        popup.geometry(f'{width}x{height}+{x}+{y}')
             
     def set_custom_content(self, content_widget):
         """
@@ -274,12 +488,19 @@ class OperatorView(tk.Toplevel):
         Args:
             content_widget: Widget to display in the custom content area
         """
+        print(f"[VIEWS] set_custom_content called with widget: {content_widget}")
+        print(f"[VIEWS] custom_content_frame exists: {self.custom_content_frame.winfo_exists()}")
+        print(f"[VIEWS] custom_content_frame children before clear: {len(self.custom_content_frame.winfo_children())}")
+        
         # Clear existing content
         for widget in self.custom_content_frame.winfo_children():
             widget.destroy()
-            
+        
+        print(f"[VIEWS] Packing content_widget into custom_content_frame")
         # Pack new content
         content_widget.pack(fill=tk.BOTH, expand=True)
+        print(f"[VIEWS] Content widget packed successfully")
+        print(f"[VIEWS] custom_content_frame children after pack: {len(self.custom_content_frame.winfo_children())}")
 
 
 def load_operator_view(device_name: str, device_data: Dict[str, Any]) -> Optional[Callable]:
@@ -323,20 +544,38 @@ def show_operator_view(parent, device_name: str, device_data: Dict[str, Any],
     # Create base operator view window
     view = OperatorView(parent, device_name, device_data, shared_gui_refs, script_runner, view_id)
     
+    print(f"[VIEWS] Loading operator view for {device_name}, view_id={view_id}")
+    print(f"[VIEWS] device_data keys: {device_data.keys()}")
+    print(f"[VIEWS] modules: {device_data.get('modules', {}).keys()}")
+    
     # Load device-specific operator view content
     view_creator = load_operator_view(device_name, device_data)
+    print(f"[VIEWS] view_creator found: {view_creator is not None}")
+    
     if view_creator:
         try:
-            # Create custom content, passing view_id if available
-            custom_widget = view_creator(view.custom_content_frame, shared_gui_refs, view_id)
-            if custom_widget:
-                view.set_custom_content(custom_widget)
+            print(f"[VIEWS] Creating custom content with view_id={view_id}")
+            print(f"[VIEWS] custom_content_frame: {view.custom_content_frame}")
+            
+            # Clear placeholder
+            for widget in view.custom_content_frame.winfo_children():
+                widget.destroy()
+            
+            # Create custom content directly in the frame (don't use set_custom_content)
+            # The view_creator will create and pack widgets directly into custom_content_frame
+            view_creator(view.custom_content_frame, shared_gui_refs, view_id)
+            print(f"[VIEWS] Custom content created directly in custom_content_frame")
         except Exception as e:
             print(f"[VIEWS] Error creating operator view content for {device_name}: {e}")
             import traceback
             traceback.print_exc()
     else:
+        print(f"[VIEWS] No view_creator found, showing fallback message")
         # Show message if no custom view available
+        # Clear existing content first
+        for widget in view.custom_content_frame.winfo_children():
+            widget.destroy()
+        # Then create and pack the message
         msg = ttk.Label(
             view.custom_content_frame,
             text=f"No operator view defined for {device_name}",
@@ -344,8 +583,6 @@ def show_operator_view(parent, device_name: str, device_data: Dict[str, Any],
             foreground=theme.COMMENT_COLOR,
             style='Subtle.TLabel'
         )
-        for widget in view.custom_content_frame.winfo_children():
-            widget.destroy()
         msg.pack(pady=50)
         
     return view

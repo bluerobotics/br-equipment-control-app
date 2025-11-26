@@ -109,7 +109,7 @@ class DeviceRegistry:
             
             if os.path.exists(config_path):
                 try:
-                    with open(config_path, 'r') as f:
+                    with open(config_path, 'r', encoding='utf-8') as f:
                         config = json.load(f)
                         device_name = config.get('device_name') or config.get('name')
                 except Exception as e:
@@ -139,33 +139,41 @@ class DeviceRegistry:
             scripting_commands = {}
             json_path = os.path.join(definition_path, 'commands.json')
             if os.path.exists(json_path):
-                with open(json_path, 'r') as f:
+                with open(json_path, 'r', encoding='utf-8') as f:
                     scripting_commands = json.load(f)
             
             # Load telemetry schema
             telemetry_data = {}
             schema_path = os.path.join(definition_path, 'telemetry.json')
             if os.path.exists(schema_path):
-                with open(schema_path, 'r') as f:
+                with open(schema_path, 'r', encoding='utf-8') as f:
                     telemetry_data = json.load(f)
             
             # Load events
             events_data = {}
             events_path = os.path.join(definition_path, 'events.json')
             if os.path.exists(events_path):
-                with open(events_path, 'r') as f:
+                with open(events_path, 'r', encoding='utf-8') as f:
                     events_data = json.load(f)
             
-            # Load Python modules (gui, simulator)
+            # Load views
+            views_data = {}
+            views_path = os.path.join(definition_path, 'views.json')
+            if os.path.exists(views_path):
+                with open(views_path, 'r', encoding='utf-8') as f:
+                    views_data = json.load(f)
+            
+            # Load Python modules (gui, simulator, operator_view, parser)
             gui_module = self._load_module_from_path(device_name, 'gui', definition_path)
             simulator_module = self._load_module_from_path(device_name, 'simulator', definition_path)
+            operator_view_module = self._load_module_from_path(device_name, 'operator_view', definition_path)
             parser_module = self._load_module_from_path(device_name, 'parser', definition_path)
             
             # Load warnings from JSON (always from definition folder)
             warnings_data = {}
             warnings_path = os.path.join(definition_path, 'warnings.json')
             if os.path.exists(warnings_path):
-                with open(warnings_path, 'r') as f:
+                with open(warnings_path, 'r', encoding='utf-8') as f:
                     warnings_data = json.load(f)
             
             # Store device data (use old key names for backward compatibility)
@@ -179,8 +187,15 @@ class DeviceRegistry:
                 'telemetry_data': telemetry_data,
                 'events_data': events_data,
                 'warnings': warnings_data,
+                'views_data': views_data,
                 'config': {},  # Keep for consistent structure
                 'status_var': None,  # Will be created during GUI init
+                'modules': {
+                    'gui': gui_module,
+                    'simulator': simulator_module,
+                    'operator_view': operator_view_module,
+                    'parser': parser_module,
+                },
             }
             
             return True
@@ -205,28 +220,28 @@ class DeviceRegistry:
         # Reload commands.json
         json_path = os.path.join(device_path, 'commands.json')
         if os.path.exists(json_path):
-            with open(json_path, 'r') as f:
+            with open(json_path, 'r', encoding='utf-8') as f:
                 self.devices[device_name]['scripting_commands'] = json.load(f)
                 self.log(f"Reloaded commands.json for {device_name}")
         
         # Reload telemetry.json
         schema_path = os.path.join(device_path, 'telemetry.json')
         if os.path.exists(schema_path):
-            with open(schema_path, 'r') as f:
+            with open(schema_path, 'r', encoding='utf-8') as f:
                 self.devices[device_name]['telemetry_data'] = json.load(f)
                 self.log(f"Reloaded telemetry.json for {device_name}")
         
         # Reload events.json
         events_path = os.path.join(device_path, 'events.json')
         if os.path.exists(events_path):
-            with open(events_path, 'r') as f:
+            with open(events_path, 'r', encoding='utf-8') as f:
                 self.devices[device_name]['events_data'] = json.load(f)
                 self.log(f"Reloaded events.json for {device_name}")
         
         # Reload warnings.json
         warnings_path = os.path.join(device_path, 'warnings.json')
         if os.path.exists(warnings_path):
-            with open(warnings_path, 'r') as f:
+            with open(warnings_path, 'r', encoding='utf-8') as f:
                 self.devices[device_name]['warnings'] = json.load(f)
                 self.log(f"Reloaded warnings.json for {device_name}")
         
@@ -341,7 +356,7 @@ class DeviceRegistry:
         config_path = os.path.join(device_path, 'config.json')
         if os.path.exists(config_path):
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
                 self.log(f"Failed to read config.json for {device_name}: {e}")

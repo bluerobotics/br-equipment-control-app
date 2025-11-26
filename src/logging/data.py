@@ -277,9 +277,9 @@ class DataLogger:
         """
         with self.lock:
             if filename is None:
-                # Stop all logging
+                # Stop all logging - if none active, that's still a success (nothing to do)
                 if not self.active_logs:
-                    return (False, "No active logging sessions")
+                    return (True, "No active logging sessions")
                 
                 count = len(self.active_logs)
                 files_to_close = list(self.active_logs.keys())
@@ -301,7 +301,8 @@ class DataLogger:
                         break
                 
                 if target_path is None:
-                    return (False, f"No active log with filename '{filename}'")
+                    # Not an error - file just isn't being logged
+                    return (True, f"No active log with filename '{filename}'")
                 
                 self._close_log_file(target_path)
                 log_msg = f"Stopped logging to {os.path.basename(target_path)}"
@@ -580,7 +581,8 @@ class DataLogger:
                     files_to_stop.append(filepath)
             
             if not files_to_stop:
-                return (False, f"No active logging sessions for {device_name}")
+                # Not an error - just nothing to stop
+                return (True, f"No active logging sessions for {device_name}")
             
             # Stop each log file
             for filepath in files_to_stop:

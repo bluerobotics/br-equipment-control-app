@@ -276,6 +276,8 @@ class MainApplication:
         
         # --- Serial Number System ---
         initialize_serial_manager()
+        from .serial_number import get_serial_manager
+        self.shared_gui_refs['serial_manager'] = get_serial_manager()
         print("[SYSTEM] Serial number system initialized")
 
         # --- Populate device-specific shared refs ---
@@ -298,6 +300,39 @@ class MainApplication:
             pass  # Ignore if logger not available
         
         self.load_last_script()
+        self.launch_startup_operator_views()
+
+    def launch_startup_operator_views(self):
+        """Launch operator views that are configured to show on startup."""
+        from src.device.views import get_startup_operator_views, show_operator_view
+        from src.config import load_config
+        
+        def _launch_views():
+            try:
+                config_data = load_config()
+                startup_devices = get_startup_operator_views(config_data)
+                
+                for device_name in startup_devices:
+                    # Check if device exists and is connected
+                    device_data = self.device_manager.devices.get(device_name)
+                    if device_data:
+                        device_state = self.device_manager.get_device_state(device_name)
+                        if device_state and device_state.get('connected'):
+                            print(f"[OPERATOR VIEW] Launching operator view for {device_name}")
+                            script_runner = self.shared_gui_refs.get('script_runner')
+                            show_operator_view(self.root, device_name, device_data, 
+                                             self.shared_gui_refs, script_runner)
+                        else:
+                            print(f"[OPERATOR VIEW] Skipping {device_name} - device not connected")
+                    else:
+                        print(f"[OPERATOR VIEW] Skipping {device_name} - device not found")
+            except Exception as e:
+                print(f"[OPERATOR VIEW] Error launching startup views: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Launch after a delay to ensure devices are connected
+        self.root.after(1000, _launch_views)
 
     def initialize_shared_variables(self):
         # This method's logic has been moved into __init__ to resolve a startup dependency issue.

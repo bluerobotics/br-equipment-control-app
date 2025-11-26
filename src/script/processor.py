@@ -112,6 +112,7 @@ class ScriptRunner(threading.Thread):
         self._resume_event = threading.Event()
         self.is_running = False
         self.is_held = False
+        self.had_errors = False  # Track if any errors/warnings occurred
         self.runtime_defaults = {}
         # To map expanded lines back to original source lines
         try:
@@ -1199,6 +1200,7 @@ class ScriptRunner(threading.Thread):
             
             # Put script in error hold state
             self.is_held = True
+            self.had_errors = True  # Mark that an error/warning occurred
             print(f"[DEBUG] Script put in error hold state, returning 'error'")
             
             # Return error to stop execution

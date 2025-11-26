@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.0] - 2025-11-26
+
+### Added
+- **Cycle Statistics**: Persistent stats tracking (operations, cycle times, yield) with rolling averages
+- **Stats Display**: "Show Stats" button in operator view, "Cycle Statistics..." in Settings menu
+- **Job Tracking**: Stats tracked per-job with "Last Job" comparison
+
+### Changed
+- **Stop Logging**: No longer errors when no active logging sessions
+- **Menus**: Removed "Operator Views" from Devices menu (use double-click instead)
+
 ## [1.18.0] - 2025-11-26
 
 ### Added

@@ -131,6 +131,110 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
         settings_menu.add_command(label="Serial Number Settings...", command=settings_commands['serial_settings'])
         settings_menu.add_separator(background=theme.WIDGET_BORDER)
     
+    # Cycle Statistics
+    def show_cycle_stats():
+        from .stats import get_stats, format_duration, format_cycle_time, format_yield
+        
+        stats = get_stats()
+        all_stats = stats.get_all_stats()
+        
+        # Create popup window - let it auto-size to content
+        popup = tk.Toplevel(parent)
+        popup.title("Cycle Statistics")
+        popup.configure(bg=theme.BG_COLOR)
+        popup.resizable(True, True)
+        popup.transient(parent)
+        popup.grab_set()
+        
+        # Title
+        title = tk.Label(
+            popup,
+            text="Cycle Statistics",
+            font=(theme.FONT_FAMILY, 24, 'bold'),
+            foreground=theme.PRIMARY_ACCENT,
+            bg=theme.BG_COLOR
+        )
+        title.pack(pady=(20, 20))
+        
+        # Stats container
+        stats_frame = tk.Frame(popup, bg=theme.BG_COLOR)
+        stats_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=10)
+        
+        def add_stat_row(frame, label, value, row):
+            lbl = tk.Label(frame, text=label, font=(theme.FONT_FAMILY, 14),
+                          foreground=theme.COMMENT_COLOR, bg=theme.BG_COLOR, anchor='w')
+            lbl.grid(row=row, column=0, sticky='w', pady=5)
+            val = tk.Label(frame, text=str(value), font=(theme.FONT_FAMILY, 14, 'bold'),
+                          foreground=theme.FG_COLOR, bg=theme.BG_COLOR, anchor='e')
+            val.grid(row=row, column=1, sticky='e', pady=5, padx=(20, 0))
+        
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # Operations Section
+        tk.Label(stats_frame, text="── Operations ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR).grid(row=row, column=0, columnspan=2, pady=(10, 5), sticky='w')
+        row += 1
+        add_stat_row(stats_frame, "Since Host Boot:", str(all_stats['operations_since_boot']), row); row += 1
+        add_stat_row(stats_frame, "Total:", str(all_stats['operations_total']), row); row += 1
+        
+        # Cycle Times Section
+        tk.Label(stats_frame, text="── Cycle Times ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR).grid(row=row, column=0, columnspan=2, pady=(15, 5), sticky='w')
+        row += 1
+        add_stat_row(stats_frame, "Last Cycle:", format_cycle_time(all_stats['last_cycle_time']), row); row += 1
+        # This Job Avg
+        this_job_label = f"This Job Avg ({all_stats['current_job']}):" if all_stats['current_job'] else "This Job Avg:"
+        add_stat_row(stats_frame, this_job_label, format_cycle_time(all_stats['job_average_cycle_time']), row); row += 1
+        # Last Job Avg (only show if we have a last job)
+        if all_stats['last_job']:
+            last_job_label = f"Last Job Avg ({all_stats['last_job']}):"
+            add_stat_row(stats_frame, last_job_label, format_cycle_time(all_stats['last_job_average_cycle_time']), row); row += 1
+        # Only show "Last 100" if we have at least 1 sample
+        if all_stats['sample_size_100'] > 0:
+            add_stat_row(stats_frame, f"Avg (Last {all_stats['sample_size_100']}):", 
+                         format_cycle_time(all_stats['average_cycle_time_100']), row); row += 1
+        # Only show "Last 1000" if we have at least 100 samples
+        if all_stats['sample_size_1000'] >= 100:
+            add_stat_row(stats_frame, f"Avg (Last {all_stats['sample_size_1000']}):", 
+                         format_cycle_time(all_stats['average_cycle_time_1000']), row); row += 1
+        add_stat_row(stats_frame, "Avg (Total):", format_cycle_time(all_stats['average_cycle_time_total']), row); row += 1
+        
+        # Yield Section
+        tk.Label(stats_frame, text="── Yield ──", font=(theme.FONT_FAMILY, 12, 'bold'),
+                foreground=theme.SECONDARY_ACCENT, bg=theme.BG_COLOR).grid(row=row, column=0, columnspan=2, pady=(15, 5), sticky='w')
+        row += 1
+        # This Job
+        this_job_yield_label = f"This Job ({all_stats['current_job']}):" if all_stats['current_job'] else "This Job:"
+        add_stat_row(stats_frame, this_job_yield_label, format_yield(all_stats['yield_job']), row); row += 1
+        # Last Job (only show if we have a last job)
+        if all_stats['last_job']:
+            last_job_yield_label = f"Last Job ({all_stats['last_job']}):"
+            add_stat_row(stats_frame, last_job_yield_label, format_yield(all_stats['yield_last_job']), row); row += 1
+        # Only show "Last 100" if we have at least 1 sample
+        if all_stats['sample_size_100'] > 0:
+            add_stat_row(stats_frame, f"Last {all_stats['sample_size_100']}:", format_yield(all_stats['yield_100']), row); row += 1
+        # Only show "Last 1000" if we have at least 100 samples
+        if all_stats['sample_size_1000'] >= 100:
+            add_stat_row(stats_frame, f"Last {all_stats['sample_size_1000']}:", format_yield(all_stats['yield_1000']), row); row += 1
+        add_stat_row(stats_frame, "Total:", format_yield(all_stats['yield_total']), row); row += 1
+        
+        # Exit Stats button (larger for touchscreen)
+        tk.Button(popup, text="Exit Stats", command=popup.destroy, font=(theme.FONT_FAMILY, 18, 'bold'),
+                 bg=theme.WIDGET_BG, fg=theme.FG_COLOR, activebackground='#444444',
+                 activeforeground=theme.FG_COLOR, relief='raised', borderwidth=2,
+                 padx=40, pady=12, cursor='hand2').pack(pady=(20, 30))
+        
+        popup.update_idletasks()
+        x = (popup.winfo_screenwidth() // 2) - (popup.winfo_width() // 2)
+        y = (popup.winfo_screenheight() // 2) - (popup.winfo_height() // 2)
+        popup.geometry(f'+{x}+{y}')
+    
+    settings_menu.add_command(label="Cycle Statistics...", command=show_cycle_stats)
+    settings_menu.add_separator(background=theme.WIDGET_BORDER)
+    
     if 'show_paths' in settings_commands:
         settings_menu.add_command(label="Show Application Paths...", command=settings_commands['show_paths'])
         settings_menu.add_separator(background=theme.WIDGET_BORDER)

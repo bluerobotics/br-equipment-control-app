@@ -1,7 +1,3 @@
-- implement serial number system
-    - serial incrementing to filenames
-    - barcode/QR code scanner support via USB and bluetooth
-
 - implement report system
     - start with press report
     - new section in the devices in the device pane, under warning
