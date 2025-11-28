@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.20.0] - 2025-11-28
+
+### Added
+- **Report System**: New `pressboi.generate_press_report` command for interactive HTML reports
+  - Force vs distance graph with pass/fail threshold visualization
+  - "Pass zone" box showing acceptable force and endpoint ranges
+  - Energy sidebar with visual threshold markers
+  - Collapsible machine strain calibration section with polynomial fit
+  - Peak, startpoint, and endpoint markers on graph
+  - Download raw data as CSV
+  - Auto-open report in browser with `open` flag
+- **Reports Section**: New "Reports" folder in device panel (cream/off-white color)
+- **Reports Directory**: New configurable reports path in Application Paths window
+- **Telemetry Parameters**: Device-agnostic telemetry passing to report handlers
+- **View Commands**: Script commands to open/close operator views (`pressboi.view_id open/close`)
+
+### Changed
+- **Indented Parameter Blocks**: Now supported for ALL commands, not just logging
+- **Line Numbers**: Indented lines no longer get line numbers (cleaner display)
+- **Device Panel**: Views displayed as `device.view_id` format with double-click to open
+- **Syntax Highlighting**: Improved handling of enum values, flags, and keyword parameters
+
+### Fixed
+- **Endpoint Pass/Fail**: Now uses telemetry endpoint value instead of CSV last position
+- **Report Parameter Parsing**: Correctly handles `value unit keyword` format
+- **Single Block Mode**: Fixed validation for commands with indented parameter blocks
+
 ## [1.19.0] - 2025-11-26
 
 ### Added

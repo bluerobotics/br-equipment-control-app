@@ -785,6 +785,7 @@ class MainApplication:
         
         # Add command reference to shared_gui_refs so it can be accessed by comms
         self.shared_gui_refs['command_reference'] = self.command_reference_instance
+        self.shared_gui_refs['device_panel'] = self.command_reference_instance  # Alias for script processor
         
         # Serial Number Panel (below Device Manager, hidden by default)
         self.serial_panel = create_serial_panel(cmd_ref_content, self.shared_gui_refs)
@@ -1131,11 +1132,12 @@ class MainApplication:
         # Get the current script content
         script_content = self.scripting_gui_refs['get_script_content']()
         
-        # Get all scripting commands
+        # Get all scripting commands and reports
         scripting_commands = self.device_manager.get_all_scripting_commands()
+        reports = self.device_manager.get_all_reports()
         
         # Run validation
-        errors = validate_script(script_content, scripting_commands)
+        errors = validate_script(script_content, scripting_commands, reports)
         
         if not errors:
             # Check for device connectivity issues
@@ -1669,7 +1671,7 @@ class MainApplication:
             self._paths_window.lift()
             return
 
-        from src.config import get_system_logs_dir, get_data_logs_dir, set_system_logs_dir, set_data_logs_dir
+        from src.config import get_system_logs_dir, get_data_logs_dir, get_reports_dir, set_system_logs_dir, set_data_logs_dir, set_reports_dir
         from tkinter import filedialog
         
         # Readonly paths
@@ -1761,6 +1763,31 @@ class MainApplication:
         ).grid(row=row_idx, column=2, sticky='e', padx=(8, 0), pady=4)
         row_idx += 1
         
+        # Reports Directory
+        reports_var = tk.StringVar(value=str(get_reports_dir()))
+        
+        ttk.Label(frame, text="Reports:", style='Subtle.TLabel').grid(
+            row=row_idx, column=0, sticky='nw', padx=(0, 8), pady=4)
+        
+        reports_entry = ttk.Entry(frame, width=80, textvariable=reports_var)
+        reports_entry.grid(row=row_idx, column=1, sticky='we', pady=4)
+        
+        def browse_reports():
+            dir_path = filedialog.askdirectory(
+                title="Select Reports Directory",
+                initialdir=reports_var.get()
+            )
+            if dir_path:
+                reports_var.set(dir_path)
+        
+        ttk.Button(
+            frame,
+            text="Browse",
+            style='Blue.TButton',
+            command=browse_reports
+        ).grid(row=row_idx, column=2, sticky='e', padx=(8, 0), pady=4)
+        row_idx += 1
+        
         # Separator
         ttk.Separator(frame, orient='horizontal').grid(
             row=row_idx, column=0, columnspan=3, sticky='ew', pady=(15, 10))
@@ -1803,6 +1830,8 @@ class MainApplication:
                 print(f"System logs directory set to: {system_logs_var.get()}")
             if set_data_logs_dir(data_logs_var.get()):
                 print(f"Data logs directory set to: {data_logs_var.get()}")
+            if set_reports_dir(reports_var.get()):
+                print(f"Reports directory set to: {reports_var.get()}")
             
             # Close window
             self._paths_window.destroy()
@@ -1811,7 +1840,7 @@ class MainApplication:
             from tkinter import messagebox
             messagebox.showinfo(
                 "Paths Saved",
-                "Log directory changes will take effect the next time the application starts.",
+                "Directory changes will take effect the next time the application starts.",
                 parent=self.root
             )
         

@@ -112,18 +112,23 @@ def _get_indent_level(line):
     expanded = line.expandtabs(4)
     return len(expanded) - len(expanded.lstrip(' '))
 
-def _collapse_logging_blocks(content, line_offset=0):
+def _collapse_indented_blocks(content, line_offset=0):
     """
-    Collapses indented blocks for logging commands into single-line commands.
+    Collapses indented parameter blocks for ANY command into single-line commands.
     This allows the validator to properly validate these commands.
+    
+    For example:
+        pressboi.move_abs
+            50 mm position
+            10 mm/s speed
+            500 kg force
+    
+    Becomes:
+        pressboi.move_abs 50 mm position 10 mm/s speed 500 kg force
     """
     lines = content.splitlines()
     result_lines = []
     i = 0
-    
-    # Commands that support indented blocks
-    block_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
-    
     
     while i < len(lines):
         line = lines[i]
@@ -135,7 +140,7 @@ def _collapse_logging_blocks(content, line_offset=0):
             i += 1
             continue
         
-        # Check if this is a block command
+        # Check if this is a command
         try:
             parts = shlex.split(line_stripped)
         except ValueError:
@@ -143,7 +148,14 @@ def _collapse_logging_blocks(content, line_offset=0):
         
         command_word = parts[0].lower() if parts else ''
         
-        if command_word in block_commands:
+        # Skip CYCLE - it has its own block handling
+        if command_word == 'cycle':
+            result_lines.append(line)
+            i += 1
+            continue
+        
+        # Check if this command has an indented block following it
+        if command_word:
             # Get base indentation of the command line (handle tabs and spaces)
             base_indent = _get_indent_level(line)
             
@@ -213,17 +225,30 @@ def _collapse_logging_blocks(content, line_offset=0):
     # Return tuple for compatibility with script_processor, but validator doesn't use the line map
     return result, {}
 
-def validate_script(script_content, scripting_commands):
-    """Validates an entire script against the command reference."""
+def validate_script(script_content, scripting_commands, reports=None):
+    """
+    Validates an entire script against the command reference.
+    
+    Args:
+        script_content: The script text to validate
+        scripting_commands: Dictionary of valid commands
+        reports: Optional dictionary of report definitions from all devices
+    """
     errors = []
     
     # First collapse logging blocks so they can be validated properly
-    collapsed_content, _ = _collapse_logging_blocks(script_content)
+    collapsed_content, _ = _collapse_indented_blocks(script_content)
     
     lines = collapsed_content.splitlines()
     indent_stack = [0]  # Stack of indentation levels (in spaces)
     in_logging_block = False
     logging_block_indent = 0
+    
+    # Track logging state for report validation
+    queued_variables = set()  # Variables queued for logging
+    logging_active = False
+    logging_stopped = False
+    last_stop_logging_line = None
 
     for i, line in enumerate(lines):
         line_num = i + 1
@@ -261,29 +286,28 @@ def validate_script(script_content, scripting_commands):
                     break
                 prev_line_idx -= 1
 
-            # Commands that allow indented blocks
-            allowed_block_commands = ['cycle', 'queue_for_logging', 'unqueue_for_logging', 
-                                     'start_logging', 'stop_logging']
-            
+            # All commands can have indented parameter blocks (except empty lines/comments)
             try:
                 prev_parts = shlex.split(prev_line_content) if prev_line_content else []
             except ValueError:
                 prev_parts = prev_line_content.split()
             prev_cmd = prev_parts[0].lower() if prev_parts else ''
             
-            if prev_cmd not in allowed_block_commands:
+            if not prev_cmd:
+                # No previous command found - unexpected indent
                 errors.append({"line": line_num, "error": "Unexpected indent."})
                 indent_stack.append(leading_spaces)
-            elif prev_cmd in ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']:
-                # Entering a logging block - skip validation for this and subsequent indented lines
-                in_logging_block = True
+            elif prev_cmd == 'cycle':
+                # CYCLE blocks are handled specially by the loop expander
+                indent_stack.append(leading_spaces)
+            else:
+                # Any other command can have an indented parameter block
+                # Enter a parameter block - skip validation for indented lines (they're parameters)
+                in_logging_block = True  # Reuse this flag for all parameter blocks
                 logging_block_indent = indent_stack[-1]
                 indent_stack.append(leading_spaces)
-                # Skip validation for this line since it's part of a logging block
+                # Skip validation for this line since it's part of a parameter block
                 continue
-            else:
-                # CYCLE or other allowed block command
-                indent_stack.append(leading_spaces)
         elif leading_spaces < indent_stack[-1]:
             # Dedent must match a previous indentation level
             while indent_stack and leading_spaces < indent_stack[-1]:
@@ -296,6 +320,87 @@ def validate_script(script_content, scripting_commands):
         if first_command_word == "END_REPEAT":
             errors.append({"line": line_num, "error": "END_REPEAT is no longer used. Use indentation to define blocks."})
             continue
+        
+        # Track logging state for report validation
+        try:
+            cmd_parts = shlex.split(line_content)
+        except ValueError:
+            cmd_parts = line_content.split()
+        
+        cmd_word = cmd_parts[0].lower() if cmd_parts else ''
+        
+        # Track queue_for_logging - extract variables
+        if cmd_word == 'queue_for_logging':
+            for part in cmd_parts[1:]:
+                if '.' in part:
+                    queued_variables.add(part.lower())
+        
+        # Track unqueue_for_logging - remove variables
+        elif cmd_word == 'unqueue_for_logging':
+            for part in cmd_parts[1:]:
+                if '.' in part:
+                    queued_variables.discard(part.lower())
+        
+        # Track start_logging
+        elif cmd_word == 'start_logging':
+            logging_active = True
+            logging_stopped = False
+        
+        # Track stop_logging
+        elif cmd_word == 'stop_logging':
+            logging_active = False
+            logging_stopped = True
+            last_stop_logging_line = line_num
+        
+        # Validate report commands
+        elif reports and '.' in cmd_word:
+            # Check if this is a report command
+            parts = cmd_word.split('.', 1)
+            device_name = parts[0]
+            report_name = parts[1]
+            
+            # Look up in reports
+            report_key = f"{device_name}.{report_name}"
+            report_info = reports.get(report_key)
+            
+            if report_info:
+                # Check must_follow constraint
+                must_follow = report_info.get('must_follow', '')
+                if must_follow == 'stop_logging' and not logging_stopped:
+                    errors.append({
+                        "line": line_num,
+                        "error": f"Report '{report_name}' must be called after 'stop_logging'."
+                    })
+                
+                # Check required logged variables
+                required_vars = report_info.get('required_logged_variables', [])
+                for var_def in required_vars:
+                    if isinstance(var_def, dict):
+                        var_name = var_def.get('variable', '').lower()
+                        alternatives = [alt.lower() for alt in var_def.get('alternatives', [])]
+                        
+                        # Check if variable or any alternative was queued
+                        has_required = var_name in queued_variables
+                        if not has_required and alternatives:
+                            has_required = any(alt in queued_variables for alt in alternatives)
+                        
+                        if not has_required:
+                            alt_str = f" (or {', '.join(alternatives)})" if alternatives else ""
+                            errors.append({
+                                "line": line_num,
+                                "error": f"Report '{report_name}' requires '{var_name}'{alt_str} to be logged."
+                            })
+                    else:
+                        # Simple string format
+                        var_name = var_def.lower() if isinstance(var_def, str) else ''
+                        if var_name and var_name not in queued_variables:
+                            errors.append({
+                                "line": line_num,
+                                "error": f"Report '{report_name}' requires '{var_name}' to be logged."
+                            })
+                
+                # Skip normal command validation for report commands (they're not in scripting_commands)
+                continue
 
         errors.extend(_validate_line(line, line_num, scripting_commands))
 

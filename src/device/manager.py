@@ -192,6 +192,30 @@ class DeviceManager:
         """Returns the events for a specific device."""
         return self.registry.get_device_events(device_name)
 
+    def get_all_reports(self):
+        """
+        Aggregates report definitions from all discovered devices.
+        Returns a dictionary with report command names as keys and their details as values.
+        """
+        return self.registry.get_all_reports()
+
+    def get_device_reports(self, device_name):
+        """Returns the report definitions for a specific device."""
+        return self.registry.get_device_reports(device_name)
+
+    def get_report_handler(self, device_name, report_name):
+        """
+        Gets the handler function for a specific report.
+        
+        Args:
+            device_name: Name of the device
+            report_name: Name of the report (without device prefix)
+            
+        Returns:
+            Callable handler function or None if not found
+        """
+        return self.registry.get_report_handler(device_name, report_name)
+
     # ========== GUI Creation ==========
     
     def create_all_gui_components(self, parent_container):
@@ -353,11 +377,11 @@ class DeviceManager:
                         # Send discovery commands with retries to prompt a response from the firmware
                         # The firmware should respond with telemetry chunks
                         import time
-                        time.sleep(1.0)  # Longer initial delay for USB CDC to stabilize after reconnect
+                        time.sleep(2.0)  # Longer initial delay for USB CDC to stabilize and firmware init
                         
                         # Try a simple command first to wake up the firmware's USB
                         serial.send_serial_command(port, "DISCOVER_DEVICE")
-                        time.sleep(0.5)
+                        time.sleep(1.0)  # Give firmware time to process without blocking main loop
                         
                         # Now send the actual discovery commands
                         for attempt in range(3):

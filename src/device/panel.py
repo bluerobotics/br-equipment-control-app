@@ -163,11 +163,14 @@ class DevicePanel(ttk.Frame):
         self.text.tag_configure('warning_part', foreground=theme.ERROR_RED)
         self.text.tag_configure('views_header', foreground='#B0A3D4', font=theme.FONT_BOLD)  # Lavender
         self.text.tag_configure('view_name', foreground='#B0A3D4')  # Lavender
+        self.text.tag_configure('reports_header', foreground='#E8E4D9', font=theme.FONT_BOLD)  # Warm off-white/cream
+        self.text.tag_configure('report_name', foreground='#E8E4D9')  # Warm off-white/cream
         self.text.tag_configure('folder_icon', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('variable_info', foreground=theme.COMMENT_COLOR)
         self.text.tag_configure('parameter_name', foreground=theme.PARAMETER_COLOR)  # Orange/yellow for parameter names
         self.text.tag_configure('enum_badge', foreground=theme.WARNING_YELLOW)
         self.text.tag_configure('queued_badge', foreground='#61AFEF')  # Blue for queued variables
+        self.text.tag_configure('logging_badge', foreground='#98C379')  # Green for actively logging variables
         self.text.tag_configure('status_icon', foreground=theme.SUCCESS_GREEN)
         self.text.tag_configure('connected_status', foreground=theme.SUCCESS_GREEN)  # Green for connected
         self.text.tag_configure('simulated_status', foreground=theme.WARNING_YELLOW)  # Yellow for [simulated]
@@ -657,13 +660,12 @@ class DevicePanel(ttk.Frame):
                         if enum_badge:
                             self.text.insert(f"{line_num}.end", enum_badge, "enum_badge")
                         
-                        # Add [queued] indicator if this variable is queued for logging
-                        if data_logger and data_logger.is_variable_queued(device_name, var_name):
-                            self.text.insert(f"{line_num}.end", " [queued]", "queued_badge")
-                        
-                        # Add [logging] indicator if this variable is being logged
+                        # Add logging status indicator
+                        # [logging] takes precedence over [queued]
                         if data_logger and data_logger.is_variable_being_logged(device_name, var_name):
-                            self.text.insert(f"{line_num}.end", " [logging]", "enum_badge")
+                            self.text.insert(f"{line_num}.end", " [logging]", "logging_badge")
+                        elif data_logger and data_logger.is_variable_queued(device_name, var_name):
+                            self.text.insert(f"{line_num}.end", " [queued]", "queued_badge")
                         
                         self.text.insert(f"{line_num}.end", "\n")
                         
@@ -792,16 +794,10 @@ class DevicePanel(ttk.Frame):
                 # Add individual views if not collapsed
                 if not views_collapsed:
                     for view_key, view_details in sorted(views.items()):
-                        view_name = view_details.get('name', view_key)
-                        view_icon = view_details.get('icon', '')
-                        
+                        # Show the full command name with device in pink, view in lavender
                         self.text.insert(f"{line_num}.0", "      ", "folder_icon")
-                        # Only add icon if it's not empty
-                        if view_icon and view_icon.strip():
-                            self.text.insert(f"{line_num}.end", f"{view_icon} {view_name}", "view_name")
-                        else:
-                            self.text.insert(f"{line_num}.end", f"{view_name}", "view_name")
-                        
+                        self.text.insert(f"{line_num}.end", f"{device_name}.", "device_part")
+                        self.text.insert(f"{line_num}.end", f"{view_key}", "view_name")
                         self.text.insert(f"{line_num}.end", "\n")
                         
                         # Add tooltip for description
@@ -821,6 +817,45 @@ class DevicePanel(ttk.Frame):
                             'data': view_details
                         }
                         line_num += 1
+                
+                # Reports folder
+                reports = device_data.get('reports_data', {})
+                if reports:  # Only show if device has reports
+                    reports_folder_key = (device_name, 'reports_folder')
+                    reports_collapsed = reports_folder_key in self.collapsed_folders
+                    reports_icon = "  ► " if reports_collapsed else "  ▼ "
+                    
+                    self.text.insert(f"{line_num}.0", reports_icon, "folder_icon")
+                    self.text.insert(f"{line_num}.end", f"reports ({len(reports)})\n", "reports_header")
+                    self.line_items[line_num] = {'type': 'reports_folder', 'device': device_name, 'line_start': line_num}
+                    line_num += 1
+                    
+                    # Add individual reports if not collapsed
+                    if not reports_collapsed:
+                        for report_key, report_details in sorted(reports.items()):
+                            # Show the full command name with device in pink, command in teal
+                            self.text.insert(f"{line_num}.0", "      ", "folder_icon")
+                            self.text.insert(f"{line_num}.end", f"{device_name}.", "device_part")
+                            self.text.insert(f"{line_num}.end", f"{report_key}", "report_name")
+                            self.text.insert(f"{line_num}.end", "\n")
+                            
+                            # Add tooltip for description
+                            description = report_details.get('description', '')
+                            if description:
+                                report_tag_key = f"report_{device_name}_{report_key}"
+                                self.text.tag_add(report_tag_key, f"{line_num}.0", f"{line_num}.end")
+                                self.text.tag_bind(report_tag_key, "<Enter>", 
+                                                 lambda e, desc=description: self._show_tooltip(e, desc, self.tooltip))
+                                self.text.tag_bind(report_tag_key, "<Leave>", lambda e: self._hide_tooltip(self.tooltip))
+                            
+                            self.line_items[line_num] = {
+                                'type': 'report',
+                                'report_id': report_key,
+                                'name': report_key,
+                                'device': device_name,
+                                'data': report_details
+                            }
+                            line_num += 1
     
     def _get_default_collapsed_folders(self):
         """Get the default set of collapsed folders (all folders except Script Commands)."""
@@ -835,6 +870,7 @@ class DevicePanel(ttk.Frame):
             collapsed.add((device_name, 'events_folder'))
             collapsed.add((device_name, 'warnings_folder'))
             collapsed.add((device_name, 'views_folder'))
+            collapsed.add((device_name, 'reports_folder'))
         
         # Keep script commands expanded by default
         # collapsed.add(('', 'script_folder'))
@@ -853,9 +889,9 @@ class DevicePanel(ttk.Frame):
         item_data = self.line_items.get(line_num, {})
         
         # Only highlight if it's an actual item (not empty or folder header in some cases)
-        is_item = item_data.get('type') in ['command', 'variable', 'event', 'warning', 'view', 'device', 
+        is_item = item_data.get('type') in ['command', 'variable', 'event', 'warning', 'view', 'report', 'device', 
                                              'commands_folder', 'variables_folder', 
-                                             'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'script_command']
+                                             'events_folder', 'warnings_folder', 'views_folder', 'reports_folder', 'script_folder', 'script_command']
         
         if is_item and line_num != self.current_hover_line:
             # Remove previous hover
@@ -886,7 +922,7 @@ class DevicePanel(ttk.Frame):
         self.text.tag_remove(tk.SEL, "1.0", tk.END)
         
         # Toggle folder collapse/expand
-        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'device']:
+        if item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'reports_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -949,9 +985,16 @@ class DevicePanel(ttk.Frame):
                         script_runner,
                         view_id
                     )
+        
+        # Reports: insert report command into script
+        elif item_type == 'report':
+            device_name = item_data.get('device')
+            report_id = item_data.get('report_id')
+            if device_name and report_id:
+                self.script_editor_widget.insert(tk.INSERT, f"{device_name}.{report_id}\n")
             
         # Folders: toggle open/close
-        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'script_folder', 'device']:
+        elif item_type in ['commands_folder', 'variables_folder', 'events_folder', 'warnings_folder', 'views_folder', 'reports_folder', 'script_folder', 'device']:
             # Use device name + type as stable key (not line number which changes)
             folder_key = (item_data.get('device', item_data.get('name', '')), item_type)
             if folder_key in self.collapsed_folders:
@@ -1265,6 +1308,8 @@ class DevicePanel(ttk.Frame):
             view_data = item_data.get('data', {})
             
             self.context_menu.add_command(label="Open View", command=lambda: self.open_view(device_name, view_id, view_data))
+            self.context_menu.add_command(label="Add to Script", 
+                                         command=lambda: self.script_editor_widget.insert(tk.INSERT, f"{device_name}.{view_id}\n"))
             self.context_menu.add_separator()
             
             # Display on startup option
@@ -1300,6 +1345,22 @@ class DevicePanel(ttk.Frame):
             self.context_menu.add_separator()
             self.context_menu.add_command(label="Delete View", command=self.delete_view,
                                          foreground=theme.ERROR_RED)
+        
+        elif item_type == 'report':
+            report_id = item_data.get('report_id', '')
+            device_name = item_data.get('device', '')
+            report_data = item_data.get('data', {})
+            
+            self.context_menu.add_command(label="Insert into Script", 
+                                         command=lambda: self.script_editor_widget.insert(tk.INSERT, f"{device_name}.{report_id}\n"))
+            self.context_menu.add_separator()
+            self.context_menu.add_command(label="More Info...", 
+                                         command=lambda: self.show_report_info(device_name, report_id, report_data))
+        
+        elif item_type == 'reports_folder':
+            device_name = item_data.get('device')
+            self.context_menu.add_command(label="Open Reports Folder", 
+                                         command=self.open_reports_folder)
         
         # Show menu
         if self.context_menu.index('end') is not None:  # If menu has items
@@ -3797,6 +3858,79 @@ class DevicePanel(ttk.Frame):
         item_data = self.line_items.get(line_num, {})
         view_name = item_data.get('name', '')
         messagebox.showinfo("Delete View", f"View deletion coming soon for {view_name}!")
+
+    # ===== REPORT METHODS =====
+    
+    def show_report_info(self, device_name, report_id, report_data):
+        """Show info for a report."""
+        from tkinter import messagebox
+        
+        report_name = report_data.get('name', report_id)
+        description = report_data.get('description', 'No description available.')
+        
+        # Build required variables info
+        required_vars = report_data.get('required_logged_variables', [])
+        required_vars_text = ""
+        if required_vars:
+            var_list = []
+            for var in required_vars:
+                if isinstance(var, dict):
+                    var_name = var.get('variable', '')
+                    alternatives = var.get('alternatives', [])
+                    if alternatives:
+                        var_name += f" (or {', '.join(alternatives)})"
+                    var_list.append(f"  • {var_name}")
+                else:
+                    var_list.append(f"  • {var}")
+            required_vars_text = "\n\nRequired Logged Variables:\n" + "\n".join(var_list)
+        
+        # Build parameters info
+        params = report_data.get('params', [])
+        params_text = ""
+        if params:
+            param_list = []
+            for param in params:
+                param_name = param.get('parameter', '')
+                param_type = param.get('type', 'string')
+                unit = param.get('unit', '')
+                optional = " (optional)" if param.get('optional') else ""
+                unit_str = f" [{unit}]" if unit else ""
+                param_list.append(f"  • {param_name}: {param_type}{unit_str}{optional}")
+            params_text = "\n\nParameters:\n" + "\n".join(param_list)
+        
+        # Must follow constraint
+        must_follow = report_data.get('must_follow', '')
+        must_follow_text = f"\n\nNote: Must be called after '{must_follow}'" if must_follow else ""
+        
+        info_text = (
+            f"Device: {device_name}\n"
+            f"Command: {device_name}.{report_id}\n\n"
+            f"Description:\n{description}"
+            f"{required_vars_text}"
+            f"{params_text}"
+            f"{must_follow_text}"
+        )
+        
+        messagebox.showinfo(f"Report: {report_name}", info_text)
+    
+    def open_reports_folder(self):
+        """Open the reports output folder in the file explorer."""
+        import subprocess
+        import sys
+        from src.config import get_reports_dir
+        
+        reports_dir = get_reports_dir()
+        
+        try:
+            if sys.platform == 'win32':
+                subprocess.run(['explorer', str(reports_dir)])
+            elif sys.platform == 'darwin':
+                subprocess.run(['open', str(reports_dir)])
+            else:
+                subprocess.run(['xdg-open', str(reports_dir)])
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Could not open reports folder: {e}")
 
 # ===== ADD/EDIT DIALOGS =====
 

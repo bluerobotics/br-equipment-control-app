@@ -64,6 +64,37 @@ class DeviceRegistry:
         
         return None
     
+    def _load_package_from_path(self, device_name, package_name, package_path):
+        """
+        Load a Python package (folder with __init__.py) from a specific path.
+        Returns the package module if successful, None otherwise.
+        """
+        init_file = os.path.join(package_path, '__init__.py')
+        if not os.path.exists(init_file):
+            return None
+        
+        try:
+            # Create a unique module name to avoid conflicts
+            full_module_name = f"devices.{device_name}.{package_name}"
+            
+            # Load the package from __init__.py
+            spec = importlib.util.spec_from_file_location(
+                full_module_name, 
+                init_file,
+                submodule_search_locations=[package_path]
+            )
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[full_module_name] = module
+                spec.loader.exec_module(module)
+                return module
+        except Exception as e:
+            self.log(f"Error loading package {package_name} for {device_name}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return None
+    
     def discover_devices(self):
         """
         Loads device modules from explicitly configured device paths.
@@ -163,11 +194,24 @@ class DeviceRegistry:
                 with open(views_path, 'r', encoding='utf-8') as f:
                     views_data = json.load(f)
             
+            # Load reports
+            reports_data = {}
+            reports_path = os.path.join(definition_path, 'reports.json')
+            if os.path.exists(reports_path):
+                with open(reports_path, 'r', encoding='utf-8') as f:
+                    reports_data = json.load(f)
+            
             # Load Python modules (gui, simulator, operator_view, parser)
             gui_module = self._load_module_from_path(device_name, 'gui', definition_path)
             simulator_module = self._load_module_from_path(device_name, 'simulator', definition_path)
             operator_view_module = self._load_module_from_path(device_name, 'operator_view', definition_path)
             parser_module = self._load_module_from_path(device_name, 'parser', definition_path)
+            
+            # Load reports module if reports/ folder exists (as a package with __init__.py)
+            reports_module = None
+            reports_folder = os.path.join(definition_path, 'reports')
+            if os.path.isdir(reports_folder):
+                reports_module = self._load_package_from_path(device_name, 'reports', reports_folder)
             
             # Load warnings from JSON (always from definition folder)
             warnings_data = {}
@@ -188,6 +232,7 @@ class DeviceRegistry:
                 'events_data': events_data,
                 'warnings': warnings_data,
                 'views_data': views_data,
+                'reports_data': reports_data,
                 'config': {},  # Keep for consistent structure
                 'status_var': None,  # Will be created during GUI init
                 'modules': {
@@ -195,6 +240,7 @@ class DeviceRegistry:
                     'simulator': simulator_module,
                     'operator_view': operator_view_module,
                     'parser': parser_module,
+                    'reports': reports_module,
                 },
             }
             
@@ -245,6 +291,13 @@ class DeviceRegistry:
                 self.devices[device_name]['warnings'] = json.load(f)
                 self.log(f"Reloaded warnings.json for {device_name}")
         
+        # Reload reports.json
+        reports_path = os.path.join(device_path, 'reports.json')
+        if os.path.exists(reports_path):
+            with open(reports_path, 'r', encoding='utf-8') as f:
+                self.devices[device_name]['reports_data'] = json.load(f)
+                self.log(f"Reloaded reports.json for {device_name}")
+        
         return True
     
     def get_device_modules(self):
@@ -286,6 +339,18 @@ class DeviceRegistry:
                     cmd_details_with_device = cmd_details.copy()
                     cmd_details_with_device['device'] = device_name
                     all_commands[full_cmd_key] = cmd_details_with_device
+            
+            # Also add report commands from reports_data
+            if modules.get('reports_data'):
+                device_reports = modules['reports_data']
+                for report_name, report_details in device_reports.items():
+                    # Add device prefix to report name
+                    full_report_key = f"{device_name}.{report_name}"
+                    # Add device and category information
+                    report_details_with_device = report_details.copy()
+                    report_details_with_device['device'] = device_name
+                    report_details_with_device['category'] = 'report'
+                    all_commands[full_report_key] = report_details_with_device
         
         return all_commands
 
@@ -360,6 +425,59 @@ class DeviceRegistry:
                     return json.load(f)
             except Exception as e:
                 self.log(f"Failed to read config.json for {device_name}: {e}")
+        
+        return None
+
+    def get_all_reports(self):
+        """
+        Aggregates report definitions from all discovered devices.
+        Returns a dictionary with report command names as keys and their details as values.
+        Each report command is prefixed with the device name (e.g., 'pressboi.generate_press_report').
+        """
+        all_reports = {}
+        for device_name, modules in self.devices.items():
+            if modules.get('reports_data'):
+                device_reports = modules['reports_data']
+                for report_name, report_details in device_reports.items():
+                    # Add device prefix to report name
+                    full_report_key = f"{device_name}.{report_name}"
+                    # Add device information to report details
+                    report_details_with_device = report_details.copy()
+                    report_details_with_device['device'] = device_name
+                    all_reports[full_report_key] = report_details_with_device
+        return all_reports
+
+    def get_device_reports(self, device_name):
+        """Returns the report definitions for a specific device."""
+        device = self.devices.get(device_name)
+        if device:
+            return device.get('reports_data', {})
+        return {}
+
+    def get_report_handler(self, device_name, report_name):
+        """
+        Gets the handler function for a specific report.
+        
+        Args:
+            device_name: Name of the device
+            report_name: Name of the report (without device prefix)
+            
+        Returns:
+            Callable handler function or None if not found
+        """
+        device = self.devices.get(device_name)
+        if not device:
+            return None
+        
+        reports_module = device.get('modules', {}).get('reports')
+        if not reports_module:
+            return None
+        
+        # Look for the handler function in the reports module
+        # The handler name is typically the report_name itself (e.g., generate_press_report)
+        handler = getattr(reports_module, report_name, None)
+        if callable(handler):
+            return handler
         
         return None
 

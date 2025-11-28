@@ -117,7 +117,7 @@ class ScriptRunner(threading.Thread):
         # To map expanded lines back to original source lines
         try:
             # First collapse logging blocks, then expand loops
-            collapsed_content, collapse_line_map = self._collapse_logging_blocks(script_content, line_offset)
+            collapsed_content, collapse_line_map = self._collapse_indented_blocks(script_content, line_offset)
             expanded_content, expand_line_map = self._expand_loops(collapsed_content, 0)  # Use 0 offset since collapse_line_map already has it
             
             # Combine the two maps: expanded line -> collapsed line -> original line
@@ -142,9 +142,9 @@ class ScriptRunner(threading.Thread):
         expanded = line.expandtabs(4)
         return len(expanded) - len(expanded.lstrip(' '))
     
-    def _collapse_logging_blocks(self, content, line_offset=0):
+    def _collapse_indented_blocks(self, content, line_offset=0):
         """
-        Collapses indented blocks for logging commands into single-line commands.
+        Collapses indented parameter blocks for ANY command into single-line commands.
         Returns (collapsed_content, line_map) where line_map maps collapsed line index to original line number.
         
         For example:
@@ -154,14 +154,17 @@ class ScriptRunner(threading.Thread):
         
         Becomes:
             queue_for_logging device.temp_c device.heater_setpoint
+            
+        Works for any command:
+            pressboi.move_abs
+                50 mm position
+                10 mm/s speed
+                500 kg force
         """
         lines = content.splitlines()
         result_lines = []
         line_map = {}  # Maps collapsed line index (0-based) to original line number (1-based with offset)
         i = 0
-        
-        # Commands that support indented blocks
-        block_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging']
         
         while i < len(lines):
             line = lines[i]
@@ -174,7 +177,7 @@ class ScriptRunner(threading.Thread):
                 i += 1
                 continue
             
-            # Check if this is a block command
+            # Check if this is a command (not CYCLE which has its own block handling)
             try:
                 parts = shlex.split(line_stripped)
             except ValueError:
@@ -182,7 +185,15 @@ class ScriptRunner(threading.Thread):
             
             command_word = parts[0].lower() if parts else ''
             
-            if command_word in block_commands:
+            # Skip CYCLE - it has its own block handling in _expand_loops
+            if command_word == 'cycle':
+                line_map[len(result_lines)] = i + 1 + line_offset
+                result_lines.append(line)
+                i += 1
+                continue
+            
+            # Check if this command has an indented block following it
+            if command_word:
                 # Get base indentation of the command line (handle tabs and spaces)
                 base_indent = self._get_indent_level(line)
                 
@@ -577,57 +588,101 @@ class ScriptRunner(threading.Thread):
         """
         Resolves script parameter words into a dictionary of named parameters.
         Handles both positional and keyword arguments.
+        
+        Supports formats:
+        - Positional: value unit value unit (e.g., "50 mm 10 mm/s")
+        - Keyword: value unit keyword (e.g., "400 kg force_min 600 kg force_max")
+        - Flag: keyword (e.g., "open")
+        - Enum value: retract action (where retract is enum value, action is label)
         """
         resolved_params = {}
-        unassigned_args = list(param_words)
         param_defs = command_info.get('params', [])
-        # Use the 'parameter' key from the new JSON structure
-        param_names = [p.get('parameter', f'arg{i}') for i, p in enumerate(param_defs)]
-
-        # First pass: find keyword arguments (e.g., "return")
-        for i, word in enumerate(unassigned_args):
-            if word in param_names:
-                # This is a keyword, like 'return'. Assume it's a flag.
-                resolved_params[word] = True
-                unassigned_args[i] = None # Mark for removal
-
-        # Remove used keywords
-        unassigned_args = [arg for arg in unassigned_args if arg is not None]
-
-        # Second pass: assign remaining positional arguments
-        positional_param_defs = [p for p in param_defs if p.get('parameter') not in resolved_params]
         
-        # Combine value and unit if they are separate words, and strip label words
-        combined_args = []
-        # Label words to skip (like "action", "mode", "limit", etc.)
-        label_words = {'action', 'mode', 'limit', 'source', 'value', 'parameter'}
+        # Build lookup for parameter definitions
+        param_by_name = {p.get('parameter', ''): p for p in param_defs}
+        param_by_keyword = {}
+        for p in param_defs:
+            keyword = p.get('keyword')
+            if keyword:
+                param_by_keyword[keyword.lower()] = p
+            # Also allow parameter name as keyword
+            param_name = p.get('parameter', '')
+            if param_name:
+                param_by_keyword[param_name.lower()] = p
         
+        # Build lookup for enum values -> parameter
+        # e.g., "retract" -> force_action parameter
+        enum_value_to_param = {}
+        for p in param_defs:
+            enum_values = p.get('enum') or p.get('options') or []
+            for enum_val in enum_values:
+                enum_value_to_param[enum_val.lower()] = p
+        
+        # Parse arguments looking for keyword patterns: <value> [unit] <keyword>
         i = 0
-        while i < len(unassigned_args):
-            arg = unassigned_args[i]
-            # Heuristic: if the current arg is a number and the next is not, they might be value+unit
-            is_numeric = self._is_numeric(arg)
+        positional_values = []  # Values not assigned to keywords
+        
+        while i < len(param_words):
+            word = param_words[i]
+            word_lower = word.lower()
             
-            if is_numeric and i + 1 < len(unassigned_args) and not self._is_numeric(unassigned_args[i+1]):
-                # Skip the unit word if it's a label word
-                next_word = unassigned_args[i+1].lower()
-                if next_word not in label_words:
-                    combined_args.append(f"{arg} {unassigned_args[i+1]}")
+            # Check if this word is a keyword/parameter name
+            if word_lower in param_by_keyword:
+                param_def = param_by_keyword[word_lower]
+                param_name = param_def.get('parameter', '')
+                param_type = param_def.get('type', 'string')
+                
+                if param_type == 'flag':
+                    # Flag type: just the presence of the keyword means True
+                    resolved_params[param_name] = True
+                    i += 1
+                elif positional_values:
+                    # Look back for the preceding value
+                    # The last positional value is the value for this keyword
+                    value = positional_values.pop()
+                    resolved_params[param_name] = value
+                    i += 1
                 else:
-                    # Just the numeric value, skip the label
-                    combined_args.append(arg)
-                i += 2
+                    # No preceding value, treat as flag
+                    resolved_params[param_name] = True
+                    i += 1
+            # Check if this word is an enum value (like "retract", "abort", "hold")
+            elif word_lower in enum_value_to_param:
+                param_def = enum_value_to_param[word_lower]
+                param_name = param_def.get('parameter', '')
+                # Assign the enum value to this parameter
+                resolved_params[param_name] = word_lower
+                i += 1
+            elif self._is_numeric(word):
+                # Numeric value - check if next word is a unit
+                if i + 1 < len(param_words):
+                    next_word = param_words[i + 1]
+                    next_lower = next_word.lower()
+                    
+                    # If next word is a keyword or enum value, don't include it as unit
+                    if next_lower in param_by_keyword or next_lower in enum_value_to_param:
+                        positional_values.append(word)
+                        i += 1
+                    elif not self._is_numeric(next_word):
+                        # Combine value and unit
+                        positional_values.append(f"{word} {next_word}")
+                        i += 2
+                    else:
+                        positional_values.append(word)
+                        i += 1
+                else:
+                    positional_values.append(word)
+                    i += 1
             else:
-                # Skip standalone label words
-                if arg.lower() not in label_words:
-                    combined_args.append(arg)
+                # Non-numeric, non-keyword, non-enum - might be a unit or label, skip
                 i += 1
         
-        for i, param_def in enumerate(positional_param_defs):
-            if i < len(combined_args):
-                # Use the 'parameter' key here as well
-                param_name = param_def.get('parameter', f'arg{i}')
-                resolved_params[param_name] = combined_args[i]
+        # Assign remaining positional values to positional parameters
+        positional_param_defs = [p for p in param_defs if p.get('parameter') not in resolved_params]
+        for j, param_def in enumerate(positional_param_defs):
+            if j < len(positional_values):
+                param_name = param_def.get('parameter', f'arg{j}')
+                resolved_params[param_name] = positional_values[j]
 
         return resolved_params
 
@@ -812,6 +867,18 @@ class ScriptRunner(threading.Thread):
             if success:
                 freq_info = f" at {frequency} Hz" if frequency else " (synced with telemetry)"
                 self.status_cb(f"Started logging {len(all_variables)} variable(s){freq_info}: {message}", line_num)
+                
+                # Update logging status display
+                update_logging_status = self.gui_refs.get('update_logging_status')
+                if update_logging_status and actual_filename:
+                    import os
+                    update_logging_status(os.path.basename(actual_filename))
+                
+                # Refresh device panel to show [logging] indicators
+                device_panel = self.gui_refs.get('device_panel')
+                if device_panel and hasattr(device_panel, 'refresh'):
+                    device_panel.refresh()
+                
                 return "continue"
             else:
                 self.status_cb(f"Error starting logging: {message}", line_num)
@@ -839,6 +906,18 @@ class ScriptRunner(threading.Thread):
             
             if success:
                 self.status_cb(f"Stopped logging: {message}", line_num)
+                
+                # Clear logging status display (if no more active logs)
+                if not data_logger.has_active_logs():
+                    update_logging_status = self.gui_refs.get('update_logging_status')
+                    if update_logging_status:
+                        update_logging_status(None)
+                
+                # Refresh device panel to update [logging] → [queued] indicators
+                device_panel = self.gui_refs.get('device_panel')
+                if device_panel and hasattr(device_panel, 'refresh'):
+                    device_panel.refresh()
+                
                 return "continue"
             else:
                 self.status_cb(f"Error stopping logging: {message}", line_num)
@@ -1210,6 +1289,330 @@ class ScriptRunner(threading.Thread):
             self.status_cb(f"Error triggering warning: {e}", line_num)
             return "error"
 
+    def _handle_report(self, device_name, report_name, report_info, resolved_params, line_num):
+        """
+        Generic handler for report generation commands.
+        Dynamically calls the appropriate report handler from the device's reports module.
+        
+        Args:
+            device_name: Name of the device (e.g., 'pressboi')
+            report_name: Name of the report command (e.g., 'generate_press_report')
+            report_info: Report definition from reports.json
+            resolved_params: Parsed parameters from the script command
+            line_num: Current line number for status updates
+        """
+        try:
+            from src.config import get_reports_dir, get_data_logs_dir
+            from src.serial_number import get_serial_manager
+            from pathlib import Path
+            from datetime import datetime
+            
+            device_manager = self.gui_refs.get('device_manager')
+            if not device_manager:
+                self.status_cb(f"Error: Device manager not available", line_num)
+                return "error"
+            
+            # Get the report handler from the device's reports module
+            report_handler = device_manager.get_report_handler(device_name, report_name)
+            if not report_handler:
+                self.status_cb(f"Error: Report handler '{report_name}' not found for device '{device_name}'", line_num)
+                return "error"
+            
+            # Find the most recent log file in data_logs directory
+            data_logs_dir = get_data_logs_dir()
+            log_files = sorted(
+                [f for f in data_logs_dir.glob('*.csv')],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True
+            )
+            
+            if not log_files:
+                self.status_cb(f"Error: No CSV log files found in {data_logs_dir}", line_num)
+                return "error"
+            
+            csv_path = str(log_files[0])
+            self.status_cb(f"Generating report from: {log_files[0].name}", line_num)
+            
+            # Get serial number and other info
+            serial_manager = get_serial_manager()
+            serial_number = serial_manager.get_serial() or "N/A"
+            job_number = serial_manager.get_job() or "N/A"
+            op_number = serial_manager.get_op() or "N/A"
+            
+            # Get device info
+            device_data = device_manager.devices.get(device_name, {})
+            device_state = device_manager.get_device_state(device_name) or {}
+            firmware_version = device_state.get('firmware_version', 'Unknown')
+            force_mode = device_state.get('force_mode', 'N/A')
+            
+            # Get app version
+            try:
+                from _version import __version__ as app_version
+            except ImportError:
+                app_version = "Unknown"
+            
+            # Generate output filename from template or default
+            reports_dir = get_reports_dir()
+            now = datetime.now()
+            date_str = now.strftime("%Y-%m-%d")
+            time_str = now.strftime("%H-%M-%S")
+            
+            # Use filename template if provided in report definition
+            output_info = report_info.get('output', {})
+            filename_template = output_info.get('filename_template', f"{report_name}_<serial>_<date>_<time>.html")
+            
+            # Replace tags in filename
+            output_filename = filename_template
+            output_filename = output_filename.replace('<serial>', serial_number)
+            output_filename = output_filename.replace('<date>', date_str)
+            output_filename = output_filename.replace('<time>', time_str)
+            output_filename = output_filename.replace('<job>', job_number)
+            output_filename = output_filename.replace('<op>', op_number)
+            
+            output_path = str(reports_dir / output_filename)
+            
+            # Convert string parameters to appropriate types
+            def to_float(val):
+                if val is None:
+                    return None
+                try:
+                    return float(str(val).split()[0])
+                except (ValueError, IndexError):
+                    return None
+            
+            # Build kwargs for the report handler from resolved params and report definition
+            handler_kwargs = {
+                'csv_path': csv_path,
+                'output_path': output_path,
+                'serial_number': serial_number,
+                'device_name': device_name.title(),
+                'firmware_version': firmware_version,
+                'force_mode': force_mode,
+                'app_version': app_version,
+                'job_number': job_number,
+                'op_number': op_number,
+            }
+            
+            # Add telemetry params from report definition (device-agnostic)
+            # The report definition specifies which telemetry values it needs
+            telemetry_params = report_info.get('telemetry_params', [])
+            telemetry_schema = device_data.get('telemetry_data', {})  # Schema from telemetry.json
+            shared_gui_refs = self.gui_refs  # Access to actual GUI variables
+            
+            print(f"[REPORT DEBUG] telemetry_params from definition: {telemetry_params}")
+            print(f"[REPORT DEBUG] available telemetry_schema keys: {list(telemetry_schema.keys())}")
+            
+            for telem_param in telemetry_params:
+                telem_key = telem_param.get('telemetry_key')
+                handler_param = telem_param.get('handler_param', telem_key)
+                param_type = telem_param.get('type', 'string')
+                
+                if telem_key and telem_key in telemetry_schema:
+                    # Get the gui_var name from the schema
+                    var_info = telemetry_schema[telem_key]
+                    gui_var_name = var_info.get('gui_var', f"{device_name}_{telem_key}_var")
+                    
+                    # Look up the actual tkinter variable from shared_gui_refs
+                    gui_var = shared_gui_refs.get(gui_var_name)
+                    print(f"[REPORT DEBUG] Looking for {gui_var_name}, found={gui_var is not None}")
+                    if gui_var:
+                        try:
+                            raw_value = gui_var.get()
+                            # GUI variables include units (e.g., "220.30 mm"), extract just the number
+                            if param_type in ('float', 'int'):
+                                # Split on space and take first part (the number)
+                                numeric_str = str(raw_value).split()[0] if raw_value else '0'
+                                if param_type == 'float':
+                                    handler_kwargs[handler_param] = float(numeric_str)
+                                else:
+                                    handler_kwargs[handler_param] = int(float(numeric_str))
+                            else:
+                                handler_kwargs[handler_param] = str(raw_value)
+                            print(f"[REPORT DEBUG] {telem_key} -> {handler_param} = {handler_kwargs[handler_param]}")
+                        except (ValueError, TypeError, IndexError) as e:
+                            handler_kwargs[handler_param] = None
+                            print(f"[REPORT DEBUG] {telem_key} -> {handler_param} = None (error: {e})")
+                    else:
+                        print(f"[REPORT DEBUG] {telem_key}: gui_var '{gui_var_name}' not found in shared_gui_refs")
+                else:
+                    print(f"[REPORT DEBUG] {telem_key} not found in telemetry_schema")
+            
+            # Add resolved parameters, converting numeric ones
+            # Skip 'flag' type params (like 'open') - they're handled separately
+            params_def = report_info.get('params', [])
+            for param_def in params_def:
+                param_name = param_def.get('parameter', '')
+                param_type = param_def.get('type', 'string')
+                
+                # Skip flag-type parameters - they're handled by the processor, not the generator
+                if param_type == 'flag':
+                    continue
+                    
+                if param_name in resolved_params:
+                    value = resolved_params[param_name]
+                    if param_type == 'float':
+                        value = to_float(value)
+                    handler_kwargs[param_name] = value
+            
+            # Call the report handler
+            result = report_handler(**handler_kwargs)
+            
+            # Handle different return formats
+            if isinstance(result, tuple) and len(result) >= 2:
+                success, message = result[0], result[1]
+                actual_output = result[2] if len(result) > 2 else output_path
+            else:
+                success = bool(result)
+                message = "Report generated" if success else "Report generation failed"
+                actual_output = output_path
+            
+            if success:
+                self.status_cb(f"Report generated: {output_filename}", line_num)
+                log_to_terminal(f"[REPORT] Generated: {actual_output}", self.gui_refs)
+                
+                # Check if 'open' flag was specified - open report in browser
+                if resolved_params.get('open'):
+                    import webbrowser
+                    webbrowser.open(f'file://{actual_output}')
+                    log_to_terminal(f"[REPORT] Opened in browser", self.gui_refs)
+                
+                return "continue"
+            else:
+                self.status_cb(f"Error generating report: {message}", line_num)
+                return "error"
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_cb(f"Error in report generation: {e}", line_num)
+            return "error"
+
+    def _is_report_command(self, command_word):
+        """
+        Check if a command is a report command by looking it up in device reports.
+        Returns (device_name, report_name, report_info) if found, or (None, None, None) if not.
+        """
+        device_manager = self.gui_refs.get('device_manager')
+        if not device_manager:
+            return None, None, None
+        
+        # Check if command has device prefix (e.g., pressboi.generate_press_report)
+        if '.' in command_word:
+            parts = command_word.split('.', 1)
+            device_name = parts[0].lower()
+            report_name = parts[1]
+            
+            # Look up in device's reports
+            device_reports = device_manager.get_device_reports(device_name)
+            if report_name in device_reports:
+                return device_name, report_name, device_reports[report_name]
+        
+        return None, None, None
+
+    def _is_view_command(self, command_word):
+        """
+        Check if a command is a view command by looking it up in device views.
+        Returns (device_name, view_id, view_info) if found, or (None, None, None) if not.
+        """
+        device_manager = self.gui_refs.get('device_manager')
+        if not device_manager:
+            return None, None, None
+        
+        # Check if command has device prefix (e.g., pressboi.press_operator_view)
+        if '.' in command_word:
+            parts = command_word.split('.', 1)
+            device_name = parts[0].lower()
+            view_id = parts[1]
+            
+            # Look up in device's views
+            device_data = device_manager.devices.get(device_name)
+            if device_data:
+                views_data = device_data.get('views_data', {})
+                if view_id in views_data:
+                    return device_name, view_id, views_data[view_id]
+        
+        return None, None, None
+
+    def _handle_view(self, device_name, view_id, view_info, resolved_params, line_num):
+        """
+        Handler for view commands - opens or closes operator views.
+        
+        Args:
+            device_name: Name of the device (e.g., 'pressboi')
+            view_id: ID of the view (e.g., 'press_operator_view')
+            view_info: View definition from views.json
+            resolved_params: Parsed parameters from the script command
+            line_num: Current line number for status updates
+        """
+        try:
+            device_manager = self.gui_refs.get('device_manager')
+            if not device_manager:
+                self.status_cb(f"Error: Device manager not available", line_num)
+                return "error"
+            
+            # Get action parameter (default to 'open')
+            action = 'open'
+            
+            # Check for action in resolved params
+            for key, value in resolved_params.items():
+                val_lower = str(value).lower().strip()
+                if val_lower in ['open', 'close']:
+                    action = val_lower
+                    break
+            
+            device_data = device_manager.devices.get(device_name)
+            if not device_data:
+                self.status_cb(f"Error: Device '{device_name}' not found", line_num)
+                return "error"
+            
+            root = self.gui_refs.get('root')
+            if not root:
+                self.status_cb(f"Error: Root window not available", line_num)
+                return "error"
+            
+            if action == 'open':
+                # Open the view
+                from src.device.views import show_operator_view
+                
+                script_runner = self.gui_refs.get('script_runner')
+                
+                # Schedule the view opening on the main thread
+                def open_view():
+                    show_operator_view(
+                        root,
+                        device_name,
+                        device_data,
+                        self.gui_refs,
+                        script_runner,
+                        view_id
+                    )
+                
+                root.after(0, open_view)
+                self.status_cb(f"Opened view: {device_name}.{view_id}", line_num)
+                
+            elif action == 'close':
+                # Close the view by finding and destroying matching windows
+                def close_view():
+                    for widget in root.winfo_children():
+                        # Check if it's a Toplevel window with matching title
+                        if isinstance(widget, tk.Toplevel):
+                            title = widget.title().lower()
+                            if device_name.lower() in title and view_id.replace('_', ' ').lower() in title:
+                                widget.destroy()
+                                return True
+                    return False
+                
+                root.after(0, close_view)
+                self.status_cb(f"Closed view: {device_name}.{view_id}", line_num)
+            
+            return "continue"
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_cb(f"Error in view command: {e}", line_num)
+            return "error"
+
     def _process_line(self, line, line_num):
         sub_commands = line.split(',')
         commands_to_wait_for = []
@@ -1228,6 +1631,40 @@ class ScriptRunner(threading.Thread):
             
             if not parts: continue
             command_word = parts[0]
+            
+            # First check if this is a report command (device.report_name format)
+            report_device, report_name, report_info = self._is_report_command(command_word)
+            if report_info:
+                # This is a report command - parse params and call the generic report handler
+                resolved_params, error = self._parse_positional_args(parts, report_info)
+                if error:
+                    self.status_cb(f"Error on L{line_num}: {error} for report '{command_word}'.", line_num)
+                    self.is_running = False
+                    return False
+                
+                result = self._handle_report(report_device, report_name, report_info, resolved_params, line_num)
+                if result == "error" or result == "stop":
+                    self.is_running = False
+                    return False
+                continue  # Move to next sub-command
+            
+            # Check if this is a view command (device.view_id format)
+            view_device, view_id, view_info = self._is_view_command(command_word)
+            if view_info:
+                # This is a view command - parse the action parameter
+                # Simple param parsing: just check for 'open' or 'close' in remaining parts
+                resolved_params = {}
+                for part in parts[1:]:
+                    part_lower = part.lower().strip()
+                    if part_lower in ['open', 'close']:
+                        resolved_params['action'] = part_lower
+                        break
+                
+                result = self._handle_view(view_device, view_id, view_info, resolved_params, line_num)
+                if result == "error" or result == "stop":
+                    self.is_running = False
+                    return False
+                continue  # Move to next sub-command
             
             # Try exact match first, then case-insensitive
             command_info = self.scripting_commands.get(command_word)

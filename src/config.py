@@ -276,3 +276,52 @@ def set_data_logs_dir(logs_dir):
     except Exception as e:
         print(f"Error saving data logs directory: {e}")
         return False
+
+
+def _get_default_reports_dir():
+    """Get the default reports directory based on OS."""
+    try:
+        if sys.platform == 'win32':
+            base_dir = Path(os.environ.get('APPDATA', Path.home() / '.br-equipment-control-app'))
+            reports_dir = base_dir / 'BR Equipment Control' / 'reports'
+        elif sys.platform == 'darwin':
+            reports_dir = Path.home() / 'Library' / 'Application Support' / 'BR Equipment Control' / 'reports'
+        else:
+            base_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local' / 'state'))
+            reports_dir = base_dir / 'br-equipment-control-app' / 'reports'
+    except Exception:
+        reports_dir = Path.home() / '.br-equipment-control-app' / 'reports'
+    return reports_dir
+
+
+def get_reports_dir():
+    """Get the reports directory from config, or default if not set."""
+    config = load_config()
+    reports_dir_str = config.get('reports_dir')
+    
+    if reports_dir_str:
+        reports_dir = Path(reports_dir_str)
+    else:
+        reports_dir = _get_default_reports_dir()
+    
+    # Ensure directory exists
+    try:
+        reports_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning creating reports directory at {reports_dir}: {e}")
+        reports_dir = _get_default_reports_dir()
+        reports_dir.mkdir(parents=True, exist_ok=True)
+    
+    return reports_dir
+
+
+def set_reports_dir(reports_dir):
+    """Save the reports directory to config."""
+    try:
+        config = load_config()
+        config['reports_dir'] = str(Path(reports_dir))
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving reports directory: {e}")
+        return False

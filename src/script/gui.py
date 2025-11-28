@@ -236,7 +236,9 @@ class CustomText(tk.Text):
             undo=True,
             wrap=tk.NONE,
             spacing1=2,
-            spacing3=2
+            spacing3=2,
+            padx=6,
+            pady=4  # Top/bottom padding to match line number canvas
         )
         
         # Verify font is actually monospace and set tab width
@@ -271,24 +273,68 @@ class CustomText(tk.Text):
         return result
 
 class TextLineNumbers(tk.Canvas):
-    """A canvas that displays line numbers for a text widget."""
+    """A canvas that displays line numbers for a text widget.
+    
+    Indented lines (parameter blocks) don't get their own line numbers -
+    they're considered part of the command above them.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.textwidget = None
+        self._font = None
+        self._line_height = None
 
     def attach(self, text_widget):
         self.textwidget = text_widget
+        # Cache font metrics for consistent line height calculation
+        self._font = tkfont.Font(font=text_widget.cget("font"))
+        self._line_height = self._font.metrics("linespace")
 
     def redraw(self, *args):
         self.delete("all")
+        
+        # First pass: calculate logical line numbers (skipping indented lines)
+        content = self.textwidget.get("1.0", "end-1c")
+        lines = content.split('\n')
+        logical_line_map = {}  # physical line -> logical line number (or None for indented)
+        logical_num = 1
+        
+        for physical_idx, line in enumerate(lines):
+            physical_line = physical_idx + 1
+            # Check if line is indented (starts with whitespace)
+            if line and (line[0] == '\t' or line[0] == ' '):
+                # Indented line - no line number
+                logical_line_map[physical_line] = None
+            else:
+                # Non-indented line - gets a line number
+                logical_line_map[physical_line] = logical_num
+                logical_num += 1
+        
+        # Second pass: draw the line numbers (right-aligned with padding)
         i = self.textwidget.index("@0,0")
+        width = self.winfo_width()
+        padding_right = 8  # Pixels of padding on the right
+        padding_top = 4    # Match the text widget's pady
+        
         while True:
             dline = self.textwidget.dlineinfo(i)
-            if dline is None: break
-            y = dline[1]
-            linenum = str(i).split(".")[0]
-            self.create_text(2, y, anchor="nw", text=linenum, 
-                             font=theme.FONT_NORMAL, fill=theme.SECONDARY_ACCENT)
+            if dline is None: 
+                break
+            # dline returns (x, y, width, height, baseline)
+            # y is relative to the text widget's visible area (after padding)
+            # Add padding_top to match the text widget's pady
+            y = dline[1] + padding_top
+            
+            physical_line = int(str(i).split(".")[0])
+            logical_num = logical_line_map.get(physical_line)
+            
+            if logical_num is not None:
+                # Right-align: position from right edge minus padding
+                # Use "ne" anchor so the number aligns with top of line
+                self.create_text(width - padding_right, y, anchor="ne", text=str(logical_num), 
+                                 font=theme.FONT_NORMAL, fill=theme.SECONDARY_ACCENT)
+            # Indented lines get no number displayed
+            
             i = self.textwidget.index(f"{i}+1line")
 
 # --- Syntax Highlighter ---
@@ -301,9 +347,13 @@ class SyntaxHighlighter:
         self.valid_string_params = set()  # Will hold all valid enum/option values
         self.all_variables = []  # Will hold all device.variable names
         self.all_warnings = []  # Will hold all device.warning names
+        self.all_reports = []  # Will hold all device.report_name
+        self.all_views = []  # Will hold all device.view_id
         self._load_valid_string_params()
         self._load_all_variables()
         self._load_all_warnings()
+        self._load_all_reports()
+        self._load_all_views()
         
         self.tags = {
             'device': {'foreground': theme.DEVICE_COLOR, 'font': theme.FONT_BOLD},  # Purple for device namespace
@@ -311,6 +361,8 @@ class SyntaxHighlighter:
             'script_command': {'foreground': theme.SCRIPT_COMMAND_COLOR, 'font': theme.FONT_BOLD},
             'variable': {'foreground': theme.VARIABLE_COLOR},  # Green for variables (device.variable)
             'warning': {'foreground': theme.ERROR_RED},  # Red for warnings (device.warning)
+            'report': {'foreground': '#E8E4D9'},  # Warm off-white/cream for reports (device.report_name)
+            'view': {'foreground': '#B0A3D4'},  # Lavender for views (device.view_id)
             'parameter': {'foreground': theme.PARAMETER_COLOR},
             'string': {'foreground': theme.PARAMETER_COLOR},  # Strings use parameter color (orange)
             'logging_session': {'foreground': theme.WARNING_YELLOW},  # Yellow for logging session names
@@ -325,7 +377,16 @@ class SyntaxHighlighter:
         print(f"[SYNTAX] Highlighter initialized: {len(self.device_keywords)} device cmds, {len(self.script_keywords)} script cmds")
     
     def _load_valid_string_params(self):
-        """Extract all valid enum/option values and keyword parameters from all commands."""
+        """Extract valid enum choices and flag keywords from all commands.
+        
+        Only highlights:
+        - Enum choices (like 'abort', 'retract', 'hold', 'skip') - actual values user selects
+        - Flag keywords (like 'open') - typing the word enables a boolean flag
+        
+        Does NOT highlight:
+        - Keyword labels (like 'force_min', 'endpoint_max') - these are just identifiers
+        - Units (like 'mm', 'kg', 'J') - these are descriptive labels
+        """
         self.valid_string_params = set()
         if not self.device_manager:
             return
@@ -334,17 +395,18 @@ class SyntaxHighlighter:
         for cmd_name, cmd_details in all_commands.items():
             params = cmd_details.get('params', [])
             for param in params:
-                # Get enum or options list
+                # Get enum or options list - these are actual value choices
                 choices = param.get('enum') or param.get('options')
                 if choices:
                     for choice in choices:
                         self.valid_string_params.add(choice.lower())
                 
-                # Also add keyword-type parameters
-                if param.get('type') == 'keyword':
-                    param_name = param.get('parameter', '')
-                    if param_name:
-                        self.valid_string_params.add(param_name.lower())
+                # Flag-type parameters - typing the keyword enables the flag
+                if param.get('type') == 'flag':
+                    # Use the keyword field if present, otherwise use parameter name
+                    keyword = param.get('keyword') or param.get('parameter', '')
+                    if keyword:
+                        self.valid_string_params.add(keyword.lower())
     
     def _load_all_variables(self):
         """Load all telemetry variables from all devices."""
@@ -374,6 +436,34 @@ class SyntaxHighlighter:
                 full_warning_name = f"{device_name}.{warning_name}"
                 self.all_warnings.append(full_warning_name)
 
+    def _load_all_reports(self):
+        """Load all report commands from all devices."""
+        self.all_reports = []
+        if not self.device_manager:
+            return
+        
+        for device_name in self.device_manager.get_all_device_names():
+            device_data = self.device_manager.devices.get(device_name, {})
+            reports_data = device_data.get('reports_data', {})
+            
+            for report_name in reports_data.keys():
+                full_report_name = f"{device_name}.{report_name}"
+                self.all_reports.append(full_report_name)
+
+    def _load_all_views(self):
+        """Load all view commands from all devices."""
+        self.all_views = []
+        if not self.device_manager:
+            return
+        
+        for device_name in self.device_manager.get_all_device_names():
+            device_data = self.device_manager.devices.get(device_name, {})
+            views_data = device_data.get('views_data', {})
+            
+            for view_id in views_data.keys():
+                full_view_name = f"{device_name}.{view_id}"
+                self.all_views.append(full_view_name)
+
     def refresh_keywords(self):
         """Re-fetches the keywords from the device manager and re-highlights the text."""
         # This assumes the device_manager reference passed in initially is still valid
@@ -390,6 +480,8 @@ class SyntaxHighlighter:
         self._load_valid_string_params()  # Refresh valid string params too
         self._load_all_variables()  # Refresh variables too
         self._load_all_warnings()  # Refresh warnings too
+        self._load_all_reports()  # Refresh reports too
+        self._load_all_views()  # Refresh views too
         self.highlight()
 
 
@@ -474,6 +566,40 @@ class SyntaxHighlighter:
                     # Highlight warning part (after dot) in red
                     warning_start = start + dot_pos + 1
                     self.text.tag_add("warning", f"1.0+{warning_start}c", f"1.0+{end}c")
+
+        # Highlight reports (device.report_name format) - purple.dark_green
+        if self.all_reports:
+            report_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(r) for r in self.all_reports) + r')(?=\s|,|$)'
+            for match in re.finditer(report_pattern, content, re.IGNORECASE | re.MULTILINE):
+                start, end = match.span(1)
+                full_report = match.group(1)
+                
+                # Reports always have a dot (device.report_name format)
+                if '.' in full_report:
+                    dot_pos = full_report.index('.')
+                    # Highlight device part (before dot) in purple
+                    device_end = start + dot_pos
+                    self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
+                    # Highlight report part (after dot) in dark green
+                    report_start = start + dot_pos + 1
+                    self.text.tag_add("report", f"1.0+{report_start}c", f"1.0+{end}c")
+
+        # Highlight views (device.view_id format) - purple.lavender
+        if self.all_views:
+            view_pattern = r'(?:^|(?<=\s)|(?<=,))(' + '|'.join(re.escape(v) for v in self.all_views) + r')(?=\s|,|$)'
+            for match in re.finditer(view_pattern, content, re.IGNORECASE | re.MULTILINE):
+                start, end = match.span(1)
+                full_view = match.group(1)
+                
+                # Views always have a dot (device.view_id format)
+                if '.' in full_view:
+                    dot_pos = full_view.index('.')
+                    # Highlight device part (before dot) in purple
+                    device_end = start + dot_pos
+                    self.text.tag_add("device", f"1.0+{start}c", f"1.0+{device_end}c")
+                    # Highlight view part (after dot) in lavender
+                    view_start = start + dot_pos + 1
+                    self.text.tag_add("view", f"1.0+{view_start}c", f"1.0+{end}c")
 
         # Highlight script commands
         if self.script_keywords:
@@ -571,11 +697,14 @@ class SyntaxHighlighter:
             if word.upper() in [k.upper() for k in (self.device_keywords + self.script_keywords)]:
                 continue
             
-            # Only highlight if it's a valid string parameter AND comes after a command
+            # Only highlight if it's a valid string parameter AND comes after a command OR on an indented line
             if word in self.valid_string_params:
                 line_before = content[line_start:start]
                 has_command = any(cmd.upper() in line_before.upper() for cmd in (self.device_keywords + self.script_keywords))
-                if has_command:
+                # Also check if this is an indented line (part of a parameter block)
+                full_line = content[line_start:content.find('\n', start) if '\n' in content[start:] else len(content)]
+                is_indented_line = full_line.startswith('\t') or full_line.startswith(' ')
+                if has_command or is_indented_line:
                     self.text.tag_add("string", f"1.0+{start}c", f"1.0+{end}c")
 
         # Highlight comments (do this last so it overrides other highlighting)
@@ -594,7 +723,7 @@ class ScriptEditor(tk.Frame):
 
         # --- Layout ---
         self.text = CustomText(self)
-        self.linenumbers = TextLineNumbers(self, width=40, bg=theme.WIDGET_BG, highlightthickness=0, borderwidth=0)
+        self.linenumbers = TextLineNumbers(self, width=48, bg=theme.WIDGET_BG, highlightthickness=0, borderwidth=0)
         self.linenumbers.attach(self.text)
         
         # Create scrollbar but don't pack it - mouse wheel still works
@@ -1069,8 +1198,17 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     # --- UI Creation ---
     control_frame = ttk.Frame(left_pane, style='TFrame');
     control_frame.pack(fill=tk.X, pady=(0, 0))
-    editor_frame = ttk.LabelFrame(left_pane, style='TFrame')
-    editor_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+    
+    # --- Logging Status Label (shows current log file when logging) ---
+    logging_status_var = tk.StringVar(value=" ")  # Space to maintain height
+    logging_status_label = ttk.Label(left_pane, textvariable=logging_status_var, anchor='w',
+                                     font=theme.FONT_SMALL,
+                                     foreground='#B0B0B0',  # Whitish/gray color
+                                     background=theme.BG_COLOR)
+    logging_status_label.pack(fill=tk.X, padx=10, pady=(0, 3))  # Small bottom padding
+    
+    editor_frame = ttk.Frame(left_pane, style='TFrame')
+    editor_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 3))  # Small bottom padding
     
     script_editor = ScriptEditor(editor_frame, device_manager=device_manager)
     script_editor.pack(fill="both", expand=True)
@@ -1408,52 +1546,54 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 parts = next_valid_line_content.strip().split()
             
             command_word = parts[0].lower() if parts else ''
-            block_commands = ['queue_for_logging', 'unqueue_for_logging', 'start_logging', 'stop_logging', 'cycle']
             
             # Collect content including indented block if present
+            # ANY command can have an indented parameter block (not just logging/cycle commands)
             block_content = next_valid_line_content
             block_end_line = next_valid_line_num
+            has_indented_block = False
             
-            if command_word in block_commands:
-                # Get base indentation of the command line (handle tabs)
-                current_line_raw = all_lines[next_valid_line_num - 1]
-                base_indent_str = current_line_raw[:len(current_line_raw) - len(current_line_raw.lstrip())]
-                base_indent_expanded = base_indent_str.expandtabs(4)
-                base_indent_level = len(base_indent_expanded)
+            # Get base indentation of the command line (handle tabs)
+            current_line_raw = all_lines[next_valid_line_num - 1]
+            base_indent_str = current_line_raw[:len(current_line_raw) - len(current_line_raw.lstrip())]
+            base_indent_expanded = base_indent_str.expandtabs(4)
+            base_indent_level = len(base_indent_expanded)
+            
+            # Look for indented lines below (start from next line)
+            indented_lines = [current_line_raw]
+            for idx in range(next_valid_line_num, len(all_lines)):  # Start from next line
+                check_line = all_lines[idx]
+                check_stripped = check_line.strip()
                 
-                # Look for indented lines below (start from next line)
-                indented_lines = [current_line_raw]
-                for idx in range(next_valid_line_num, len(all_lines)):  # Start from next line
-                    check_line = all_lines[idx]
-                    check_stripped = check_line.strip()
-                    
-                    # Skip empty lines and comments
-                    if not check_stripped or check_stripped.startswith('#'):
-                        continue
-                    
-                    # Check indentation (handle tabs)
-                    check_indent_str = check_line[:len(check_line) - len(check_line.lstrip())]
-                    check_indent_expanded = check_indent_str.expandtabs(4)
-                    check_indent_level = len(check_indent_expanded)
-                    
-                    if check_indent_level > base_indent_level:
-                        # This is an indented line - part of the block
-                        indented_lines.append(check_line)
-                        block_end_line = idx + 1
-                    else:
-                        # End of indented block
-                        break
+                # Skip empty lines and comments
+                if not check_stripped or check_stripped.startswith('#'):
+                    continue
                 
-                # Combine into block content
-                block_content = '\n'.join(indented_lines)
+                # Check indentation (handle tabs)
+                check_indent_str = check_line[:len(check_line) - len(check_line.lstrip())]
+                check_indent_expanded = check_indent_str.expandtabs(4)
+                check_indent_level = len(check_indent_expanded)
                 
-                # Store the block end line so on_step_finished knows where to go next
-                last_block_end_line = block_end_line
+                if check_indent_level > base_indent_level:
+                    # This is an indented line - part of the block
+                    indented_lines.append(check_line)
+                    block_end_line = idx + 1
+                    has_indented_block = True
+                else:
+                    # End of indented block
+                    break
+            
+            # Combine into block content
+            block_content = '\n'.join(indented_lines)
+            
+            # Store the block end line so on_step_finished knows where to go next
+            last_block_end_line = block_end_line
             
             # Validate the block (not just the first line)
-            # For logging commands with blocks, we don't validate strictly since they'll be collapsed
-            if command_word in block_commands and block_content != next_valid_line_content:
+            # For commands with indented blocks, skip validation since they'll be collapsed by processor
+            if has_indented_block:
                 # It's a multi-line block, skip detailed validation
+                # The script processor will collapse and validate when executing
                 errors = []
             else:
                 errors = validate_single_line(next_valid_line_content, next_valid_line_num, scripting_commands)
@@ -1787,7 +1927,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         script_content = script_editor.get("1.0", tk.END)
         # Get fresh commands for validation
         current_commands = get_current_commands()
-        errors = validate_script(script_content, current_commands)
+        # Get reports for validation
+        reports = device_manager.get_all_reports() if device_manager else {}
+        errors = validate_script(script_content, current_commands, reports)
         clear_error_highlighting() # Always clear previous errors
         
         # Check that all connected devices support pause, reset, and resume
@@ -1901,6 +2043,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if data_logger:
             print(f"[RESET] Stopping all active logging")
             data_logger.stop_logging()  # Stop all logs when no filename specified
+            
+            # Clear logging status display
+            logging_status_var.set(" ")
+            
+            # Refresh device panel to update logging indicators
+            device_panel = shared_gui_refs.get('device_panel')
+            if device_panel and hasattr(device_panel, 'refresh'):
+                device_panel.refresh()
         
         # Clear error hold state
         if script_runner and hasattr(script_runner, 'is_held'):
@@ -2211,6 +2361,16 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         'register_buttons': lambda run_btn, hold_btn: additional_button_sets.append((run_btn, hold_btn)),
         'unregister_buttons': lambda run_btn, hold_btn: additional_button_sets.remove((run_btn, hold_btn)) if (run_btn, hold_btn) in additional_button_sets else None
     }
+    
+    # --- Logging status display functions ---
+    def update_logging_status(filename=None):
+        """Update the logging status display. Pass None or empty to clear."""
+        if filename:
+            logging_status_var.set(f"logging to {filename}")
+        else:
+            logging_status_var.set(" ")  # Space to maintain height
+    
+    shared_gui_refs['update_logging_status'] = update_logging_status
     
     return {
         "file_commands": file_commands,
