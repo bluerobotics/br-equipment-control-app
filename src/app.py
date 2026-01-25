@@ -1342,7 +1342,9 @@ class MainApplication:
         except Empty:
             pass  # Queue is empty, do nothing
         finally:
-            self.root.after(100, self.process_gui_queue)
+            # Poll every 50ms for responsive DONE message handling
+            # (reduced from 100ms to minimize delay between device response and UI update)
+            self.root.after(50, self.process_gui_queue)
     
     def monitor_panel_state(self):
         """

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.21.0] - 2025-01-24
+
+### Added
+- **Jinja2 Dependency**: Added explicit `jinja2>=3.0.0` requirement for HTML report template rendering
+
+### Changed
+- **USB Port Scanning**: Background scanner now pre-fetches serial ports every 3 seconds, eliminating "Scanning ports..." delays in connection menus
+- **USB Connection Menu**: Added "Refresh Ports" option and shows "No ports detected" when empty
+- **GUI Queue Polling**: Reduced from 100ms to 50ms for faster response to device messages
+
+### Fixed
+- **Report Filename Sanitization**: Serial numbers containing invalid characters (like "N/A") no longer create subdirectories - invalid filename characters are now replaced with dashes
+- **Report Error Messages**: Now shows actual Python import errors when report modules fail to load, instead of generic "not found" messages
+- **CSV File Sync on Windows**: Data logger now calls `fsync` before closing files to ensure Windows flushes data to disk before report generation
+- **GUI Thread Safety**: Script completion callbacks now properly schedule Tkinter updates on the main thread, preventing potential race conditions
+- **Report Debug Logging**: Enhanced logging for troubleshooting report generation (CSV paths, file locks, handler calls)
+
 ## [1.20.0] - 2025-11-28
 
 ### Added

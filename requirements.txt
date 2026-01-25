@@ -1,6 +1,7 @@
 # Runtime dependencies
 pyserial>=3.5  # For USB serial communication
 psutil>=5.9.0  # For system stats (uptime, etc.)
+jinja2>=3.0.0  # For report generation (HTML templates)
 
 # Note: Barcode/QR scanner support uses keyboard input emulation
 # Most USB/Bluetooth scanners work as HID devices, no extra dependencies needed

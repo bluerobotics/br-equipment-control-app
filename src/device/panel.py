@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import re
 import time
+import threading
 from src import theme
 from src.script import SCRIPT_COMMANDS
 from src.comms import devices_lock
@@ -221,6 +222,14 @@ class DevicePanel(ttk.Frame):
         self.after(1000, self._update_connection_status)
         # Then start periodic refresh every 2 seconds
         self.after(2000, self._schedule_status_refresh)
+        
+        # Port scanning state - pre-fetch ports in background to avoid "Scanning ports..." issue
+        self._cached_serial_ports = []
+        self._port_scan_lock = threading.Lock()
+        self._port_scan_timer_id = None
+        
+        # Start background port scanner
+        self._start_port_scanner()
     
     def _on_text_scroll(self, first, last):
         """Handle scrollbar visibility based on content overflow."""
@@ -331,6 +340,74 @@ class DevicePanel(ttk.Frame):
         self._update_connection_status()
         # Schedule next refresh in 2 seconds
         self.after(2000, self._schedule_status_refresh)
+    
+    def _start_port_scanner(self):
+        """Start background timer to keep serial port cache fresh."""
+        def scan_ports():
+            try:
+                from src.comms import serial
+                ports = serial.list_serial_ports()
+                with self._port_scan_lock:
+                    self._cached_serial_ports = ports
+            except Exception as e:
+                print(f"[PORT_SCAN] Error scanning ports: {e}")
+            finally:
+                # Schedule next scan in 3 seconds (using main thread)
+                try:
+                    if self.winfo_exists():
+                        self._port_scan_timer_id = self.after(3000, self._schedule_port_scan)
+                except Exception:
+                    pass  # Widget might be destroyed
+        
+        # Initial scan in background thread
+        threading.Thread(target=scan_ports, daemon=True).start()
+    
+    def _schedule_port_scan(self):
+        """Schedule the next port scan in a background thread."""
+        def scan_ports():
+            try:
+                from src.comms import serial
+                ports = serial.list_serial_ports()
+                with self._port_scan_lock:
+                    self._cached_serial_ports = ports
+            except Exception as e:
+                print(f"[PORT_SCAN] Error scanning ports: {e}")
+            finally:
+                # Schedule next scan in 3 seconds (using main thread)
+                try:
+                    if self.winfo_exists():
+                        self._port_scan_timer_id = self.after(3000, self._schedule_port_scan)
+                except Exception:
+                    pass  # Widget might be destroyed
+        
+        threading.Thread(target=scan_ports, daemon=True).start()
+    
+    def _refresh_ports(self):
+        """Manually refresh port list (called from context menu)."""
+        def do_refresh():
+            try:
+                from src.comms import serial
+                ports = serial.list_serial_ports()
+                with self._port_scan_lock:
+                    self._cached_serial_ports = ports
+                # Log refresh
+                print(f"[PORT_SCAN] Manual refresh: {len(ports)} ports found")
+            except Exception as e:
+                print(f"[PORT_SCAN] Error during manual refresh: {e}")
+        
+        threading.Thread(target=do_refresh, daemon=True).start()
+    
+    def destroy(self):
+        """Clean up resources when the widget is destroyed."""
+        # Cancel the background port scanner timer
+        if hasattr(self, '_port_scan_timer_id') and self._port_scan_timer_id is not None:
+            try:
+                self.after_cancel(self._port_scan_timer_id)
+            except Exception:
+                pass  # Timer might already be cancelled
+        
+        # Call parent destroy
+        super().destroy()
     
     def _update_connection_status(self):
         """Update only the connection status indicators without refreshing entire panel."""
@@ -1061,36 +1138,10 @@ class DevicePanel(ttk.Frame):
                                  activebackground=theme.PRIMARY_ACCENT,
                                  activeforeground=theme.FG_COLOR)
             
-            # List available serial ports (use cached list to avoid blocking)
-            from src.comms import serial
-            # Use cached port list if available (prevents freeze when USB devices plugged/unplugged)
-            if hasattr(self, '_cached_serial_ports') and self._cached_serial_ports is not None:
-                ports = self._cached_serial_ports
-            else:
-                # First time or cache expired - show "Scanning..." and fetch in background
-                usb_submenu.add_command(label="Scanning ports...", state='disabled')
-                ports = []
-                
-                # Fetch ports in background thread to avoid blocking UI
-                def fetch_ports_async():
-                    try:
-                        import threading
-                        def get_ports():
-                            ports_list = serial.list_serial_ports()
-                            # Cache for 5 seconds
-                            self._cached_serial_ports = ports_list
-                            self._cached_ports_time = time.time()
-                            # Refresh cache every 5 seconds
-                            def clear_cache():
-                                if hasattr(self, '_cached_ports_time'):
-                                    if time.time() - self._cached_ports_time > 5:
-                                        self._cached_serial_ports = None
-                            self.after(5000, clear_cache)
-                        thread = threading.Thread(target=get_ports, daemon=True)
-                        thread.start()
-                    except Exception as e:
-                        print(f"[ERROR] Failed to fetch serial ports: {e}")
-                fetch_ports_async()
+            # Use pre-cached port list (background scanner keeps it fresh)
+            # This avoids the "Scanning ports..." race condition
+            with self._port_scan_lock:
+                ports = list(self._cached_serial_ports)  # Copy to avoid race conditions
             
             if ports:
                 for port, description in ports:
@@ -1098,6 +1149,12 @@ class DevicePanel(ttk.Frame):
                         label=f"{port} - {description}",
                         command=lambda p=port, d=device_name: self.set_connection_usb(d, p)
                     )
+            else:
+                usb_submenu.add_command(label="No ports detected", state='disabled')
+            
+            # Add separator and refresh option
+            usb_submenu.add_separator()
+            usb_submenu.add_command(label="Refresh Ports", command=self._refresh_ports)
             
             connection_submenu.add_cascade(label="USB Serial", menu=usb_submenu)
             

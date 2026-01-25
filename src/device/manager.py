@@ -212,7 +212,8 @@ class DeviceManager:
             report_name: Name of the report (without device prefix)
             
         Returns:
-            Callable handler function or None if not found
+            tuple: (handler, error_message) - handler is the callable function or None,
+                   error_message explains why handler is None (or None if successful)
         """
         return self.registry.get_report_handler(device_name, report_name)
 

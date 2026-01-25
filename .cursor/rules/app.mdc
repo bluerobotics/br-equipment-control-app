@@ -1,0 +1,21 @@
+---
+description: BR Equipment Control App development rules
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# App Development Rules
+
+## Logging and Debug Output
+
+- **NEVER use `print()` for user-facing debug output** - print() goes to stdout which is not visible in the app
+- **ALWAYS use `log_to_terminal()` for debug messages** - this displays in the app's built-in terminal
+- Import with: `from src.logging.terminal import log_to_terminal`
+- Usage: `log_to_terminal("message", shared_gui_refs)` or `log_to_terminal("message", self.gui_refs)`
+- For modules without access to `shared_gui_refs`, return error details to the caller for logging
+
+## Error Handling
+
+- Always surface meaningful error messages to the user via `log_to_terminal()`
+- Include relevant context (file paths, actual error messages) in error output
+- Don't silently swallow exceptions - log them to the app terminal

@@ -1313,13 +1313,16 @@ class ScriptRunner(threading.Thread):
                 return "error"
             
             # Get the report handler from the device's reports module
-            report_handler = device_manager.get_report_handler(device_name, report_name)
+            report_handler, error = device_manager.get_report_handler(device_name, report_name)
             if not report_handler:
-                self.status_cb(f"Error: Report handler '{report_name}' not found for device '{device_name}'", line_num)
+                error_msg = error or f"Report handler not found for {device_name}.{report_name}"
+                log_to_terminal(f"[REPORT ERROR] {error_msg}", self.gui_refs)
+                self.status_cb(f"Error: {error_msg}", line_num)
                 return "error"
             
             # Find the most recent log file in data_logs directory
             data_logs_dir = get_data_logs_dir()
+            log_to_terminal(f"[REPORT] Looking for CSV files in: {data_logs_dir}", self.gui_refs)
             log_files = sorted(
                 [f for f in data_logs_dir.glob('*.csv')],
                 key=lambda x: x.stat().st_mtime,
@@ -1327,10 +1330,13 @@ class ScriptRunner(threading.Thread):
             )
             
             if not log_files:
-                self.status_cb(f"Error: No CSV log files found in {data_logs_dir}", line_num)
+                error_msg = f"No CSV log files found in {data_logs_dir}"
+                log_to_terminal(f"[REPORT ERROR] {error_msg}", self.gui_refs)
+                self.status_cb(f"Error: {error_msg}", line_num)
                 return "error"
             
             csv_path = str(log_files[0])
+            log_to_terminal(f"[REPORT] Using CSV file: {csv_path}", self.gui_refs)
             self.status_cb(f"Generating report from: {log_files[0].name}", line_num)
             
             # Get serial number and other info
@@ -1361,13 +1367,25 @@ class ScriptRunner(threading.Thread):
             output_info = report_info.get('output', {})
             filename_template = output_info.get('filename_template', f"{report_name}_<serial>_<date>_<time>.html")
             
-            # Replace tags in filename
+            # Helper to sanitize values for use in filenames (remove/replace invalid characters)
+            def sanitize_for_filename(value):
+                if not value:
+                    return value
+                # Replace characters that are invalid in Windows filenames: \ / : * ? " < > |
+                # Also replace forward slash which was causing "N/A" to create subdirectories
+                invalid_chars = r'\/:*?"<>|'
+                result = str(value)
+                for char in invalid_chars:
+                    result = result.replace(char, '-')
+                return result
+            
+            # Replace tags in filename with sanitized values
             output_filename = filename_template
-            output_filename = output_filename.replace('<serial>', serial_number)
+            output_filename = output_filename.replace('<serial>', sanitize_for_filename(serial_number))
             output_filename = output_filename.replace('<date>', date_str)
             output_filename = output_filename.replace('<time>', time_str)
-            output_filename = output_filename.replace('<job>', job_number)
-            output_filename = output_filename.replace('<op>', op_number)
+            output_filename = output_filename.replace('<job>', sanitize_for_filename(job_number))
+            output_filename = output_filename.replace('<op>', sanitize_for_filename(op_number))
             
             output_path = str(reports_dir / output_filename)
             
@@ -1454,8 +1472,48 @@ class ScriptRunner(threading.Thread):
                         value = to_float(value)
                     handler_kwargs[param_name] = value
             
+            # Verify CSV file exists and log metadata before calling handler
+            import os
+            import stat
+            csv_exists = os.path.exists(csv_path)
+            log_to_terminal(f"[REPORT DEBUG] CSV exists check: {csv_exists}", self.gui_refs)
+            
+            if csv_exists:
+                # Log file metadata to help diagnose any subsequent access issues
+                try:
+                    file_stat = os.stat(csv_path)
+                    file_size = file_stat.st_size
+                    file_mtime = file_stat.st_mtime
+                    from datetime import datetime
+                    mtime_str = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                    log_to_terminal(f"[REPORT DEBUG] CSV file size: {file_size} bytes, mtime: {mtime_str}", self.gui_refs)
+                    
+                    # Check if file is currently open/locked (Windows-specific check)
+                    try:
+                        # Try to open with exclusive access to detect locks
+                        with open(csv_path, 'r') as test_file:
+                            pass  # File is readable
+                        log_to_terminal(f"[REPORT DEBUG] CSV file is readable (not locked)", self.gui_refs)
+                    except PermissionError as pe:
+                        log_to_terminal(f"[REPORT WARNING] CSV file appears to be locked: {pe}", self.gui_refs)
+                    except Exception as e:
+                        log_to_terminal(f"[REPORT WARNING] Could not test file access: {e}", self.gui_refs)
+                        
+                except Exception as e:
+                    log_to_terminal(f"[REPORT DEBUG] Could not get file metadata: {e}", self.gui_refs)
+            else:
+                log_to_terminal(f"[REPORT ERROR] CSV file does not exist: {csv_path}", self.gui_refs)
+                # List files in the directory
+                try:
+                    files_in_dir = list(data_logs_dir.glob('*'))[-5:]  # Last 5 files
+                    log_to_terminal(f"[REPORT DEBUG] Recent files in dir: {[f.name for f in files_in_dir]}", self.gui_refs)
+                except Exception as e:
+                    log_to_terminal(f"[REPORT DEBUG] Could not list dir: {e}", self.gui_refs)
+            
             # Call the report handler
+            log_to_terminal(f"[REPORT DEBUG] Calling report handler...", self.gui_refs)
             result = report_handler(**handler_kwargs)
+            log_to_terminal(f"[REPORT DEBUG] Handler returned: {result[:2] if isinstance(result, tuple) else result}", self.gui_refs)
             
             # Handle different return formats
             if isinstance(result, tuple) and len(result) >= 2:
@@ -1478,12 +1536,15 @@ class ScriptRunner(threading.Thread):
                 
                 return "continue"
             else:
+                log_to_terminal(f"[REPORT ERROR] {message}", self.gui_refs)
                 self.status_cb(f"Error generating report: {message}", line_num)
                 return "error"
                 
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            error_details = traceback.format_exc()
+            log_to_terminal(f"[REPORT ERROR] Exception: {e}", self.gui_refs)
+            log_to_terminal(f"[REPORT ERROR] {error_details}", self.gui_refs)
             self.status_cb(f"Error in report generation: {e}", line_num)
             return "error"
 

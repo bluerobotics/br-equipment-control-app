@@ -1842,11 +1842,14 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         current_commands = get_current_commands()
         
         # Simple approach: callbacks just refresh state, state machine handles everything
+        # NOTE: This callback is invoked from the ScriptRunner thread, NOT the main thread.
+        # All Tkinter widget operations MUST be scheduled on the main thread via root.after()
         def callback():
             nonlocal script_start_time
             print(f"[CALLBACK] Completion callback fired (mode: {mode})")
             
             # Record cycle stats (only for full script runs, not single steps)
+            # This doesn't touch Tkinter widgets, so it can run in any thread
             if not is_step and script_start_time is not None:
                 import time as time_module
                 from src.stats import get_stats
@@ -1860,13 +1863,17 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 
                 script_start_time = None  # Reset for next cycle
             
-            # Just refresh - let refresh_button_states figure out the actual state
-            refresh_button_states()
+            # Schedule GUI updates on the main thread (Tkinter is NOT thread-safe)
+            def update_gui_on_main_thread():
+                # Refresh button states based on actual state
+                refresh_button_states()
+                
+                # Handle the line advancement for single block mode
+                if is_step and not is_held_by_user:
+                    print(f"[CALLBACK] Advancing to next line")
+                    advance_to_next_line()
             
-            # Handle the line advancement for single block mode
-            if is_step and not is_held_by_user:
-                print(f"[CALLBACK] Advancing to next line")
-                advance_to_next_line()
+            root.after(0, update_gui_on_main_thread)
         
         # Create the runner
         script_runner = ScriptRunner(content, shared_gui_refs, status_callback_handler,

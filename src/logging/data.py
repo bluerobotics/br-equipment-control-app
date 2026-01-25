@@ -7,6 +7,7 @@ Handles CSV file creation, writing, and management.
 
 import csv
 import os
+import re
 import sys
 import threading
 import datetime
@@ -68,6 +69,9 @@ class DataLogger:
         
         # Apply job, op, and serial number formatting (handles <job>/<op>/<serial> placeholders)
         base_filename = format_filename_with_serial(base_filename, serial, job, op)
+        
+        # Clean up multiple consecutive spaces (from empty template tags) and trim
+        base_filename = re.sub(r'\s+', ' ', base_filename).strip()
         
         if not base_filename.endswith('.csv'):
             base_filename += '.csv'
@@ -261,6 +265,7 @@ class DataLogger:
                 freq_info = f" at {frequency} Hz" if frequency else " (synced with telemetry)"
                 log_msg = f"Started logging {var_count} variable(s){freq_info} to {os.path.basename(filepath)}"
                 log_to_terminal(log_msg, self.shared_gui_refs)
+                log_to_terminal(f"[DATA LOGGER] Full path: {filepath}", self.shared_gui_refs)
                 
                 print(f"[TRACE] start_logging complete, returning success")
                 return (True, log_msg, filepath)
@@ -329,8 +334,13 @@ class DataLogger:
         """
         log_info = self.active_logs.get(filepath)
         if log_info:
-            # Close file handle if open
+            # Close file handle if open - flush and sync to ensure Windows writes to disk
             if log_info['file_handle']:
+                try:
+                    log_info['file_handle'].flush()
+                    os.fsync(log_info['file_handle'].fileno())
+                except Exception:
+                    pass  # Ignore errors during sync (file might already be closed)
                 log_info['file_handle'].close()
             
             # Cancel timer if present

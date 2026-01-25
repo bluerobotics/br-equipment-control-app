@@ -67,15 +67,25 @@ class DeviceRegistry:
     def _load_package_from_path(self, device_name, package_name, package_path):
         """
         Load a Python package (folder with __init__.py) from a specific path.
-        Returns the package module if successful, None otherwise.
+        
+        Returns:
+            tuple: (module, error_message) - module is None if loading failed,
+                   error_message is None if loading succeeded.
         """
         init_file = os.path.join(package_path, '__init__.py')
         if not os.path.exists(init_file):
-            return None
+            return None, f"Package '{package_name}' not found (missing __init__.py)"
         
         try:
             # Create a unique module name to avoid conflicts
             full_module_name = f"devices.{device_name}.{package_name}"
+            
+            # Clear any cached versions of this module and its submodules
+            # This ensures we always load fresh from disk
+            modules_to_remove = [key for key in sys.modules.keys() 
+                                if key == full_module_name or key.startswith(f"{full_module_name}.")]
+            for mod_name in modules_to_remove:
+                del sys.modules[mod_name]
             
             # Load the package from __init__.py
             spec = importlib.util.spec_from_file_location(
@@ -87,13 +97,15 @@ class DeviceRegistry:
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[full_module_name] = module
                 spec.loader.exec_module(module)
-                return module
+                return module, None
         except Exception as e:
-            self.log(f"Error loading package {package_name} for {device_name}: {e}")
+            error_msg = str(e)
+            self.log(f"Error loading package {package_name} for {device_name}: {error_msg}")
             import traceback
             traceback.print_exc()
+            return None, error_msg
         
-        return None
+        return None, f"Failed to create module spec for '{package_name}'"
     
     def discover_devices(self):
         """
@@ -209,9 +221,10 @@ class DeviceRegistry:
             
             # Load reports module if reports/ folder exists (as a package with __init__.py)
             reports_module = None
+            reports_load_error = None
             reports_folder = os.path.join(definition_path, 'reports')
             if os.path.isdir(reports_folder):
-                reports_module = self._load_package_from_path(device_name, 'reports', reports_folder)
+                reports_module, reports_load_error = self._load_package_from_path(device_name, 'reports', reports_folder)
             
             # Load warnings from JSON (always from definition folder)
             warnings_data = {}
@@ -241,6 +254,9 @@ class DeviceRegistry:
                     'operator_view': operator_view_module,
                     'parser': parser_module,
                     'reports': reports_module,
+                },
+                'module_errors': {
+                    'reports': reports_load_error,
                 },
             }
             
@@ -463,21 +479,26 @@ class DeviceRegistry:
             report_name: Name of the report (without device prefix)
             
         Returns:
-            Callable handler function or None if not found
+            tuple: (handler, error_message) - handler is the callable function or None,
+                   error_message explains why handler is None (or None if successful)
         """
         device = self.devices.get(device_name)
         if not device:
-            return None
+            return None, f"Device '{device_name}' not found"
         
         reports_module = device.get('modules', {}).get('reports')
         if not reports_module:
-            return None
+            # Check if there was a load error
+            load_error = device.get('module_errors', {}).get('reports')
+            if load_error:
+                return None, f"Reports module failed to load: {load_error}"
+            return None, f"Reports module not available for device '{device_name}'"
         
         # Look for the handler function in the reports module
         # The handler name is typically the report_name itself (e.g., generate_press_report)
         handler = getattr(reports_module, report_name, None)
         if callable(handler):
-            return handler
+            return handler, None
         
-        return None
+        return None, f"Report handler '{report_name}' not found in reports module"
 
