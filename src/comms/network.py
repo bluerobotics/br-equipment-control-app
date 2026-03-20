@@ -566,6 +566,12 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
     Returns a dictionary of parsed telemetry values (key -> raw_value).
     """
     parsed_data = {}
+    firmware_key_map = {}
+    for schema_key, details in schema.items():
+        fw_key = details.get('firmware_key')
+        if fw_key:
+            firmware_key_map[fw_key] = (schema_key, details)
+
     try:
         # Extract the key-value payload from the message
         prefix = f"{device_name.upper()}_TELEM:"
@@ -590,69 +596,65 @@ def parse_dynamic_telemetry(msg, device_name, schema, gui_refs, queue_ui_update,
             key_match = key.strip()
             if key_match in schema:
                 details = schema[key_match]
-                # Auto-generate gui_var if not provided: device_key_var
-                gui_var_name = details.get('gui_var', f"{device_name}_{key_match}_var")
+            elif key_match in firmware_key_map:
+                schema_key, details = firmware_key_map[key_match]
+                key_match = schema_key
+            else:
+                continue
 
-                if gui_var_name:
-                    formatted_value = value.strip()
-                    
-                    # Store raw value for callbacks
-                    parsed_data[key_match] = formatted_value
-                    
-                    # First, check for enum mapping at top level
-                    if 'map' in details:
-                        # Map the enum value (int or string) to its display string
-                        if formatted_value in details['map']:
-                            formatted_value = details['map'][formatted_value]
-                    # Then handle numeric formatting with precision and units
-                    elif details.get('type') in ['float', 'int']:
+            # Auto-generate gui_var if not provided: device_key_var
+            gui_var_name = details.get('gui_var', f"{device_name}_{key_match}_var")
+
+            if gui_var_name:
+                formatted_value = value.strip()
+                
+                parsed_data[key_match] = formatted_value
+                
+                if 'map' in details:
+                    if formatted_value in details['map']:
+                        formatted_value = details['map'][formatted_value]
+                elif details.get('type') in ['float', 'int']:
+                    try:
+                        num_value = safe_float(formatted_value)
+                        
+                        if 'multiplier' in details:
+                            num_value *= details['multiplier']
+
+                        precision = details.get('precision')
+                        unit = details.get('unit', '')
+                        
+                        if precision is not None:
+                            formatted_value = f"{num_value:.{precision}f}"
+                        else:
+                            formatted_value = f"{num_value}"
+                        
+                        if unit:
+                            formatted_value = f"{formatted_value} {unit}"
+                    except (ValueError, TypeError):
+                        pass
+                
+                elif 'format' in details:
+                    rules = details['format']
+                    if 'map' in rules and formatted_value in rules['map']:
+                        formatted_value = rules['map'][formatted_value]
+                    else:
                         try:
                             num_value = safe_float(formatted_value)
                             
-                            # Apply multiplier if it exists
-                            if 'multiplier' in details:
-                                num_value *= details['multiplier']
+                            if 'multiplier' in rules:
+                                num_value *= rules['multiplier']
 
-                            precision = details.get('precision')
-                            unit = details.get('unit', '')
+                            precision = rules.get('precision')
+                            suffix = rules.get('suffix', '')
                             
                             if precision is not None:
-                                formatted_value = f"{num_value:.{precision}f}"
+                                formatted_value = f"{num_value:.{precision}f}{suffix}"
                             else:
-                                formatted_value = f"{num_value}"
-                            
-                            # Add unit if present
-                            if unit:
-                                formatted_value = f"{formatted_value} {unit}"
+                                formatted_value = f"{num_value}{suffix}"
                         except (ValueError, TypeError):
-                            # Keep original value if conversion fails
-                            pass
-                    
-                    # Handle legacy 'format' structure for backward compatibility
-                    elif 'format' in details:
-                        rules = details['format']
-                        if 'map' in rules and formatted_value in rules['map']:
-                            formatted_value = rules['map'][formatted_value]
-                        else:
-                            # Handle numeric formatting for precision and suffix
-                            try:
-                                num_value = safe_float(formatted_value)
-                                
-                                # Apply multiplier if it exists
-                                if 'multiplier' in rules:
-                                    num_value *= rules['multiplier']
+                            formatted_value = formatted_value + rules.get('suffix', '')
 
-                                precision = rules.get('precision')
-                                suffix = rules.get('suffix', '')
-                                
-                                if precision is not None:
-                                    formatted_value = f"{num_value:.{precision}f}{suffix}"
-                                else:
-                                    formatted_value = f"{num_value}{suffix}"
-                            except (ValueError, TypeError):
-                                formatted_value = formatted_value + rules.get('suffix', '')
-
-                    queue_ui_update(gui_refs, gui_var_name, formatted_value)
+                queue_ui_update(gui_refs, gui_var_name, formatted_value)
 
     except Exception as e:
         log_func = gui_refs.get('log_func')

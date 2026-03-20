@@ -674,7 +674,7 @@ class ScriptRunner(threading.Thread):
                     positional_values.append(word)
                     i += 1
             else:
-                # Non-numeric, non-keyword, non-enum - might be a unit or label, skip
+                positional_values.append(word)
                 i += 1
         
         # Assign remaining positional values to positional parameters

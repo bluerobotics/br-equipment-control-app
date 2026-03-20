@@ -142,9 +142,6 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
         last_data_time = time.time()
         has_received_data = False
         
-        # Chunk reassembly state
-        chunk_buffer = []  # Stores chunks: [(chunk_num, total_chunks, data), ...]
-        
         while True:
             with serial_lock:
                 if port_name not in serial_connections:
@@ -203,36 +200,7 @@ def serial_listener_thread(port_name, device_key, message_callback, gui_refs, de
                             in_waiting = ser.in_waiting  # Check for more data
                             continue
                         
-                        # Check if this is a chunked message
-                        if line.startswith("CHUNK_"):
-                            # Parse: CHUNK_1/5:data
-                            try:
-                                header_end = line.index(":")
-                                header = line[6:header_end]  # Skip "CHUNK_"
-                                chunk_num, total_chunks = map(int, header.split("/"))
-                                data = line[header_end + 1:]
-                                
-                                # Add to buffer
-                                chunk_buffer.append((chunk_num, total_chunks, data))
-                                
-                                # Check if we have all chunks
-                                if len(chunk_buffer) == total_chunks:
-                                    # Sort by chunk number and reassemble
-                                    chunk_buffer.sort(key=lambda x: x[0])
-                                    full_message = ''.join([chunk[2] for chunk in chunk_buffer])
-                                    chunk_buffer.clear()
-                                    
-                                    # Process the reassembled message
-                                    message_callback(device_key, full_message, gui_refs, device_manager)
-                                elif len(chunk_buffer) > total_chunks:
-                                    # Too many chunks, reset
-                                    chunk_buffer.clear()
-                            except (ValueError, IndexError):
-                                # Malformed chunk, ignore
-                                pass
-                        else:
-                            # Normal message (not chunked)
-                            message_callback(device_key, line, gui_refs, device_manager)
+                        message_callback(device_key, line, gui_refs, device_manager)
                     
                     # Check for more data
                     try:
