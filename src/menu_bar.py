@@ -11,7 +11,7 @@ from _version import __version__
 
 
 
-def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback, font_var=None, set_font_callback=None, font_size_var=None, set_font_size_callback=None, serial_panel_visible_var=None):
+def create_top_menu(parent, file_commands, edit_commands, script_commands, settings_commands, gui_refs, autosave_var, ui_scale_var, set_ui_scale_callback, font_var=None, set_font_callback=None, font_size_var=None, set_font_size_callback=None, serial_panel_visible_var=None, view_commands=None):
     """
     Creates the main application menu bar.
     """
@@ -43,10 +43,12 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
                      fg=theme.FG_COLOR,
                      activebackground=theme.PRIMARY_ACCENT,
                      activeforeground=theme.FG_COLOR)
-    file_menu.add_command(label="New Script", command=file_commands['new'])
+    file_menu.add_command(label="New Tab", command=file_commands['new'], accelerator="Ctrl+N")
     file_menu.add_command(label="Open Script...", command=file_commands['open'])
     file_menu.add_command(label="Save", command=file_commands['save'])
     file_menu.add_command(label="Save As...", command=file_commands['save_as'])
+    if 'close_tab' in file_commands:
+        file_menu.add_command(label="Close Tab", command=file_commands['close_tab'], accelerator="Ctrl+W")
     file_menu.add_separator(background=theme.WIDGET_BORDER)
     file_menu.add_checkbutton(label="Autosave", onvalue=True, offvalue=False, variable=autosave_var,
                               selectcolor=theme.PRIMARY_ACCENT) # Color for checkmark
@@ -86,6 +88,21 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
     edit_menu.add_command(label="Replace", command=edit_commands['replace'], accelerator="Ctrl+H")
     menubar.add_cascade(label="Edit", menu=edit_menu)
 
+    # --- View Menu ---
+    if view_commands:
+        view_menu = Menu(menubar, tearoff=0,
+                         bg=theme.WIDGET_BG,
+                         fg=theme.FG_COLOR,
+                         activebackground=theme.PRIMARY_ACCENT,
+                         activeforeground=theme.FG_COLOR)
+        if 'toggle_editor' in view_commands:
+            view_menu.add_command(
+                label="Toggle Script Editor",
+                command=view_commands['toggle_editor'],
+                accelerator="Ctrl+E"
+            )
+        menubar.add_cascade(label="View", menu=view_menu)
+
     # --- Devices Menu ---
     devices_menu = Menu(menubar,
                         tearoff=0,
@@ -110,10 +127,7 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
                          activeforeground=theme.FG_COLOR)
     
     # Show Serial Number Panel toggle
-    print(f"[DEBUG MENU] toggle_serial_panel in settings_commands: {'toggle_serial_panel' in settings_commands}")
-    print(f"[DEBUG MENU] serial_panel_visible_var is not None: {serial_panel_visible_var is not None}")
     if 'toggle_serial_panel' in settings_commands and serial_panel_visible_var is not None:
-        print("[DEBUG MENU] Adding 'Show Serial Number Panel' menu item")
         settings_menu.add_checkbutton(
             label="Show Serial Number Panel",
             onvalue=True,
@@ -123,12 +137,15 @@ def create_top_menu(parent, file_commands, edit_commands, script_commands, setti
             selectcolor=theme.PRIMARY_ACCENT
         )
         settings_menu.add_separator(background=theme.WIDGET_BORDER)
-    else:
-        print("[DEBUG MENU] NOT adding 'Show Serial Number Panel' menu item")
     
     # Serial Number Settings
     if 'serial_settings' in settings_commands:
         settings_menu.add_command(label="Serial Number Settings...", command=settings_commands['serial_settings'])
+        settings_menu.add_separator(background=theme.WIDGET_BORDER)
+
+    # Quick Launch Scripts
+    if 'manage_quick_launch' in settings_commands:
+        settings_menu.add_command(label="Manage Quick Launch Scripts...", command=settings_commands['manage_quick_launch'])
         settings_menu.add_separator(background=theme.WIDGET_BORDER)
     
     # Cycle Statistics

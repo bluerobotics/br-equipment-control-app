@@ -25,6 +25,7 @@ from .logging import create_terminal_panel, DataLogger
 from .device import DeviceManager, create_device_panel
 from .menu_bar import create_top_menu
 from .config import load_config, save_config, get_device_paths, add_device_path, remove_device_path, CONFIG_FILE
+from .script.quick_launch import QuickLaunchPanel
 from .serial_number import initialize_serial_manager
 from .scanner import initialize_scanner, cleanup_scanner
 from .serial_gui import create_serial_panel, show_serial_dialog
@@ -75,8 +76,10 @@ class MainApplication:
                 self.ui_scaling = current_scaling
 
         if self.config_data.get('ui_scaling') != self.ui_scaling:
-            self.config_data['ui_scaling'] = self.ui_scaling
-            save_config(self.config_data)
+            config = load_config()
+            config['ui_scaling'] = self.ui_scaling
+            save_config(config)
+            self.config_data = config
 
         self.ui_scale_var = tk.DoubleVar(value=self.ui_scaling)
         
@@ -681,39 +684,44 @@ class MainApplication:
         self.left_bar_frame = left_bar_frame
         splitter.add(left_bar_frame, weight=0)
         
-        # Central container for the main content (scripting + console)
+        # Central container for the main content (toolbar + editor + terminal)
         main_content_frame = ttk.Frame(splitter, style='TFrame')
         splitter.add(main_content_frame, weight=1)
         
-        # Create vertical PanedWindow to allow resizing between scripting and terminal
+        # Script toolbar (Run/Hold/Reset/status) -- always visible above the PanedWindow
+        self.script_toolbar_frame = ttk.Frame(main_content_frame, style='TFrame')
+        self.script_toolbar_frame.pack(fill=tk.X)
+        
+        # Create vertical PanedWindow for editor + terminal
         content_paned = ttk.PanedWindow(main_content_frame, orient=tk.VERTICAL)
         content_paned.pack(fill=tk.BOTH, expand=True)
         
-        # Top pane for scripting area
-        scripting_pane = ttk.Frame(content_paned, style='TFrame')
+        # Top pane: collapsible script editor (tab bar + text editor)
+        self.editor_pane = ttk.Frame(content_paned, style='TFrame')
         
-        # Bottom pane for terminal
+        # Bottom pane: terminal (always visible)
         terminal_pane = ttk.Frame(content_paned, style='TFrame')
         
         # Add both panes
-        content_paned.add(scripting_pane, weight=1)
+        content_paned.add(self.editor_pane, weight=1)
         content_paned.add(terminal_pane, weight=0)
         
         # Store reference for sash positioning
         self.content_paned = content_paned
+        self.editor_collapsed = False
         
         # Bind to window visibility to set terminal height once window is actually shown
         def on_window_visible(event=None):
             def force_terminal_compact():
                 try:
+                    if getattr(self, 'editor_collapsed', False):
+                        return
                     total_height = content_paned.winfo_height()
                     if total_height > 100:
-                        # Load saved sash position or use platform-specific default
                         saved_terminal_height = self.config_data.get('terminal_height')
                         if saved_terminal_height:
                             terminal_height = saved_terminal_height
                         else:
-                            # macOS: 180px, others: 220px (about 11 vs 13-14 lines)
                             terminal_height = 180 if platform.system() == 'Darwin' else 220
                         content_paned.sashpos(0, total_height - terminal_height)
                 except Exception as e:
@@ -762,17 +770,30 @@ class MainApplication:
         # Device pane content frame
         cmd_ref_content = device_pane_frame
 
-        # Create scripting GUI in the scripting pane
-        # Load initial lock editor state from config
+        # Create scripting GUI -- toolbar in the always-visible toolbar frame,
+        # editor content in the collapsible editor pane.
         initial_lock_state = self.config_data.get('lock_editor', False)
-        print(f"[LOCK DEBUG] Loaded initial_lock_state from config: {initial_lock_state}")
         self.scripting_gui_refs = create_scripting_interface(
-            scripting_pane, 
+            self.editor_pane, 
             self.command_funcs, 
             self.shared_gui_refs, 
             self.autosave_var,
-            initial_lock_state=initial_lock_state
+            initial_lock_state=initial_lock_state,
+            toolbar_parent=self.script_toolbar_frame
         )
+
+        # --- Editor collapse/expand toggle ---
+        self.editor_toggle_btn = ttk.Button(
+            self.script_toolbar_frame,
+            text="\u25BE Editor",
+            style='Ghost.TButton',
+            command=self.toggle_editor_collapsed
+        )
+        self.editor_toggle_btn.pack(fill=tk.X, padx=10, pady=(0, 2))
+
+        # Apply initial collapse state from config
+        if self.config_data.get('editor_collapsed', False):
+            self.root.after(600, self._apply_initial_editor_collapse)
         
         # Now that the script editor exists, populate the command reference
         self.command_reference_instance = create_device_panel(
@@ -799,8 +820,9 @@ class MainApplication:
         # Variable to track visibility
         self.serial_panel_visible_var = tk.BooleanVar(value=serial_panel_visible)
         
-        # Add syntax highlighter to shared_gui_refs so it can be refreshed when devices are added
+        # Add syntax highlighter and tab accessor to shared_gui_refs so they can be refreshed when devices are added
         self.shared_gui_refs['syntax_highlighter'] = self.scripting_gui_refs['syntax_highlighter']
+        self.shared_gui_refs['get_all_tabs'] = self.scripting_gui_refs.get('get_all_tabs')
         
         # --- Shared GUI References ---
         # This MUST be set AFTER the command_reference_instance is created.
@@ -822,6 +844,11 @@ class MainApplication:
         device_panel_container = status_bar_container
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
+
+        # --- Quick Launch Panel (scripting refs wired up after create_scripting_interface) ---
+        self.quick_launch_panel = QuickLaunchPanel(left_bar_frame, self.shared_gui_refs)
+        self.quick_launch_panel.pack(side=tk.TOP, fill='x', expand=False, pady=(8, 0))
+        self.quick_launch_panel.set_scripting_refs(self.scripting_gui_refs)
 
         # Set device pane width based on saved width OR 30% of window width
         def set_device_pane_width(retry_count=0):
@@ -942,10 +969,12 @@ class MainApplication:
         settings_commands = {
             'show_paths': self.show_paths_window,
             'serial_settings': lambda: show_serial_dialog(self.root, self.shared_gui_refs),
-            'toggle_serial_panel': self.toggle_serial_panel
+            'toggle_serial_panel': self.toggle_serial_panel,
+            'manage_quick_launch': lambda: self._open_quick_launch_config(),
         }
-        print(f"[DEBUG APP] settings_commands keys: {list(settings_commands.keys())}")
-        print(f"[DEBUG APP] serial_panel_visible_var: {self.serial_panel_visible_var}")
+        view_commands = {
+            'toggle_editor': self.toggle_editor_collapsed,
+        }
         self.menubar, self.recent_files_menu = create_top_menu(
             self.root,
             file_commands,
@@ -960,7 +989,8 @@ class MainApplication:
             self.set_font,
             self.font_size_var,
             self.set_font_size,
-            self.serial_panel_visible_var
+            self.serial_panel_visible_var,
+            view_commands=view_commands
         )
 
         # Pass the recent files menu reference to the scripting gui
@@ -969,6 +999,8 @@ class MainApplication:
         # Bind keyboard shortcuts
         self.root.bind("<Control-Shift-V>", lambda e: self.validate_script())
         self.root.bind("<Control-Shift-v>", lambda e: self.validate_script())  # lowercase variant
+        self.root.bind("<Control-e>", self.toggle_editor_collapsed)
+        self.root.bind("<Control-E>", self.toggle_editor_collapsed)
 
         # --- Store references for dynamic updates ---
         self.shared_gui_refs['add_device_panels_ref'] = self.add_new_device_panels
@@ -996,9 +1028,17 @@ class MainApplication:
         if hasattr(self, 'command_reference_instance') and self.command_reference_instance:
             self.command_reference_instance.refresh()
             
-        # 3. Refresh the syntax highlighter
-        if self.scripting_gui_refs and self.scripting_gui_refs.get('syntax_highlighter'):
-            self.scripting_gui_refs['syntax_highlighter'].refresh_keywords()
+        # 3. Refresh syntax highlighters on ALL open tabs
+        if self.scripting_gui_refs:
+            all_tabs_fn = self.scripting_gui_refs.get('get_all_tabs')
+            if all_tabs_fn:
+                for tab in all_tabs_fn():
+                    try:
+                        tab.editor.highlighter.refresh_keywords()
+                    except Exception:
+                        pass
+            elif self.scripting_gui_refs.get('syntax_highlighter'):
+                self.scripting_gui_refs['syntax_highlighter'].refresh_keywords()
 
     def add_new_device_panels(self, device_names):
         """Creates and packs the GUI panels for newly discovered devices."""
@@ -1258,27 +1298,65 @@ class MainApplication:
 
     def load_last_script(self):
         """
-        Loads the most recently opened script on startup if one exists.
-        If a startup_file was provided via command-line, load that instead.
+        Restores previously open tabs from config, or falls back to loading
+        the most recent script.
         """
-        try:
-            # Priority 1: Command-line argument (e.g., file association)
-            if self.startup_file:
-                if os.path.exists(self.startup_file):
+        def _restore():
+            try:
+                # Priority 1: Command-line argument
+                if self.startup_file and os.path.exists(self.startup_file):
                     print(f"[SYSTEM] Loading script from command-line: {self.startup_file}")
-                    self.root.after(100, lambda: self.scripting_gui_refs['load_specific_script'](self.startup_file))
+                    self.scripting_gui_refs['load_specific_script'](self.startup_file)
                     return
-            
-            # Priority 2: Most recent file
-            recent_files = load_recent_files()
-            if recent_files:
-                last_script_path = recent_files[0]
-                if os.path.exists(last_script_path):
-                    # We need to call this after the main loop has started processing events
-                    self.root.after(100, lambda: self.scripting_gui_refs['load_specific_script'](last_script_path))
-        except (IndexError, Exception):
-            # No recent files, or file is corrupt. Do nothing.
-            pass
+
+                # Priority 2: Restore saved tabs from config
+                saved_tabs = self.config_data.get('open_script_tabs', [])
+                active_idx = self.config_data.get('active_script_tab_index', 0)
+
+                if saved_tabs:
+                    valid_paths = [p for p in saved_tabs if os.path.exists(p)]
+                    if valid_paths:
+                        # The first tab is the empty default created at init; load
+                        # the first saved file into it via load_specific_script, which
+                        # will create a new tab (the default empty one will remain but
+                        # that's fine — we'll close it after all tabs are loaded).
+                        for path in valid_paths:
+                            self.scripting_gui_refs['load_specific_script'](path)
+
+                        # Close the initial empty untitled tab if extra tabs were opened
+                        all_tabs = self.scripting_gui_refs.get('get_all_tabs', lambda: [])()
+                        if len(all_tabs) > len(valid_paths):
+                            import tempfile
+                            for t in list(all_tabs):
+                                is_temp = t.filepath and t.filepath.startswith(tempfile.gettempdir())
+                                is_empty = len(t.editor.get('1.0', 'end-1c').strip()) == 0
+                                if (is_temp or not t.filepath) and is_empty:
+                                    self.scripting_gui_refs['close_tab'](t, force=True)
+                                    break
+
+                        # Restore active tab index
+                        remaining = self.scripting_gui_refs.get('get_all_tabs', lambda: [])()
+                        nb = self.scripting_gui_refs.get('notebook')
+                        if nb and remaining:
+                            idx = min(active_idx, len(remaining) - 1)
+                            try:
+                                nb.select(remaining[idx].tab_frame)
+                            except Exception:
+                                pass
+                        return
+
+                # Priority 3: Most recent file (legacy fallback)
+                recent_files = load_recent_files()
+                if recent_files:
+                    last_script_path = recent_files[0]
+                    if os.path.exists(last_script_path):
+                        self.scripting_gui_refs['load_specific_script'](last_script_path)
+            except Exception as e:
+                print(f"[SYSTEM] Error restoring tabs: {e}")
+                import traceback
+                traceback.print_exc()
+
+        self.root.after(100, _restore)
 
     def run(self):
         """
@@ -1384,6 +1462,7 @@ class MainApplication:
             config = load_config()
             config['ui_scaling'] = float(value)
             save_config(config)
+            self.config_data = config
             self.ui_scaling = float(value)
             self.root.update_idletasks()
         except Exception as e:
@@ -1457,8 +1536,8 @@ class MainApplication:
         try:
             config = load_config()
             
-            # Save terminal height (vertical sash)
-            if hasattr(self, 'content_paned'):
+            # Save terminal height (vertical sash) -- only when editor is visible
+            if hasattr(self, 'content_paned') and not getattr(self, 'editor_collapsed', False):
                 total_height = self.content_paned.winfo_height()
                 sash_pos = self.content_paned.sashpos(0)
                 terminal_height = total_height - sash_pos
@@ -1498,6 +1577,7 @@ class MainApplication:
                     print(f"[SASH] Skipped saving - invalid dimensions (total: {total_width}px, sash1: {sash1_pos}px)")
             
             save_config(config)
+            self.config_data = config
         except Exception as e:
             print(f"Error saving sash positions: {e}")
     
@@ -1647,26 +1727,73 @@ class MainApplication:
             # Silently handle errors but don't completely fail
             pass
 
+    def toggle_editor_collapsed(self, event=None):
+        """Collapse or expand the script editor pane."""
+        if self.editor_collapsed:
+            # --- Expand ---
+            self.content_paned.insert(0, self.editor_pane, weight=1)
+            self.editor_collapsed = False
+            self.editor_toggle_btn.configure(text="\u25BE Editor")
+
+            # Restore the saved sash position after layout settles
+            def _restore():
+                try:
+                    saved = getattr(self, '_saved_editor_sash_pos', None)
+                    if saved is not None and saved > 0:
+                        self.content_paned.sashpos(0, saved)
+                    else:
+                        total = self.content_paned.winfo_height()
+                        if total > 100:
+                            terminal_h = self.config_data.get('terminal_height', 220)
+                            self.content_paned.sashpos(0, total - terminal_h)
+                except Exception:
+                    pass
+            self.root.after(50, _restore)
+            self.root.after(200, _restore)
+        else:
+            # --- Collapse ---
+            try:
+                self._saved_editor_sash_pos = self.content_paned.sashpos(0)
+            except Exception:
+                self._saved_editor_sash_pos = None
+            self.content_paned.forget(self.editor_pane)
+            self.editor_collapsed = True
+            self.editor_toggle_btn.configure(text="\u25B8 Editor")
+
+        config = load_config()
+        config['editor_collapsed'] = self.editor_collapsed
+        save_config(config)
+        self.config_data = config
+
+    def _apply_initial_editor_collapse(self):
+        """Collapse the editor at startup when the config says so."""
+        if not self.editor_collapsed:
+            try:
+                self._saved_editor_sash_pos = self.content_paned.sashpos(0)
+            except Exception:
+                self._saved_editor_sash_pos = None
+            self.content_paned.forget(self.editor_pane)
+            self.editor_collapsed = True
+            self.editor_toggle_btn.configure(text="\u25B8 Editor")
+
     def toggle_serial_panel(self):
         """Toggle visibility of the serial number panel."""
-        # Note: When using checkbutton, tkinter automatically toggles the variable
-        # BEFORE calling this command, so we read the NEW state
-        print(f"[DEBUG TOGGLE] serial_panel_visible_var is now: {self.serial_panel_visible_var.get()}")
-        
         if self.serial_panel_visible_var.get():
-            # Variable is True -> Show panel
-            print("[DEBUG TOGGLE] Showing panel")
             self.serial_panel.pack(side=tk.BOTTOM, fill="x", expand=False, pady=(5, 0))
         else:
-            # Variable is False -> Hide panel
-            print("[DEBUG TOGGLE] Hiding panel")
             self.serial_panel.pack_forget()
         
-        # Save preference
-        self.config_data['serial_panel_visible'] = self.serial_panel_visible_var.get()
-        save_config(self.config_data)
-        print(f"[DEBUG TOGGLE] Saved preference: {self.serial_panel_visible_var.get()}")
+        config = load_config()
+        config['serial_panel_visible'] = self.serial_panel_visible_var.get()
+        save_config(config)
+        self.config_data = config
     
+    def _open_quick_launch_config(self):
+        """Open the Quick Launch Scripts configuration dialog."""
+        from src.script.quick_launch import show_quick_launch_config
+        panel = getattr(self, 'quick_launch_panel', None)
+        show_quick_launch_config(self.root, panel)
+
     def show_paths_window(self):
         """Display a window listing key application file paths with editable log directories."""
         if hasattr(self, '_paths_window') and self._paths_window and self._paths_window.winfo_exists():

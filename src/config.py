@@ -325,3 +325,32 @@ def set_reports_dir(reports_dir):
     except Exception as e:
         print(f"Error saving reports directory: {e}")
         return False
+
+
+def get_quick_launch_scripts():
+    """Get the list of quick-launch script entries from config.
+
+    Each entry is a dict with 'name' and 'path' keys.
+    Returns only well-formed entries; malformed data is silently skipped.
+    """
+    config = load_config()
+    raw = config.get('quick_launch_scripts', [])
+    if not isinstance(raw, list):
+        return []
+    return [e for e in raw if isinstance(e, dict) and 'name' in e and 'path' in e]
+
+
+def set_quick_launch_scripts(scripts_list):
+    """Save the list of quick-launch script entries to config.
+
+    Args:
+        scripts_list: list of dicts with 'name' and 'path' keys.
+    """
+    try:
+        config = load_config()
+        config['quick_launch_scripts'] = scripts_list
+        save_config(config)
+        return True
+    except Exception as e:
+        print(f"Error saving quick launch scripts: {e}")
+        return False

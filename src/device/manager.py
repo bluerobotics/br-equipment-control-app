@@ -131,8 +131,16 @@ class DeviceManager:
                     # If variable already exists, don't reset it - preserve the current value
                 self.log(f"Reloaded telemetry.json for {device_name}")
             
-            # Refresh syntax highlighter if available
-            if 'syntax_highlighter' in self.shared_gui_refs:
+            # Refresh syntax highlighters on all open tabs
+            get_all_tabs = self.shared_gui_refs.get('get_all_tabs')
+            if get_all_tabs:
+                for tab in get_all_tabs():
+                    try:
+                        tab.editor.highlighter.refresh_keywords()
+                    except Exception:
+                        pass
+                self.log(f"Refreshed syntax highlighters for {device_name}")
+            elif 'syntax_highlighter' in self.shared_gui_refs:
                 self.shared_gui_refs['syntax_highlighter'].refresh_keywords()
                 self.log(f"Refreshed syntax highlighter for {device_name}")
         return success

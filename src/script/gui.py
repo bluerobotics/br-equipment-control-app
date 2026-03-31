@@ -920,7 +920,7 @@ class CommandHelpWindow(tk.Toplevel):
                                           fg=theme.FG_COLOR,
                                           selectbackground=theme.PRIMARY_ACCENT,
                                           selectforeground=theme.SELECTION_FG,
-                                          font=theme.FONT_MONO)
+                                          font=theme.FONT_NORMAL)
         self.command_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         listbox_scrollbar = ttk.Scrollbar(list_frame, command=self.command_listbox.yview)
@@ -950,7 +950,7 @@ class CommandHelpWindow(tk.Toplevel):
         # Configure text tags for formatting
         self.details_text.tag_configure("title", font=theme.FONT_BOLD, foreground=theme.PRIMARY_ACCENT)
         self.details_text.tag_configure("section", font=theme.FONT_BOLD)
-        self.details_text.tag_configure("code", font=theme.FONT_MONO, background=theme.SECONDARY_ACCENT)
+        self.details_text.tag_configure("code", font=theme.FONT_NORMAL, background=theme.SECONDARY_ACCENT)
         
         # Close button
         close_button = ttk.Button(main_frame, text="Close", command=self.destroy)
@@ -1095,16 +1095,49 @@ class CommandHelpWindow(tk.Toplevel):
         self.details_text.config(state=tk.DISABLED)
 
 
-def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var, initial_lock_state=False):
+class ScriptTab:
+    """Per-tab state for the multi-tab script editor."""
+    __slots__ = ('editor', 'tab_frame', 'filepath', 'find_replace_frame')
+
+    def __init__(self, editor, tab_frame, filepath=None):
+        self.editor = editor
+        self.tab_frame = tab_frame
+        self.filepath = filepath
+        self.find_replace_frame = None
+
+
+class _ActiveEditorProxy:
+    """Proxy that delegates attribute access to whichever ScriptEditor is currently active.
+
+    This allows the DevicePanel (and other external consumers) to hold a single
+    reference that always points to the correct tab's editor.
     """
-    Creates the main scripting area.
+
+    def __init__(self, get_active_fn):
+        object.__setattr__(self, '_get_active', get_active_fn)
+
+    def __getattr__(self, name):
+        editor = object.__getattribute__(self, '_get_active')()
+        if editor is not None:
+            return getattr(editor, name)
+        raise AttributeError(f"No active editor for attribute '{name}'")
+
+
+def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_var, initial_lock_state=False, toolbar_parent=None):
+    """
+    Creates the main scripting area with a tabbed editor.
     Returns a dictionary containing file commands and a callback to update the recent menu.
     
     Args:
         initial_lock_state: Initial state for the editor lock (default: False/unlocked)
+        toolbar_parent: If provided, the toolbar (Run/Hold/Reset/status) is created as
+            a child of this frame instead of inside the editor area.  This lets the
+            caller keep the toolbar visible while collapsing the editor.
     """
+    _toolbar_parent = toolbar_parent or parent
+
     scripting_area = ttk.Frame(parent, style='TFrame')
-    scripting_area.pack(fill=tk.BOTH, expand=True)
+    scripting_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 5))
 
     # Get a reference to the root window for thread-safe GUI updates
     root = scripting_area.winfo_toplevel()
@@ -1128,13 +1161,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     device_modules = device_manager.get_device_modules()
 
-    paned_window = ttk.PanedWindow(scripting_area, orient=tk.HORIZONTAL, style='TPanedwindow')
-    paned_window.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
-    left_pane = ttk.Frame(paned_window, style='TFrame')
-    paned_window.add(left_pane, weight=1) # The script editor will be the only thing here now
-
-    # The right_pane and the command_ref_widget that was created here have been removed,
-    # as the command reference is now created in its own collapsible panel in main.py.
+    # Editor widgets live directly in scripting_area (the old horizontal
+    # PanedWindow only had one pane, so it was redundant).
+    left_pane = scripting_area
 
     # --- Scripting State Variables ---
     script_runner = None
@@ -1150,6 +1179,10 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     lock_editor_var = tk.BooleanVar(value=False)
     # Track script timing for cycle stats
     script_start_time = None
+
+    # --- Tab Management State ---
+    tabs = []  # List[ScriptTab]
+    running_tab = None  # The ScriptTab whose script is currently executing
 
     # --- Message Queue & Terminal ---
     message_queue = queue.Queue()
@@ -1196,80 +1229,343 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     shared_gui_refs['terminal_cb'] = terminal_wrapper
 
     # --- UI Creation ---
-    control_frame = ttk.Frame(left_pane, style='TFrame');
+    # Toolbar (Run/Hold/Reset/Status) goes into _toolbar_parent so the caller
+    # can keep it visible independently of the editor area.
+    control_frame = ttk.Frame(_toolbar_parent, style='TFrame');
     control_frame.pack(fill=tk.X, pady=(0, 0))
     
     # --- Logging Status Label (shows current log file when logging) ---
     logging_status_var = tk.StringVar(value=" ")  # Space to maintain height
-    logging_status_label = ttk.Label(left_pane, textvariable=logging_status_var, anchor='w',
+    logging_status_label = ttk.Label(_toolbar_parent, textvariable=logging_status_var, anchor='w',
                                      font=theme.FONT_SMALL,
-                                     foreground='#B0B0B0',  # Whitish/gray color
+                                     foreground='#B0B0B0',
                                      background=theme.BG_COLOR)
-    logging_status_label.pack(fill=tk.X, padx=10, pady=(0, 3))  # Small bottom padding
-    
-    editor_frame = ttk.Frame(left_pane, style='TFrame')
-    editor_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 3))  # Small bottom padding
-    
-    script_editor = ScriptEditor(editor_frame, device_manager=device_manager)
-    script_editor.pack(fill="both", expand=True)
+    logging_status_label.pack(fill=tk.X, padx=10, pady=(0, 3))
 
-    # --- NEW: Find/Replace Frame ---
-    find_replace_frame = FindReplaceFrame(left_pane, script_editor.text)
-    # The frame is created but not packed, so it starts hidden.
+    # --- Tabbed Editor Notebook ---
+    style = ttk.Style()
+    style.configure('ScriptTabs.TNotebook', background=theme.BG_COLOR, borderwidth=0, padding=0)
+    style.configure('ScriptTabs.TNotebook.Tab',
+                    background=theme.WIDGET_BG,
+                    foreground=theme.COMMENT_COLOR,
+                    padding=[12, 4],
+                    borderwidth=0)
+    style.map('ScriptTabs.TNotebook.Tab',
+              background=[('selected', theme.BG_COLOR), ('active', theme.SECONDARY_ACCENT)],
+              foreground=[('selected', theme.FG_COLOR), ('active', theme.FG_COLOR)],
+              expand=[('selected', [1, 1, 1, 0])])
+    tab_bar_frame = ttk.Frame(left_pane, style='TFrame')
+    tab_bar_frame.pack(fill=tk.X, padx=10, pady=(0, 0))
 
-    # Add binding to show it
-    script_editor.text.bind("<Control-f>", lambda e: find_replace_frame.show())
+    notebook = ttk.Notebook(tab_bar_frame, style='ScriptTabs.TNotebook')
+    notebook.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+    # "+" button to create a new empty tab
+    add_tab_btn = ttk.Button(tab_bar_frame, text="+", width=3,
+                             style='Ghost.TButton',
+                             command=lambda: new_script())
+    add_tab_btn.pack(side=tk.RIGHT, padx=(4, 0), pady=2)
 
-    # Configure tags for execution and error highlighting
-    script_editor.tag_config("exec_highlight", background=theme.WARNING_YELLOW, foreground="black")
-    script_editor.tag_config("selection_highlight", background=theme.SECONDARY_ACCENT)
-    script_editor.tag_config("error_highlight", background=theme.ERROR_RED, foreground=theme.FG_COLOR)
-    
-    # Explicitly ensure editor starts in normal (unlocked) state
-    script_editor.text.config(state='normal')
-    print("[LOCK DEBUG] Script editor initialized in 'normal' (unlocked) state")
+    editor_container = ttk.Frame(left_pane, style='TFrame')
+    editor_container.pack(fill=tk.BOTH, expand=True, pady=(0, 3))
+
+    # --- Tab Management Helpers ---
+
+    def _setup_editor_for_tab(tab):
+        """Configure per-editor bindings and tags for a newly created tab."""
+        editor = tab.editor
+        editor.tag_config("exec_highlight", background=theme.WARNING_YELLOW, foreground="black")
+        editor.tag_config("selection_highlight", background=theme.SECONDARY_ACCENT)
+        editor.tag_config("error_highlight", background=theme.ERROR_RED, foreground=theme.FG_COLOR)
+        editor.text.config(state='disabled' if lock_editor_var.get() else 'normal')
+
+        tab.find_replace_frame = FindReplaceFrame(tab.tab_frame, editor.text)
+        editor.text.bind("<Control-f>", lambda e, t=tab: t.find_replace_frame.show())
+        editor.text.bind("<Control-h>", lambda e, t=tab: t.find_replace_frame.show())
+
+    def create_new_tab(filepath=None, content=None, switch_to=True):
+        """Create a new tab with its own ScriptEditor. Returns the ScriptTab."""
+        nonlocal current_filepath
+
+        tab_frame = ttk.Frame(notebook)
+        editor = ScriptEditor(tab_frame, device_manager=device_manager)
+        editor.pack(fill="both", expand=True)
+
+        tab = ScriptTab(editor, tab_frame, filepath)
+        tabs.append(tab)
+
+        if filepath:
+            import tempfile
+            if filepath.startswith(tempfile.gettempdir()):
+                label = "Untitled"
+            else:
+                label = os.path.basename(filepath)
+        else:
+            label = "Untitled"
+
+        notebook.add(tab_frame, text=label)
+        _setup_editor_for_tab(tab)
+
+        # Wire modification / click callbacks (late-bound so the closures defined
+        # later in this function are available at call time)
+        def _bind_tab_events():
+            editor.bind("<<Modified>>", on_text_modified, add='+')
+            editor.bind("<Button-1>", on_line_click)
+        root.after(0, _bind_tab_events)
+
+        if content:
+            editor.delete('1.0', tk.END)
+            editor.insert('1.0', content)
+            editor.edit_modified(False)
+
+        if switch_to:
+            notebook.select(tab_frame)
+            current_filepath = tab.filepath
+
+        _save_tab_state()
+        return tab
+
+    def get_active_tab():
+        """Return the currently selected ScriptTab, or None."""
+        if not tabs:
+            return None
+        try:
+            sel = notebook.select()
+            if not sel:
+                return tabs[0]
+            current_frame = notebook.nametowidget(sel)
+            for tab in tabs:
+                if tab.tab_frame is current_frame:
+                    return tab
+        except (tk.TclError, KeyError):
+            pass
+        return tabs[0] if tabs else None
+
+    def get_active_editor():
+        """Return the active tab's ScriptEditor widget."""
+        tab = get_active_tab()
+        return tab.editor if tab else None
+
+    def update_tab_label(tab):
+        """Refresh a tab's label text (filename, modified indicator, running indicator)."""
+        if tab.filepath:
+            import tempfile
+            if tab.filepath.startswith(tempfile.gettempdir()):
+                label = "Untitled"
+            else:
+                label = os.path.basename(tab.filepath)
+        else:
+            label = "Untitled"
+        try:
+            if tab.editor.edit_modified():
+                label += " *"
+        except tk.TclError:
+            pass
+        if running_tab is tab:
+            label = "\u25b6 " + label
+        try:
+            notebook.tab(tab.tab_frame, text=label)
+        except tk.TclError:
+            pass
+
+    def _set_filepath(path):
+        """Set the filepath for the active tab and sync current_filepath."""
+        nonlocal current_filepath
+        current_filepath = path
+        tab = get_active_tab()
+        if tab:
+            tab.filepath = path
+            update_tab_label(tab)
+
+    def _sync_filepath_from_tab():
+        """Sync current_filepath from the active tab."""
+        nonlocal current_filepath
+        tab = get_active_tab()
+        current_filepath = tab.filepath if tab else None
+
+    def close_tab(tab=None, force=False):
+        """Close a tab. Returns True if closed, False if user cancelled."""
+        nonlocal current_filepath
+        if tab is None:
+            tab = get_active_tab()
+        if tab is None:
+            return True
+
+        if tab is running_tab and not force:
+            messagebox.showwarning("Cannot Close Tab",
+                                   "This tab is running a script. Stop the script first.")
+            return False
+
+        if not force:
+            is_modified = tab.editor.edit_modified()
+            import tempfile
+            is_temp = tab.filepath and tab.filepath.startswith(tempfile.gettempdir())
+            has_content = len(tab.editor.get('1.0', tk.END).strip()) > 0
+
+            if is_temp and has_content:
+                notebook.select(tab.tab_frame)
+                _sync_filepath_from_tab()
+                response = messagebox.askyesnocancel(
+                    "Save Untitled Script?",
+                    "This script has not been saved to a permanent location. Save it?")
+                if response is True:
+                    if not save_script():
+                        return False
+                elif response is None:
+                    return False
+            elif is_modified:
+                notebook.select(tab.tab_frame)
+                _sync_filepath_from_tab()
+                name = os.path.basename(tab.filepath) if tab.filepath else "Untitled"
+                response = messagebox.askyesnocancel(
+                    "Unsaved Changes", f"'{name}' has unsaved changes. Save?")
+                if response is True:
+                    if not save_script():
+                        return False
+                elif response is None:
+                    return False
+
+        if tab in tabs:
+            tabs.remove(tab)
+        try:
+            notebook.forget(tab.tab_frame)
+        except tk.TclError:
+            pass
+        tab.tab_frame.destroy()
+
+        if not tabs:
+            create_new_tab()
+        else:
+            _sync_filepath_from_tab()
+            update_window_title()
+
+        _save_tab_state()
+        return True
+
+    def _on_tab_changed(event):
+        """Handle notebook tab-selection changes."""
+        _sync_filepath_from_tab()
+        update_window_title()
+        tab = get_active_tab()
+        if tab:
+            try:
+                current_line = int(tab.editor.index(tk.INSERT).split('.')[0])
+                update_selection_highlight(current_line)
+            except (tk.TclError, ValueError):
+                pass
+
+    notebook.bind("<<NotebookTabChanged>>", _on_tab_changed)
+
+    # Right-click on tab header for close option
+    def _tab_right_click(event):
+        try:
+            clicked_index = notebook.index(f"@{event.x},{event.y}")
+        except tk.TclError:
+            return
+        if clicked_index < 0 or clicked_index >= len(tabs):
+            return
+        tab = tabs[clicked_index]
+        menu = tk.Menu(notebook, tearoff=0,
+                       bg=theme.WIDGET_BG, fg=theme.FG_COLOR,
+                       activebackground=theme.PRIMARY_ACCENT,
+                       activeforeground=theme.FG_COLOR)
+        menu.add_command(label="Close Tab", command=lambda: close_tab(tab))
+        menu.add_command(label="Close Other Tabs",
+                         command=lambda: _close_other_tabs(tab))
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _close_other_tabs(keep_tab):
+        for t in list(tabs):
+            if t is not keep_tab:
+                close_tab(t)
+
+    notebook.bind("<Button-3>", _tab_right_click)
+
+    def _save_tab_state():
+        """Persist open tab file paths and active index to config."""
+        try:
+            from src.config import load_config, save_config
+            config = load_config()
+            import tempfile
+            tab_paths = []
+            for t in tabs:
+                if t.filepath and not t.filepath.startswith(tempfile.gettempdir()):
+                    tab_paths.append(t.filepath)
+            config['open_script_tabs'] = tab_paths
+            active = get_active_tab()
+            config['active_script_tab_index'] = tabs.index(active) if active and active in tabs else 0
+            save_config(config)
+        except Exception:
+            pass
+
+    def _find_tab_by_filepath(filepath):
+        """Find an existing tab that has the given filepath open."""
+        norm = os.path.normpath(filepath)
+        for tab in tabs:
+            if tab.filepath and os.path.normpath(tab.filepath) == norm:
+                return tab
+        return None
+
+    # Keyboard shortcuts for tab management
+    root.bind("<Control-w>", lambda e: close_tab())
+    root.bind("<Control-n>", lambda e: new_script())
+
+    # Create a proxy so external consumers (DevicePanel) always talk to the active editor
+    script_editor_proxy = _ActiveEditorProxy(get_active_editor)
+
+    # Create one initial empty tab so script_editor is never None at first use
+    _first_tab = create_new_tab()
+    script_editor = _first_tab.editor
 
     # The command reference is no longer created here.
 
     def update_window_title():
+        tab = get_active_tab()
         filename = "Untitled"
         unsaved_tag = ""
-        if current_filepath:
-            filename = os.path.basename(current_filepath)
-            # Check if it's a temp file
+        fp = tab.filepath if tab else current_filepath
+        if fp:
+            filename = os.path.basename(fp)
             import tempfile
-            if current_filepath.startswith(tempfile.gettempdir()):
+            if fp.startswith(tempfile.gettempdir()):
                 filename = "Untitled"
                 unsaved_tag = " (unsaved)"
-        modified_star = "*" if script_editor.edit_modified() else "";
+        try:
+            editor = tab.editor if tab else None
+            modified_star = "*" if editor and editor.edit_modified() else ""
+        except tk.TclError:
+            modified_star = ""
         root.title(f"{filename}{modified_star}{unsaved_tag} - BR Equipment Control App")
+        if tab:
+            update_tab_label(tab)
 
     def on_text_modified(event):
-        """Updates window title and triggers autosave if enabled."""
+        """Updates window title and triggers autosave for ALL open tabs."""
         update_window_title()
-        
-        # --- Autosave Logic ---
-        # Skip autosave if we're currently loading a file
+
         if loading_file[0]:
-            print(f"[LOCK DEBUG] Skipping autosave - file loading in progress")
-        elif autosave_var.get() and current_filepath:
-            # Call the save_script function but without triggering the dialog
+            pass
+        elif autosave_var.get():
+            # Autosave every tab that has a filepath
+            for t in tabs:
+                if t.filepath and t.editor.edit_modified():
+                    try:
+                        with open(t.filepath, 'w') as f:
+                            f.write(t.editor.get('1.0', 'end-1c'))
+                        t.editor.edit_modified(False)
+                        update_tab_label(t)
+                    except Exception as e:
+                        status_var.set(f"Autosave Error: {e}")
+
+        tab = get_active_tab()
+        if tab:
             try:
-                with open(current_filepath, 'w') as f:
-                    f.write(script_editor.get('1.0', 'end-1c'))
-                # Mark as unmodified to prevent the "unsaved" dialog
-                script_editor.edit_modified(False)
-                update_window_title() # Update title to remove '*'
-            except Exception as e:
-                status_var.set(f"Autosave Error: {e}")
+                current_line = int(tab.editor.index(tk.INSERT).split('.')[0])
+                update_selection_highlight(current_line)
+            except (tk.TclError, ValueError):
+                pass
 
-        # Update the highlight to follow the cursor's current line
-        current_line = int(script_editor.index(tk.INSERT).split('.')[0])
-        update_selection_highlight(current_line)
-
-    # Add the binding for autosave/title update. The highlighter binds itself.
-    script_editor.bind("<<Modified>>", on_text_modified, add='+')
+    # Binding for autosave/title update is now set per-tab in create_new_tab()
 
     status_var = tk.StringVar(value="Status: Idle")
     shared_gui_refs['status_var'] = status_var  # Make accessible to operator views
@@ -1291,128 +1587,112 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         recent_files_menu_ref = menu_obj
         update_recent_files_display()
 
-    # --- File Operations ---
-    def check_unsaved_changes():
-        is_modified = script_editor.edit_modified()
-        
-        # Check if current file is a temp file (unsaved)
-        import tempfile
-        is_temp_file = current_filepath and current_filepath.startswith(tempfile.gettempdir())
-        has_content = len(script_editor.get('1.0', tk.END).strip()) > 0
-        
-        
-        # If it's a temp file with content, always warn even if autosaved
-        if is_temp_file and has_content:
-            response = messagebox.askyesnocancel("Save Untitled Script?", 
-                "This script has not been saved to a permanent location. Do you want to save it?")
-            if response is True:
-                return save_script()  # This will trigger "Save As" dialog for temp files
-            elif response is False:
-                return True  # User chose not to save
-            else:
-                return False  # User cancelled
-        
-        # Normal modification check for regular files
-        if not is_modified:
-            return True
-        
-        response = messagebox.askyesnocancel("Unsaved Changes", "You have unsaved changes. Do you want to save them?")
-        if response is True:
-            return save_script()
-        elif response is False:
-            return True
-        else:
-            return False
+    # --- File Operations (tab-aware) ---
+    def check_all_unsaved_changes():
+        """Check ALL tabs for unsaved changes before app close. Returns True to proceed."""
+        for tab in list(tabs):
+            editor = tab.editor
+            import tempfile
+            is_temp = tab.filepath and tab.filepath.startswith(tempfile.gettempdir())
+            has_content = len(editor.get('1.0', tk.END).strip()) > 0
+            is_modified = editor.edit_modified()
+
+            if (is_temp and has_content) or is_modified:
+                notebook.select(tab.tab_frame)
+                _sync_filepath_from_tab()
+                name = os.path.basename(tab.filepath) if tab.filepath and not is_temp else "Untitled"
+                response = messagebox.askyesnocancel(
+                    "Unsaved Changes",
+                    f"'{name}' has unsaved changes. Save before closing?")
+                if response is True:
+                    if not save_script():
+                        return False
+                elif response is None:
+                    return False
+        return True
 
     def new_script():
+        """Create a new empty tab."""
         nonlocal current_filepath
-        if not check_unsaved_changes(): return
-        
-        def _clear():
-            script_editor.delete('1.0', tk.END);
-            script_editor.edit_modified(False);
-        
-        with_editor_unlocked(_clear)
-        
-        # Create a temporary autosave file for new unsaved scripts
-        import tempfile
-        import datetime
+        import tempfile, datetime
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         temp_dir = tempfile.gettempdir()
-        current_filepath = os.path.join(temp_dir, f"untitled_{timestamp}.txt")
-        
-        # Create the empty temp file
+        temp_path = os.path.join(temp_dir, f"untitled_{timestamp}.txt")
         try:
-            with open(current_filepath, 'w') as f:
+            with open(temp_path, 'w') as f:
                 f.write("")
-        except Exception as e:
-            print(f"Warning: Could not create temp file for autosave: {e}")
-            current_filepath = None
-        
-        update_window_title();
+        except Exception:
+            temp_path = None
+
+        tab = create_new_tab(filepath=temp_path)
+        current_filepath = tab.filepath
+        update_window_title()
         update_selection_highlight(1)
 
     def save_script():
+        """Save the active tab's content."""
         nonlocal current_filepath
-        
-        # Check if current file is a temp file - if so, always do "Save As"
+        tab = get_active_tab()
+        if not tab:
+            return False
+        editor = tab.editor
+
         import tempfile
-        is_temp_file = current_filepath and current_filepath.startswith(tempfile.gettempdir())
-        
-        if current_filepath and not is_temp_file:
-            # Normal save to existing permanent file
+        is_temp = tab.filepath and tab.filepath.startswith(tempfile.gettempdir())
+
+        if tab.filepath and not is_temp:
             try:
-                with open(current_filepath, 'w') as f:
-                    f.write(script_editor.get('1.0', 'end-1c'))
-                script_editor.edit_modified(False);
-                update_window_title();
-                status_var.set(f"Saved to {os.path.basename(current_filepath)}");
-                add_to_recent_files(current_filepath)
+                with open(tab.filepath, 'w') as f:
+                    f.write(editor.get('1.0', 'end-1c'))
+                editor.edit_modified(False)
+                current_filepath = tab.filepath
+                update_window_title()
+                status_var.set(f"Saved to {os.path.basename(tab.filepath)}")
+                add_to_recent_files(tab.filepath)
                 update_recent_files_display()
+                _save_tab_state()
                 return True
             except Exception as e:
-                messagebox.showerror("Save Error", f"Could not save file:\n{e}");
+                messagebox.showerror("Save Error", f"Could not save file:\n{e}")
                 return False
         else:
-            # No file or temp file - trigger "Save As" dialog
             return save_script_as()
 
     def save_script_as():
+        """Save the active tab with a new filename."""
         nonlocal current_filepath
-        
-        # Remember the old temp file so we can delete it after saving
+        tab = get_active_tab()
+        if not tab:
+            return False
+
         import tempfile
-        old_temp_file = None
-        if current_filepath and current_filepath.startswith(tempfile.gettempdir()):
-            old_temp_file = current_filepath
-        
-        filepath = filedialog.asksaveasfilename(title="Save Script As", defaultextension=".breq",
-                                                filetypes=(("BR Equipment Script files", "*.breq"), ("Text files", "*.txt"), ("All files", "*.*")))
+        old_temp = None
+        if tab.filepath and tab.filepath.startswith(tempfile.gettempdir()):
+            old_temp = tab.filepath
+
+        filepath = filedialog.asksaveasfilename(
+            title="Save Script As", defaultextension=".breq",
+            filetypes=(("BR Equipment Script files", "*.breq"),
+                       ("Text files", "*.txt"), ("All files", "*.*")))
         if not filepath:
             return False
-        
+
+        _set_filepath(filepath)
         current_filepath = filepath
         result = save_script()
-        
-        # Clean up old temp file if save was successful
-        if result and old_temp_file:
+
+        if result and old_temp:
             try:
-                os.remove(old_temp_file)
-            except Exception as e:
-                pass  # Ignore errors when removing old temp file
-        
+                os.remove(old_temp)
+            except Exception:
+                pass
         return result
 
     def load_specific_script(filepath):
+        """Open *filepath* in a new tab, or switch to it if already open."""
         nonlocal current_filepath
-        print(f"[LOCK DEBUG] load_specific_script called for: {filepath}")
-        
-        if not check_unsaved_changes():
-            print(f"[LOCK DEBUG] check_unsaved_changes returned False, aborting load")
-            return
-            
+
         if not os.path.exists(filepath):
-            print(f"[LOCK DEBUG] File not found: {filepath}")
             messagebox.showerror("File Not Found", f"Could not find file:\n{filepath}")
             filepaths = load_recent_files()
             if filepath in filepaths:
@@ -1420,34 +1700,37 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 save_recent_files(filepaths)
             update_recent_files_display()
             return
+
+        existing = _find_tab_by_filepath(filepath)
+        if existing:
+            notebook.select(existing.tab_frame)
+            _sync_filepath_from_tab()
+            update_window_title()
+            return
+
         try:
             with open(filepath, 'r') as f:
                 content = f.read()
-            print(f"[LOCK DEBUG] Read {len(content)} characters from file")
-            
-            def _load():
-                print(f"[LOCK DEBUG] Clearing editor and inserting content")
-                script_editor.delete('1.0', tk.END);
-                script_editor.insert('1.0', content)
-                script_editor.edit_modified(False);
-            
-            with_editor_unlocked(_load)
-            
-            current_filepath = filepath;
-            update_window_title();
-            update_selection_highlight(1);
-            status_var.set(f"Loaded {os.path.basename(current_filepath)}")
+
+            tab = create_new_tab(filepath=filepath, content=content)
+            tab.editor.edit_modified(False)
+            current_filepath = filepath
+            update_window_title()
+            update_selection_highlight(1)
+            status_var.set(f"Loaded {os.path.basename(filepath)}")
             add_to_recent_files(filepath)
             update_recent_files_display()
-            print(f"[LOCK DEBUG] File loaded successfully")
+            _save_tab_state()
         except Exception as e:
-            print(f"[LOCK DEBUG] Error loading file: {e}")
             messagebox.showerror("Load Error", f"Could not load file:\n{e}")
 
     def load_script():
-        filepath = filedialog.askopenfilename(title="Open Script File",
-                                              filetypes=(("BR Equipment Script files", "*.breq"), ("Text files", "*.txt"), ("All files", "*.*")))
-        if not filepath: return
+        filepath = filedialog.askopenfilename(
+            title="Open Script File",
+            filetypes=(("BR Equipment Script files", "*.breq"),
+                       ("Text files", "*.txt"), ("All files", "*.*")))
+        if not filepath:
+            return
         load_specific_script(filepath)
 
     # --- Script Execution Logic ---
@@ -1501,8 +1784,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                     refresh_button_states()
                 return
 
-        # --- FIX: Clear any old selection highlight before starting ---
-        script_editor.tag_remove("selection_highlight", "1.0", tk.END)
+        active_ed = get_active_editor()
+        if active_ed:
+            active_ed.tag_remove("selection_highlight", "1.0", tk.END)
 
         start_line_num = 1
         if is_resuming:
@@ -1512,14 +1796,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 start_line_num = int(last_selection_highlight)
             except (ValueError, TypeError):
                 start_line_num = 1
-        
-        # CRITICAL: Clear feed_hold_line now that we've used it
-        # This ensures refresh_button_states() won't think we're holding
+
         feed_hold_line = None
 
         update_selection_highlight(start_line_num)
         is_single_block = single_block_var.get()
-        all_lines = script_editor.get("1.0", tk.END).splitlines()
+        all_lines = active_ed.get("1.0", tk.END).splitlines() if active_ed else []
 
         next_valid_line_num = -1
         next_valid_line_content = ""
@@ -1597,10 +1879,12 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 errors = []
             else:
                 errors = validate_single_line(next_valid_line_content, next_valid_line_num, scripting_commands)
-            script_editor.tag_remove("error_highlight", "1.0", tk.END)
+            if active_ed:
+                active_ed.tag_remove("error_highlight", "1.0", tk.END)
             if errors:
                 ValidationResultsWindow(scripting_area, errors)
-                script_editor.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
+                if active_ed:
+                    active_ed.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
                 status_var.set(f"Error on line {next_valid_line_num}.")
                 update_button_states(running=False, holding=False)
                 return
@@ -1636,9 +1920,9 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
                 if disconnected:
                     error_msg = f"Cannot execute line {next_valid_line_num}: Device(s) not connected: {', '.join(disconnected)}"
                     status_var.set(error_msg)
-                    script_editor.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
-                    
-                    # Show error dialog
+                    if active_ed:
+                        active_ed.tag_add("error_highlight", f"{next_valid_line_num}.0", f"{next_valid_line_num}.end")
+
                     import tkinter.messagebox as messagebox
                     messagebox.showerror(
                         "Devices Not Connected",
@@ -1716,50 +2000,47 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         """Legacy function for explicit state setting."""
         refresh_button_states()
 
-    # MODIFIED: This function now safely schedules GUI updates on the main thread.
     def status_callback_handler(message, line_num):
         def update_gui():
             nonlocal last_exec_highlight, is_held_by_user, feed_hold_line
-            
-            # Always update status bar with message
+
             status_var.set(message)
-            
-            # If we received an ERROR or RECOVERY message, handle it appropriately
+
             if "_ERROR:" in message or "_RECOVERY:" in message or "RECOVERY:" in message:
-                # If a script is running, trigger hold state
                 if script_runner and script_runner.is_running:
                     is_held_by_user = True
                     feed_hold_line = line_num if line_num != -1 else last_exec_highlight
-                    shared_gui_refs['command_funcs']['abort']()  # Pause ALL connected devices
-                    # Don't stop the runner - it will enter hold state and wait for resume
-                # Always refresh button states to show error in UI
+                    shared_gui_refs['command_funcs']['abort']()
                 refresh_button_states()
-            
-            if last_exec_highlight != line_num:
+
+            # Apply execution highlight on the running tab's editor (not the active tab)
+            rt_editor = running_tab.editor if running_tab else get_active_editor()
+            if rt_editor and last_exec_highlight != line_num:
                 if last_exec_highlight != -1:
-                    script_editor.tag_remove("exec_highlight", f"{last_exec_highlight}.0", f"{last_exec_highlight}.end")
+                    rt_editor.tag_remove("exec_highlight", f"{last_exec_highlight}.0", f"{last_exec_highlight}.end")
                 if line_num != -1:
-                    script_editor.tag_add("exec_highlight", f"{line_num}.0", f"{line_num}.end")
-                    # Raise exec_highlight above other tags so it's visible
-                    script_editor.text.tag_raise("exec_highlight")
+                    rt_editor.tag_add("exec_highlight", f"{line_num}.0", f"{line_num}.end")
+                    rt_editor.text.tag_raise("exec_highlight")
                 last_exec_highlight = line_num
 
-        # Schedule the GUI update to run in the main event loop
         root.after(0, update_gui)
 
     def on_run_finished(my_runner):
-        nonlocal is_held_by_user
-        # Only execute if this runner is still the current one
+        nonlocal is_held_by_user, running_tab
         if my_runner is not script_runner:
             return
-        
+
         if is_held_by_user:
             status_var.set(f"Hold active. Halted at line {feed_hold_line}.")
             is_held_by_user = False
         else:
             status_callback_handler("Idle", -1)
-        
-        # Always refresh button states based on actual state
+            # Script finished - clear running tab indicator
+            old_running = running_tab
+            running_tab = None
+            if old_running:
+                update_tab_label(old_running)
+
         refresh_button_states()
 
     # Track the last block end line for single block mode
@@ -1768,60 +2049,64 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def on_step_finished(my_runner):
         nonlocal last_block_end_line, is_held_by_user, feed_hold_line
         print(f"[on_step_finished] Called. Runner match: {my_runner is script_runner}, held: {is_held_by_user}")
-        
-        # Only execute if this runner is still the current one
+
         if my_runner is not script_runner:
             print(f"[on_step_finished] Runner mismatch, ignoring")
             return
-        
+
+        rt_editor = running_tab.editor if running_tab else get_active_editor()
+
         if is_held_by_user:
             held_line = last_exec_highlight if last_exec_highlight != -1 else last_selection_highlight
             status_var.set(f"Hold active. Halted at line {held_line}.")
             is_held_by_user = False
             refresh_button_states()
             return
-        
+
         refresh_button_states()
         current_line_num = int(last_selection_highlight)
-        
-        # If we ran a block with multiple lines, skip to the end of the block
+
         if last_block_end_line and last_block_end_line > current_line_num:
             next_line_num = last_block_end_line + 1
         else:
             next_line_num = current_line_num + 1
-        
-        last_block_end_line = None  # Reset for next step
-        
-        # Skip empty lines and comments to find the next executable line
-        all_lines = script_editor.get("1.0", tk.END).splitlines()
+
+        last_block_end_line = None
+
+        if rt_editor:
+            all_lines = rt_editor.get("1.0", tk.END).splitlines()
+        else:
+            all_lines = []
         next_valid_line_num = -1
         for i in range(next_line_num - 1, len(all_lines)):
             line_content = all_lines[i].strip()
             if line_content and not line_content.startswith('#'):
                 next_valid_line_num = i + 1
                 break
-        
-        # If we found a valid line, use it; otherwise keep next_line_num
+
         if next_valid_line_num != -1:
             next_line_num = next_valid_line_num
-        
-        # Only set "Step complete" if the script is not in error hold state
+
         if script_runner and script_runner.is_held:
             print(f"[on_step_finished] Script in error hold, preserving error message")
         else:
-            status_var.set(f"Step complete. Next line: {next_line_num}");
-        
-        # Use a single, scheduled function to advance both the cursor and selection highlights
+            status_var.set(f"Step complete. Next line: {next_line_num}")
+
         def advance_highlights():
-            script_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
-            update_selection_highlight(next_line_num)
-        
+            if rt_editor:
+                rt_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
+            update_selection_highlight(next_line_num, target_editor=rt_editor)
+
         root.after(0, advance_highlights)
 
     def run_script_from_content(content, line_offset=0, is_step=False):
-        nonlocal script_runner, script_start_time
-        
-        # Debug logging
+        nonlocal script_runner, script_start_time, running_tab
+
+        # Capture the tab that initiated execution
+        running_tab = get_active_tab()
+        if running_tab:
+            update_tab_label(running_tab)
+
         mode = "SINGLE BLOCK" if is_step else "CONTINUOUS"
         first_line = content.split('\n')[0][:50] if content else ""
         print(f"[RUN] Starting {mode} mode: {first_line}")
@@ -1865,13 +2150,17 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
             
             # Schedule GUI updates on the main thread (Tkinter is NOT thread-safe)
             def update_gui_on_main_thread():
-                # Refresh button states based on actual state
+                nonlocal running_tab
                 refresh_button_states()
-                
-                # Handle the line advancement for single block mode
+
                 if is_step and not is_held_by_user:
                     print(f"[CALLBACK] Advancing to next line")
                     advance_to_next_line()
+                elif not is_step:
+                    old_running = running_tab
+                    running_tab = None
+                    if old_running:
+                        update_tab_label(old_running)
             
             root.after(0, update_gui_on_main_thread)
         
@@ -1892,46 +2181,47 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
     def advance_to_next_line():
         """Advance to the next executable line after a single block completes."""
         nonlocal last_block_end_line
+        rt_editor = running_tab.editor if running_tab else get_active_editor()
         current_line_num = int(last_selection_highlight)
-        
-        # If we ran a block with multiple lines, skip to the end of the block
+
         if last_block_end_line and last_block_end_line > current_line_num:
             next_line_num = last_block_end_line + 1
         else:
             next_line_num = current_line_num + 1
-        
-        last_block_end_line = None  # Reset for next step
-        
-        # Skip empty lines and comments to find the next executable line
-        all_lines = script_editor.get("1.0", tk.END).splitlines()
+
+        last_block_end_line = None
+
+        if rt_editor:
+            all_lines = rt_editor.get("1.0", tk.END).splitlines()
+        else:
+            all_lines = []
         next_valid_line_num = -1
         for i in range(next_line_num - 1, len(all_lines)):
             line_content = all_lines[i].strip()
             if line_content and not line_content.startswith('#'):
                 next_valid_line_num = i + 1
                 break
-        
-        # If we found a valid line, use it; otherwise keep next_line_num
+
         if next_valid_line_num != -1:
             next_line_num = next_valid_line_num
-        
-        # Only set "Step complete" if the script is not in error hold state
-        # If in error hold, the error message should remain visible
+
         if script_runner and script_runner.is_held:
-            # Script is in error hold - don't overwrite the error message
             print(f"[CALLBACK] Script in error hold, preserving error message")
         else:
             status_var.set(f"Step complete. Next line: {next_line_num}")
-        
-        # Advance both the cursor and selection highlights
-        script_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
-        update_selection_highlight(next_line_num)
+
+        if rt_editor:
+            rt_editor.text.mark_set(tk.INSERT, f"{next_line_num}.0")
+        update_selection_highlight(next_line_num, target_editor=rt_editor)
 
     def clear_error_highlighting():
-        script_editor.tag_remove("error_highlight", "1.0", tk.END)
+        editor = get_active_editor()
+        if editor:
+            editor.tag_remove("error_highlight", "1.0", tk.END)
 
     def check_script_validity(show_success=False):
-        script_content = script_editor.get("1.0", tk.END)
+        editor = get_active_editor()
+        script_content = editor.get("1.0", tk.END) if editor else ""
         # Get fresh commands for validation
         current_commands = get_current_commands()
         # Get reports for validation
@@ -1963,10 +2253,11 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         if errors:
             ValidationResultsWindow(scripting_area, errors, on_close_callback=clear_error_highlighting);
             status_var.set(f"{len(errors)} error(s) found.")
+            ve = get_active_editor()
             for error in errors: 
-                if error.get('line', 0) > 0:
+                if error.get('line', 0) > 0 and ve:
                     line_num = error['line']
-                    script_editor.tag_add("error_highlight", f"{line_num}.0", f"{line_num}.end")
+                    ve.tag_add("error_highlight", f"{line_num}.0", f"{line_num}.end")
             return False
         else:
             if show_success: 
@@ -2019,121 +2310,121 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     def abort_script_on_disconnect(device_key):
         """Called when a device disconnects during script execution."""
-        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight
-        
+        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight, running_tab
+
         if script_runner and script_runner.is_running:
             print(f"[DISCONNECT] {device_key} disconnected during script - aborting script")
             script_runner.stop()
-            
-            # Clear hold state
+
             is_held_by_user = False
             feed_hold_line = None
-            
-            # Clear highlights
-            script_editor.tag_remove("exec_highlight", "1.0", tk.END)
+
+            rt_editor = running_tab.editor if running_tab else get_active_editor()
+            if rt_editor:
+                rt_editor.tag_remove("exec_highlight", "1.0", tk.END)
             last_exec_highlight = -1
-            
-            # Update status
+
+            old_running = running_tab
+            running_tab = None
+            if old_running:
+                update_tab_label(old_running)
+
             status_var.set(f"Script aborted: {device_key.capitalize()} disconnected")
             refresh_button_states()
     
     def handle_reset():
-        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight, paused_device
+        nonlocal script_runner, feed_hold_line, is_held_by_user, last_exec_highlight, paused_device, running_tab
         print(f"[RESET] Reset button pressed")
-        
+
         if script_runner and script_runner.is_running:
             print(f"[RESET] Stopping running script")
             script_runner.stop()
-        
-        # Stop all active logging
+
         data_logger = shared_gui_refs.get('data_logger')
         if data_logger:
             print(f"[RESET] Stopping all active logging")
-            data_logger.stop_logging()  # Stop all logs when no filename specified
-            
-            # Clear logging status display
+            data_logger.stop_logging()
             logging_status_var.set(" ")
-            
-            # Refresh device panel to update logging indicators
             device_panel = shared_gui_refs.get('device_panel')
             if device_panel and hasattr(device_panel, 'refresh'):
                 device_panel.refresh()
-        
-        # Clear error hold state
+
         if script_runner and hasattr(script_runner, 'is_held'):
             script_runner.is_held = False
-            script_runner.had_errors = False  # Clear error tracking
-        
-        is_held_by_user = False # Ensure reset clears any hold state
-        paused_device = None # Clear paused device
-        feed_hold_line = None # Clear feed hold line
+            script_runner.had_errors = False
+
+        is_held_by_user = False
+        paused_device = None
+        feed_hold_line = None
         shared_gui_refs['command_funcs']['abort']()
 
-        # Explicitly clear any lingering execution and error highlights immediately.
-        script_editor.tag_remove("exec_highlight", "1.0", tk.END)
-        script_editor.tag_remove("error_highlight", "1.0", tk.END)
-        last_exec_highlight = -1 # Reset the tracker
-        
-        # Refresh button states to restore normal state
+        # Clear highlights on the running tab (or active tab if none running)
+        rt_editor = running_tab.editor if running_tab else get_active_editor()
+        if rt_editor:
+            rt_editor.tag_remove("exec_highlight", "1.0", tk.END)
+            rt_editor.tag_remove("error_highlight", "1.0", tk.END)
+        last_exec_highlight = -1
+
+        old_running = running_tab
+        running_tab = None
+        if old_running:
+            update_tab_label(old_running)
+
         refresh_button_states()
-        
-        # Reset status message and clear error background
         status_var.set("Reset complete.")
 
-        # Send reset to all devices that are currently connected.
-        device_manager = shared_gui_refs.get('device_manager')
-        if device_manager:
-            all_devices = device_manager.get_device_modules()
+        dm = shared_gui_refs.get('device_manager')
+        if dm:
+            all_devices = dm.get_device_modules()
             for device_key in all_devices.keys():
-                # The command_funcs dictionary already has the correctly scoped sender function.
                 sender_func_name = f"send_{device_key}"
                 if sender_func_name in shared_gui_refs['command_funcs']:
                     shared_gui_refs['command_funcs'][sender_func_name]("reset")
 
         feed_hold_line = None
         print(f"[RESET] Cleared feed_hold_line, resetting to line 1")
-        
-        # Move cursor and selection highlight to the top
-        script_editor.text.mark_set(tk.INSERT, "1.0")
+
+        active_editor = get_active_editor()
+        if active_editor:
+            active_editor.text.mark_set(tk.INSERT, "1.0")
         update_selection_highlight(1)
-        
+
         status_var.set("Script reset. Ready to start from line 1.")
         refresh_button_states()
 
-    def update_selection_highlight(line_num):
+    def update_selection_highlight(line_num, target_editor=None):
         nonlocal last_selection_highlight
-        # Remove the highlight from all lines first to ensure only one is ever highlighted.
-        script_editor.tag_remove("selection_highlight", "1.0", tk.END)
+        editor = target_editor or get_active_editor()
+        if not editor:
+            return
+        editor.tag_remove("selection_highlight", "1.0", tk.END)
         if line_num != -1:
-            script_editor.tag_add("selection_highlight", f"{line_num}.0", f"{line_num}.end")
+            editor.tag_add("selection_highlight", f"{line_num}.0", f"{line_num}.end")
             last_selection_highlight = line_num
-        # Ensure exec_highlight (golden) stays on top of selection_highlight (grey)
-        if script_editor.text.tag_ranges("exec_highlight"):
-            script_editor.text.tag_raise("exec_highlight")
+        if editor.text.tag_ranges("exec_highlight"):
+            editor.text.tag_raise("exec_highlight")
 
     def on_line_click(event):
         nonlocal feed_hold_line
-        index = script_editor.index(f"@{event.x},{event.y}")
-        line_num = int(index.split('.')[0])
-        update_selection_highlight(line_num)
-        # When user clicks a line, it implies they want to start from there,
-        # so clear any pending feed hold resume state.
-        feed_hold_line = None
+        editor = get_active_editor()
+        if not editor:
+            return
+        try:
+            index = editor.index(f"@{event.x},{event.y}")
+            line_num = int(index.split('.')[0])
+            update_selection_highlight(line_num)
+            feed_hold_line = None
+        except (tk.TclError, ValueError):
+            pass
 
-    script_editor.bind("<Button-1>", on_line_click)
-    
-    # Set initial cursor position and highlight - do this immediately
-    script_editor.text.mark_set(tk.INSERT, "1.0")
-    script_editor.text.see("1.0")
-    
-    # Set initial highlight after a short delay to ensure everything is rendered
-    # This happens after any initial text loading/modifications are complete
     def set_initial_highlight():
-        script_editor.text.mark_set(tk.INSERT, "1.0")
-        update_selection_highlight(1)
-        script_editor.text.see("1.0")
-    
-    script_editor.after(200, set_initial_highlight)
+        editor = get_active_editor()
+        if editor:
+            editor.text.mark_set(tk.INSERT, "1.0")
+            update_selection_highlight(1)
+            editor.text.see("1.0")
+
+    root.after(200, set_initial_highlight)
 
     # --- Control Buttons ---
     btn_container = ttk.Frame(control_frame, style='TFrame');
@@ -2155,54 +2446,41 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
 
     # --- Lock Editor Button (right-justified) ---
     def toggle_editor_lock(*args):
-        """Toggle the script editor between locked (read-only) and unlocked."""
+        """Toggle ALL tab editors between locked (read-only) and unlocked."""
         is_locked = lock_editor_var.get()
-        print(f"[LOCK DEBUG] toggle_editor_lock called: is_locked={is_locked}")
-        
+        for t in tabs:
+            t.editor.text.config(state='disabled' if is_locked else 'normal')
         if is_locked:
-            script_editor.text.config(state='disabled')
             lock_editor_switch.config(style="Red.TButton")
-            print(f"[LOCK DEBUG] Editor locked (disabled)")
         else:
-            script_editor.text.config(state='normal')
             lock_editor_switch.config(style="OrangeToggle.TButton")
-            print(f"[LOCK DEBUG] Editor unlocked (normal)")
-        
-        # Save preference to config
         try:
             from src.config import load_config, save_config
             config = load_config()
             config['lock_editor'] = is_locked
             save_config(config)
-            print(f"[LOCK DEBUG] Saved lock state to config: {is_locked}")
-        except Exception as e:
-            print(f"[ERROR] Failed to save lock editor state: {e}")
-    
-    # Flag to prevent autosave during file loading
-    loading_file = [False]  # Use list so it's mutable in nested function
-    
-    def with_editor_unlocked(func):
-        """Temporarily unlock editor to perform an operation, then restore lock state."""
+        except Exception:
+            pass
+
+    loading_file = [False]
+
+    def with_editor_unlocked(func, editor=None):
+        """Temporarily unlock an editor to perform an operation, then restore lock state."""
+        if editor is None:
+            editor = get_active_editor()
+        if editor is None:
+            func()
+            return
         was_locked = lock_editor_var.get()
-        current_state = script_editor.text.cget('state')
-        print(f"[LOCK DEBUG] with_editor_unlocked: was_locked={was_locked}, current_state={current_state}")
-        
-        # Set flag to prevent autosave during this operation
         loading_file[0] = True
-        
         if was_locked:
-            script_editor.text.config(state='normal')
-            print(f"[LOCK DEBUG] Unlocked editor for operation")
+            editor.text.config(state='normal')
         try:
             func()
-            print(f"[LOCK DEBUG] Operation completed successfully")
         finally:
-            # Clear flag - autosave can resume
             loading_file[0] = False
-            
             if was_locked:
-                script_editor.text.config(state='disabled')
-                print(f"[LOCK DEBUG] Re-locked editor after operation")
+                editor.text.config(state='disabled')
     
     # Bind the variable to the toggle function (do this before creating the button)
     lock_editor_var.trace_add('write', toggle_editor_lock)
@@ -2254,18 +2532,29 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         "open": load_script,
         "save": save_script,
         "save_as": save_script_as,
-        "validate": lambda: check_script_validity(show_success=True)
+        "validate": lambda: check_script_validity(show_success=True),
+        "close_tab": lambda: close_tab(),
     }
     
+    def _editor_event(event_name):
+        ed = get_active_editor()
+        if ed:
+            ed.text.event_generate(event_name)
+
+    def _show_find_replace():
+        tab = get_active_tab()
+        if tab and tab.find_replace_frame:
+            tab.find_replace_frame.show()
+
     edit_commands = {
-        "undo": lambda: script_editor.text.event_generate("<<Undo>>"),
-        "redo": lambda: script_editor.text.event_generate("<<Redo>>"),
-        "cut": lambda: script_editor.text.event_generate("<<Cut>>"),
-        "copy": lambda: script_editor.text.event_generate("<<Copy>>"),
-        "paste": lambda: script_editor.text.event_generate("<<Paste>>"),
-        "find": find_replace_frame.show,
-        "replace": find_replace_frame.show,
-        "find_replace": find_replace_frame.show  # Keep for compatibility
+        "undo": lambda: _editor_event("<<Undo>>"),
+        "redo": lambda: _editor_event("<<Redo>>"),
+        "cut": lambda: _editor_event("<<Cut>>"),
+        "copy": lambda: _editor_event("<<Copy>>"),
+        "paste": lambda: _editor_event("<<Paste>>"),
+        "find": _show_find_replace,
+        "replace": _show_find_replace,
+        "find_replace": _show_find_replace,
     }
     
     # --- Check for recovery files on startup ---
@@ -2274,86 +2563,72 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         import tempfile
         import glob
         import time
-        
+
         temp_dir = tempfile.gettempdir()
         pattern = os.path.join(temp_dir, "untitled_*.txt")
         temp_files = glob.glob(pattern)
-        
-        
-        # Filter files: must have content, ignore very new files (< 5 seconds, likely current session)
+
         recoverable_files = []
         for tf in temp_files:
             try:
-                # Check file age and size
                 age_seconds = time.time() - os.path.getmtime(tf)
                 size = os.path.getsize(tf)
-                
-                # Only offer recovery if file is > 5 seconds old and has content
-                # (5 seconds gives time for the new session to create its own temp file)
                 if age_seconds > 5 and size > 0:
                     recoverable_files.append((tf, age_seconds))
-            except Exception as e:
-                pass  # Ignore errors checking temp files
-        
-        
+            except Exception:
+                pass
+
         if recoverable_files:
-            # Sort by most recent first
             recoverable_files.sort(key=lambda x: x[1])
-            
-            # Show recovery dialog
             msg = f"Found {len(recoverable_files)} unsaved script(s) from a previous session.\n\n"
             msg += "Would you like to recover the most recent one?"
-            
+
             response = messagebox.askyesno("Recover Unsaved Work?", msg)
             if response:
-                # Load the most recent file
                 most_recent = recoverable_files[0][0]
                 try:
                     with open(most_recent, 'r') as f:
                         content = f.read()
-                    
-                    def _recover():
-                        script_editor.delete('1.0', tk.END)
-                        script_editor.insert('1.0', content)
-                        script_editor.edit_modified(False)  # Mark as unmodified since it's from autosave
-                    
-                    with_editor_unlocked(_recover)
-                    
-                    nonlocal current_filepath
-                    current_filepath = most_recent
-                    update_window_title()
+
+                    # Load into the first (empty) tab
+                    tab = get_active_tab()
+                    if tab:
+                        def _recover():
+                            tab.editor.delete('1.0', tk.END)
+                            tab.editor.insert('1.0', content)
+                            tab.editor.edit_modified(False)
+                        with_editor_unlocked(_recover, editor=tab.editor)
+                        tab.filepath = most_recent
+                        nonlocal current_filepath
+                        current_filepath = most_recent
+                        update_tab_label(tab)
+                        update_window_title()
                     status_var.set("Recovered unsaved script - use 'Save As' to choose a permanent location")
                 except Exception as e:
                     messagebox.showerror("Recovery Error", f"Could not recover file:\n{e}")
-            else:
-                pass  # User declined recovery
-            
-            # Clean up old temp files (ask first) - but NOT the one we just recovered
+
             if len(recoverable_files) > 1:
-                cleanup = messagebox.askyesno("Clean Up", 
+                cleanup = messagebox.askyesno("Clean Up",
                     f"Would you like to delete the other {len(recoverable_files)-1} old temp file(s)?")
                 if cleanup:
                     for tf, _ in recoverable_files[1:]:
                         try:
                             os.remove(tf)
-                        except Exception as e:
-                            pass  # Ignore errors deleting old temp files
-        
-        # If no recovery happened, add example script
+                        except Exception:
+                            pass
+
         if not recoverable_files and not current_filepath:
-            def _add_example():
-                script_editor.insert(tk.END, "# Example Script\n# Type commands here or load a file.\n")
-                script_editor.edit_reset()
-                script_editor.edit_modified(False)
-            with_editor_unlocked(_add_example)
-        
-        # After recovery completes, apply the initial lock state if needed
-        # Delay slightly more (100ms) to ensure any startup file loading has completed
+            tab = get_active_tab()
+            if tab:
+                def _add_example():
+                    tab.editor.insert(tk.END, "# Example Script\n# Type commands here or load a file.\n")
+                    tab.editor.edit_reset()
+                    tab.editor.edit_modified(False)
+                with_editor_unlocked(_add_example, editor=tab.editor)
+
         if initial_lock_state:
-            print(f"[LOCK DEBUG] Scheduling lock to be applied in 100ms")
-            root.after(100, lambda: (print("[LOCK DEBUG] Applying saved lock state"), lock_editor_var.set(True)))
-    
-    # Schedule recovery check after GUI is fully loaded
+            root.after(100, lambda: lock_editor_var.set(True))
+
     root.after(500, check_for_recovery)
     
     # Register the disconnect handler in shared_gui_refs
@@ -2383,11 +2658,23 @@ def create_scripting_interface(parent, command_funcs, shared_gui_refs, autosave_
         "file_commands": file_commands,
         "edit_commands": edit_commands,
         "update_recent_menu_callback": set_recent_menu_reference,
-        "check_unsaved": check_unsaved_changes,
+        "check_unsaved": check_all_unsaved_changes,
         "load_specific_script": load_specific_script,
-        "script_editor": script_editor, # Expose the script editor widget
-        "syntax_highlighter": script_editor.highlighter, # Expose for refreshing
-        "scripting_commands": get_current_commands(), # Expose for command reference (snapshot)
-        "device_modules": device_modules, # Expose for command reference
-        "get_script_content": lambda: script_editor.get("1.0", tk.END)
+        "script_editor": script_editor_proxy,
+        "syntax_highlighter": _first_tab.editor.highlighter,
+        "scripting_commands": get_current_commands(),
+        "device_modules": device_modules,
+        "get_script_content": lambda: (get_active_editor().get("1.0", tk.END) if get_active_editor() else ""),
+        # --- New tab API ---
+        "open_script_in_tab": load_specific_script,
+        "run_active_tab": handle_cycle_start,
+        "get_active_tab_filepath": lambda: (get_active_tab().filepath if get_active_tab() else None),
+        "get_active_editor": get_active_editor,
+        "create_new_tab": create_new_tab,
+        "close_tab": close_tab,
+        "get_all_tabs": lambda: list(tabs),
+        "notebook": notebook,
+        # --- Layout frames (for collapsible editor) ---
+        "toolbar_frame": _toolbar_parent,
+        "editor_frame": scripting_area,
     }
