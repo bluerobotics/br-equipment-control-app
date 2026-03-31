@@ -15,22 +15,27 @@ from src.logging.terminal import log_to_terminal
 
 
 class QuickLaunchPanel(ttk.Frame):
-    """Vertical stack of large script-launch buttons for the left sidebar."""
+    """Horizontal grid of script-launch buttons for the center panel."""
 
     POLL_INTERVAL_MS = 500
+    _PAD = 4
 
     def __init__(self, parent, shared_gui_refs, scripting_gui_refs=None, **kwargs):
         super().__init__(parent, style='Card.TFrame', **kwargs)
         self.shared_gui_refs = shared_gui_refs
         self.scripting_gui_refs = scripting_gui_refs
         self._buttons = {}        # idx -> tk.Button
+        self._btn_frames = {}     # idx -> border Frame wrapping each button
         self._running_idx = None  # index of the currently-running script button (for visual state)
         self._poll_id = None
+        self._last_container_width = 0
 
         self._build_header()
         self._button_container = ttk.Frame(self, style='Card.TFrame')
-        self._button_container.pack(side=tk.TOP, fill='x')
+        self._button_container.pack(side=tk.TOP, fill='x', pady=(0, 4))
+        self._button_container.pack_propagate(False)
         self._rebuild_buttons()
+        self._button_container.bind('<Configure>', self._on_container_resize)
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -77,24 +82,35 @@ class QuickLaunchPanel(ttk.Frame):
         for widget in self._button_container.winfo_children():
             widget.destroy()
         self._buttons.clear()
+        self._btn_frames.clear()
+        self._last_container_width = 0
 
         scripts = get_quick_launch_scripts()
         if not scripts:
+            self._button_container.pack_propagate(True)
             ttk.Label(
                 self._button_container,
-                text="No scripts configured.\nClick + to add.",
+                text="No scripts configured. Click + to add.",
                 style='Subtle.TLabel',
                 justify=tk.CENTER,
-            ).pack(pady=10, padx=10)
+            ).pack(pady=6, padx=10)
             return
 
+        self._button_container.pack_propagate(False)
+        border_width = 2
         for idx, entry in enumerate(scripts):
             if not isinstance(entry, dict):
                 continue
             name = entry.get('name', 'Unnamed')
             path = entry.get('path', '')
-            btn = tk.Button(
+            border_frame = tk.Frame(
                 self._button_container,
+                bg=theme.PRIMARY_ACCENT,
+                bd=0,
+                highlightthickness=0,
+            )
+            btn = tk.Button(
+                border_frame,
                 text=name,
                 font=(theme.FONT_FAMILY, 14, 'bold'),
                 bg=theme.WIDGET_BG,
@@ -102,15 +118,56 @@ class QuickLaunchPanel(ttk.Frame):
                 activebackground=theme.SECONDARY_ACCENT,
                 activeforeground=theme.FG_COLOR,
                 relief='flat',
-                bd=1,
-                highlightbackground=theme.SECONDARY_ACCENT,
-                highlightthickness=1,
+                bd=0,
+                highlightthickness=0,
                 cursor='hand2',
-                height=2,
+                padx=12,
+                pady=6,
                 command=lambda p=path, i=idx: self._on_button_click(i, p),
             )
-            btn.pack(side=tk.TOP, fill='x', padx=8, pady=(4, 0))
+            btn.pack(padx=border_width, pady=border_width)
             self._buttons[idx] = btn
+            self._btn_frames[idx] = border_frame
+
+        self._reflow_buttons()
+
+    def _on_container_resize(self, event=None):
+        """Re-flow buttons when the container width changes."""
+        if not self._buttons:
+            return
+        width = self._button_container.winfo_width()
+        if width <= 1 or width == self._last_container_width:
+            return
+        self._last_container_width = width
+        self._reflow_buttons()
+
+    def _reflow_buttons(self):
+        """Arrange button frames in a horizontal flow that wraps to new rows."""
+        container_width = self._button_container.winfo_width()
+        if container_width <= 1:
+            self._button_container.after(50, self._reflow_buttons)
+            return
+
+        pad = self._PAD
+        x, y = pad, pad
+        row_height = 0
+
+        for idx in sorted(self._btn_frames.keys()):
+            frame = self._btn_frames[idx]
+            frame.update_idletasks()
+            fw = frame.winfo_reqwidth()
+            fh = frame.winfo_reqheight()
+
+            if x + fw + pad > container_width and x > pad:
+                x = pad
+                y += row_height + pad
+                row_height = 0
+
+            frame.place(x=x, y=y)
+            x += fw + pad
+            row_height = max(row_height, fh)
+
+        self._button_container.configure(height=y + row_height + pad)
 
     # ------------------------------------------------------------------
     # Launch logic
@@ -152,15 +209,21 @@ class QuickLaunchPanel(ttk.Frame):
     def _set_running(self, btn_idx):
         self._running_idx = btn_idx
         btn = self._buttons.get(btn_idx)
+        frame = self._btn_frames.get(btn_idx)
         if btn:
             btn.configure(bg=theme.RUNNING_GREEN, fg='white')
+        if frame:
+            frame.configure(bg=theme.RUNNING_GREEN)
         self._start_polling()
 
     def _clear_running(self):
         if self._running_idx is not None:
             btn = self._buttons.get(self._running_idx)
+            frame = self._btn_frames.get(self._running_idx)
             if btn and btn.winfo_exists():
                 btn.configure(bg=theme.WIDGET_BG, fg=theme.PRIMARY_ACCENT)
+            if frame and frame.winfo_exists():
+                frame.configure(bg=theme.PRIMARY_ACCENT)
             self._running_idx = None
 
     def _start_polling(self):

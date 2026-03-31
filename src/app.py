@@ -686,6 +686,7 @@ class MainApplication:
         
         # Central container for the main content (toolbar + editor + terminal)
         main_content_frame = ttk.Frame(splitter, style='TFrame')
+        self.main_content_frame = main_content_frame
         splitter.add(main_content_frame, weight=1)
         
         # Script toolbar (Run/Hold/Reset/status) -- always visible above the PanedWindow
@@ -845,9 +846,9 @@ class MainApplication:
         if device_panel_container:
             self.device_manager.create_all_gui_components(device_panel_container)
 
-        # --- Quick Launch Panel (scripting refs wired up after create_scripting_interface) ---
-        self.quick_launch_panel = QuickLaunchPanel(left_bar_frame, self.shared_gui_refs)
-        self.quick_launch_panel.pack(side=tk.TOP, fill='x', expand=False, pady=(8, 0))
+        # --- Quick Launch Panel (in center panel, between toolbar and editor/terminal) ---
+        self.quick_launch_panel = QuickLaunchPanel(self.main_content_frame, self.shared_gui_refs)
+        self.quick_launch_panel.pack(side=tk.TOP, fill='x', expand=False, pady=(4, 0), before=self.content_paned)
         self.quick_launch_panel.set_scripting_refs(self.scripting_gui_refs)
 
         # Set device pane width based on saved width OR 30% of window width
